@@ -3,10 +3,11 @@
 //!
 //!   ocoeco discover [--kind KIND] [--json]   every marked project, found and confirmed by its mark
 //!   ocoeco harvest --out DIR                  their shared tables, each row with its provenance
+//!   ocoeco gather --repo OWNER/REPO --out DIR its activity, releases and CI - data made by work
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, harvest};
+use ocoeco::{discover, gather, harvest};
 
 #[derive(Parser)]
 #[command(
@@ -34,11 +35,25 @@ enum Cmd {
         #[arg(long)]
         out: std::path::PathBuf,
     },
+    /// Gather a repository's activity, releases and CI into DIR - data made by work
+    Gather {
+        #[arg(long)]
+        repo: String,
+        #[arg(long)]
+        out: std::path::PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
     let gh = discover::GitHub::new();
     match Cli::parse().cmd {
+        Cmd::Gather { repo, out } => {
+            let [a, r, c] = gather::gather(&gh, &repo, &out)?;
+            println!(
+                "{repo}: {a} days of activity, {r} releases, {c} workflows -> {}",
+                out.display()
+            );
+        }
         Cmd::Discover { kind, json } => {
             let found = discover::discover(&[(&gh, &gh)], kind.as_deref())?;
             if json {

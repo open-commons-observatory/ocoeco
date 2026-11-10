@@ -70,7 +70,8 @@ impl GitHub {
         }
     }
 
-    fn get(&self, url: &str) -> Result<Option<String>> {
+    /// A GET on GitHub's API (None for 404), with the token when there is one.
+    pub fn get(&self, url: &str) -> Result<Option<String>> {
         let mut r = ureq::get(url)
             .set("User-Agent", "oco-engine")
             .set("Accept", "application/vnd.github+json");
