@@ -1,33 +1,11 @@
 name: gather
-# ocoeco's gatherers, for any repository: its activity, releases and CI, written into its own
-# oco/gathered/ as light tad - data made by work (SPEC.md section 7). Call it from a repository:
-#
-#   on: { schedule: [{ cron: "41 3 * * *" }], workflow_dispatch: {} }
-#   permissions: { contents: write }
-#   jobs: { gather: { uses: open-commons-observatory/ocoeco/.github/workflows/gather.yml@main } }
+# ocoeco gathers this repository's activity, releases and CI into oco/gathered/ - data made by work.
 on:
-  workflow_call:
-    inputs:
-      out:
-        type: string
-        default: oco/gathered
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
   gather:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: ocoeco
-        run: cargo install --locked --git https://github.com/open-commons-observatory/ocoeco ocoeco
-      - name: gather
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ocoeco gather --repo "${{ github.repository }}" --out "${{ inputs.out }}"
-      - name: commit what changed
-        run: |
-          git add "${{ inputs.out }}"
-          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
-          git -c user.name="ocoeco gather" -c user.email="actions@users.noreply.github.com" commit -m "data: gathered by ocoeco"
-          git push
+    uses: open-commons-observatory/ocoeco/.github/workflows/gather.yml@main
