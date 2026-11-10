@@ -183,3 +183,8 @@ the source: a partly translated page is still a whole page.
 the root keeps the old addresses as redirects to the default language. Every page declares its
 `lang` and its translations (`hreflang`), and offers the others by their own names (English ·
 Русский) - never flags, which stand for countries, not languages.
+
+**Whose translation.** A translation applies only to rows of the project that wrote it: each project
+translates its own data, in its own repository; a lens translates only its own text (in the `lenses`
+table the column is the path in `lens.toml`: `lens.title`, `view.features.title`). Nobody translates
+another project's data by hand - the lenses use what the projects' own translations give.
