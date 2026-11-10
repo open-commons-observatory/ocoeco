@@ -23,6 +23,15 @@ pub fn activity(dates: &[String]) -> Vec<Value> {
         .collect()
 }
 
+/// Whether a commit is automation's own - a bot's, or one a workflow made (the gatherer's and the
+/// harvest's among them): a heartbeat counts people's and agents' work, never a tool's bookkeeping.
+pub fn is_automation(commit: &Value) -> bool {
+    let email = commit["commit"]["author"]["email"].as_str().unwrap_or("");
+    commit["author"]["type"].as_str() == Some("Bot")
+        || email == "actions@users.noreply.github.com"
+        || email.ends_with("[bot]@users.noreply.github.com")
+}
+
 /// A GitHub releases answer -> { id: tag, name, published, link }.
 pub fn releases(text: &str) -> Vec<Value> {
     let v: Value = serde_json::from_str(text).unwrap_or(Value::Null);
@@ -113,9 +122,10 @@ pub fn gather(gh: &GitHub, repo: &str, out: &Path) -> Result<[usize; 3]> {
             .as_array()
             .into_iter()
             .flatten()
+            .filter(|c| !is_automation(c))
             .filter_map(|c| c["commit"]["committer"]["date"].as_str().map(String::from))
             .collect();
-        let last = batch.len() < 100;
+        let last = v.as_array().map_or(0, Vec::len) < 100;
         dates.extend(batch);
         if last {
             break;
@@ -191,5 +201,18 @@ mod tests {
             lines(vec![json!({"id": "b"}), json!({"id": "a"})]),
             "{\"id\":\"a\"}\n{\"id\":\"b\"}\n"
         );
+    }
+
+    #[test]
+    fn automation_is_not_work() {
+        let person = json!({"commit": {"author": {"email": "a@b.c"}}, "author": {"type": "User"}});
+        let gatherer = json!({"commit": {"author": {"email": "actions@users.noreply.github.com"}}, "author": null});
+        let bot = json!({"commit": {"author": {"email": "41898282+github-actions[bot]@users.noreply.github.com"}}, "author": {"type": "Bot"}});
+        assert!(!is_automation(&person));
+        assert!(
+            is_automation(&gatherer),
+            "the gatherer's own commit is not activity"
+        );
+        assert!(is_automation(&bot));
     }
 }
