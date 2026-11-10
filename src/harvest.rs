@@ -86,7 +86,17 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
             }
         }
         for (table, path) in &mark.exports {
-            match source.read(&c.found, path) {
+            // a table may live on another branch of its repository: path@branch
+            let (file, branch) = path.split_once('@').unwrap_or((path.as_str(), ""));
+            let at = if branch.is_empty() {
+                c.found.clone()
+            } else {
+                crate::discover::Found {
+                    branch: branch.to_string(),
+                    ..c.found.clone()
+                }
+            };
+            match source.read(&at, file) {
                 Ok(Some(text)) => {
                     let (rows, bad) = tag_rows(&text, id);
                     if bad > 0 {
@@ -192,6 +202,35 @@ mod tests {
         assert_eq!(lens["id"], "o/lens");
         assert_eq!(lens["lens"]["lens"]["title"], "Phones");
         assert_eq!(lens["lens"]["view"][0]["kind"], "matrix");
+        assert!(h.problems.is_empty());
+    }
+
+    struct OnDataBranch;
+    impl Source for OnDataBranch {
+        fn read(&self, f: &crate::discover::Found, path: &str) -> anyhow::Result<Option<String>> {
+            Ok((f.branch == "oco-data" && path == "oco/gathered/ci.json")
+                .then(|| "{\"id\":\"CI\"}\n".to_string()))
+        }
+    }
+
+    #[test]
+    fn a_table_is_read_from_the_branch_its_mark_names() {
+        let mark = crate::mark::Mark::parse("schema = 1\n[project]\nid = \"o/r\"\nname = \"R\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nci = \"oco/gathered/ci.json@oco-data\"\n").unwrap();
+        let found = crate::discover::Found {
+            platform: "fake".into(),
+            repo: "o/r".into(),
+            branch: "main".into(),
+            url: String::new(),
+        };
+        let h = harvest(
+            &[crate::discover::Candidate {
+                found,
+                mark: Some(mark),
+                problem: None,
+            }],
+            &OnDataBranch,
+        );
+        assert_eq!(h.tables["ci"].len(), 1, "read from oco-data, not from main");
         assert!(h.problems.is_empty());
     }
 }

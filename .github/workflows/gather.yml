@@ -1,6 +1,6 @@
 name: gather
-# ocoeco's gatherers, for any repository: its activity, releases and CI, written into its own
-# oco/gathered/ as light tad - data made by work (SPEC.md section 7). Other repositories call it:
+# ocoeco's gatherers, for any repository: its activity, releases and CI, written into oco/gathered/
+# on its own oco-data branch as light tad - data made by work (SPEC.md section 7). Other repositories call it:
 #
 #   on: { schedule: [{ cron: "41 3 * * *" }], workflow_dispatch: {} }
 #   permissions: { contents: write }
@@ -13,6 +13,9 @@ on:
       out:
         type: string
         default: oco/gathered
+      branch:
+        type: string
+        default: oco-data
   schedule:
     - cron: "41 3 * * *"
   workflow_dispatch:
@@ -29,11 +32,16 @@ jobs:
       - name: gather
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ocoeco gather --repo "${{ github.repository }}" --out "${{ inputs.out || 'oco/gathered' }}"
-      - name: commit what changed
+        run: ocoeco gather --repo "${{ github.repository }}" --out "$RUNNER_TEMP/gathered"
+      - name: write it to the data branch
+        # gathered data lives on its own branch: the default branch stays the history of the work
+        # (and a protected one is never touched), and the gatherer's commits are not counted as work
         run: |
-          out="${{ inputs.out || 'oco/gathered' }}"
+          branch="${{ inputs.branch || 'oco-data' }}"; out="${{ inputs.out || 'oco/gathered' }}"
+          if git fetch -q origin "$branch" 2>/dev/null; then git checkout -q -B "$branch" FETCH_HEAD
+          else git checkout -q --orphan "$branch"; git rm -rfq . >/dev/null 2>&1 || true; fi
+          mkdir -p "$out" && cp "$RUNNER_TEMP"/gathered/*.json "$out"/
           git add "$out"
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
-          git -c user.name="ocoeco gather" -c user.email="actions@users.noreply.github.com" commit -m "data: gathered by ocoeco"
-          git push
+          git -c user.name="ocoeco gather" -c user.email="actions@users.noreply.github.com" commit -q -m "data: gathered by ocoeco"
+          git push -q origin "$branch"
