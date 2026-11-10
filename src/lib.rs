@@ -3,4 +3,5 @@
 pub mod discover;
 pub mod gather;
 pub mod harvest;
+pub mod join;
 pub mod mark;

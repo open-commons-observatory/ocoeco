@@ -16,6 +16,16 @@ builds, tests, releases, measurements - never kept by hand. Data made by work is
 
 The specification - the principle, the tad format, the mark, the standard tables, propagation, chaining and gatherers - is [SPEC.md](SPEC.md).
 
+## Joining
+
+```sh
+cargo install --git https://github.com/open-commons-observatory/ocoeco ocoeco
+ocoeco init --id OWNER/REPO --name "Name: what it is for" --kind tool
+ocoeco check
+```
+
+and the topics `oco-project` and `oco-kind-<kind>` on GitHub. See [SPEC.md](SPEC.md), section 10.
+
 ocoeco's own state is kept the same way: [`data/`](data) holds its backlog, milestones and concepts,
 which the observatory shows as its path. tad-engine (creation-guidelines) stays as it is, its formats
 unchanged; ocoeco is the working system from now on.

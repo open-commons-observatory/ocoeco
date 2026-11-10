@@ -4,10 +4,12 @@
 //!   ocoeco discover [--kind KIND] [--json]   every marked project, found and confirmed by its mark
 //!   ocoeco harvest --out DIR                  their shared tables, each row with its provenance
 //!   ocoeco gather --repo OWNER/REPO --out DIR its activity, releases and CI - data made by work
+//!   ocoeco init --id OWNER/REPO --name NAME --kind KIND   what a repository needs to join, written here
+//!   ocoeco check                               this repository as the harvest would read it
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, gather, harvest};
+use ocoeco::{discover, gather, harvest, join};
 
 #[derive(Parser)]
 #[command(
@@ -42,11 +44,79 @@ enum Cmd {
         #[arg(long)]
         out: std::path::PathBuf,
     },
+    /// Write what this repository needs to join: its mark, the gatherer's caller, a place for its records
+    Init {
+        /// owner/repo
+        #[arg(long)]
+        id: String,
+        /// "Name: what it is for"
+        #[arg(long)]
+        name: String,
+        /// observatory, canon, lens, picture, conveyor, device-lab, tool or research
+        #[arg(long)]
+        kind: String,
+        /// A short name for navigation
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long, default_value = "open-commons-observatory")]
+        parent: String,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+    /// Read this repository as the harvest would: its mark and every table it shares
+    Check {
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
     let gh = discover::GitHub::new();
     match Cli::parse().cmd {
+        Cmd::Init {
+            id,
+            name,
+            kind,
+            title,
+            parent,
+            dir,
+        } => {
+            let today = gather::day(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64 / 86_400)
+                    .unwrap_or(0),
+            );
+            let j = join::Join {
+                id,
+                name,
+                title,
+                kind,
+                parent,
+            };
+            let written = join::init(&dir, &j, &today)?;
+            for f in &written {
+                println!("written: {f}");
+            }
+            if written.is_empty() {
+                println!("nothing to write: everything is already here");
+            }
+            println!("next: give the repository the topics oco-project and oco-kind-{} (the observatory finds it by them),", j.kind);
+            println!("      write its backlog and milestones in oco/, and run `ocoeco check`.");
+        }
+        Cmd::Check { dir } => {
+            let (well, problems) = join::check(&dir)?;
+            for w in &well {
+                println!("ok   {w}");
+            }
+            for p in &problems {
+                println!("FAIL {p}");
+            }
+            if !problems.is_empty() {
+                anyhow::bail!("{} problems: the harvest would report them", problems.len());
+            }
+            println!("all is well: the harvest would read this repository");
+        }
         Cmd::Gather { repo, out } => {
             let [a, r, c] = gather::gather(&gh, &repo, &out)?;
             println!(
