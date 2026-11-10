@@ -68,6 +68,23 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
             "parent": mark.project.parent, "link": c.found.url, "platform": c.found.platform,
             "tables": mark.exports.keys().cloned().collect::<Vec<_>>()}),
         );
+        // a lens declares its family and views in lens.toml: one row of the lenses table
+        if mark.project.kind == "lens" {
+            match source.read(&c.found, "lens.toml") {
+                Ok(Some(text)) => match toml::from_str::<toml::Value>(&text) {
+                    Ok(v) => {
+                        let mut row = Map::new();
+                        row.insert("id".into(), json!(id));
+                        row.insert("project".into(), json!(id));
+                        row.insert("lens".into(), serde_json::to_value(v).unwrap_or(Value::Null));
+                        h.tables.entry("lenses".into()).or_default().push(row);
+                    }
+                    Err(e) => h.problems.push(json!({"id": format!("{id}:lens"), "project": id, "problem": format!("lens.toml does not read: {e}")})),
+                },
+                Ok(None) => h.problems.push(json!({"id": format!("{id}:lens"), "project": id, "problem": "a lens without lens.toml"})),
+                Err(e) => h.problems.push(json!({"id": format!("{id}:lens"), "project": id, "problem": format!("{e:#}")})),
+            }
+        }
         for (table, path) in &mark.exports {
             match source.read(&c.found, path) {
                 Ok(Some(text)) => {
@@ -145,5 +162,36 @@ mod tests {
         let (rows, bad) = tag_rows("", "o/r");
         assert!(rows.is_empty());
         assert_eq!(bad, 0);
+    }
+
+    struct Lensy;
+    impl Source for Lensy {
+        fn read(&self, _: &crate::discover::Found, path: &str) -> anyhow::Result<Option<String>> {
+            Ok((path == "lens.toml").then(|| "schema = 1\n[lens]\ntitle = \"Phones\"\n[family]\nowners = [\"o\"]\n[[view]]\nid = \"features\"\nkind = \"matrix\"\n".to_string()))
+        }
+    }
+
+    #[test]
+    fn a_lens_becomes_a_row_of_lenses() {
+        let mark = crate::mark::Mark::parse("schema = 1\n[project]\nid = \"o/lens\"\nname = \"Phones\"\nkind = \"lens\"\nparent = \"o\"\n").unwrap();
+        let found = crate::discover::Found {
+            platform: "fake".into(),
+            repo: "o/lens".into(),
+            branch: "main".into(),
+            url: String::new(),
+        };
+        let h = harvest(
+            &[crate::discover::Candidate {
+                found,
+                mark: Some(mark),
+                problem: None,
+            }],
+            &Lensy,
+        );
+        let lens = &h.tables["lenses"][0];
+        assert_eq!(lens["id"], "o/lens");
+        assert_eq!(lens["lens"]["lens"]["title"], "Phones");
+        assert_eq!(lens["lens"]["view"][0]["kind"], "matrix");
+        assert!(h.problems.is_empty());
     }
 }
