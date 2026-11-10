@@ -58,6 +58,13 @@ pub fn parse_github_search(text: &str) -> Result<Vec<Found>> {
         .unwrap_or_default())
 }
 
+/// The Accept header a GitHub address wants: the API's own media type for the API, none for raw
+/// files - the raw file server answers 501 to an empty file asked for as the API's type.
+pub fn accept_for(url: &str) -> Option<&'static str> {
+    url.starts_with("https://api.github.com/")
+        .then_some("application/vnd.github+json")
+}
+
 /// GitHub: search by topic, read files raw. A token ($GITHUB_TOKEN) raises the rate limits.
 pub struct GitHub {
     token: Option<String>,
@@ -72,9 +79,10 @@ impl GitHub {
 
     /// A GET on GitHub's API (None for 404), with the token when there is one.
     pub fn get(&self, url: &str) -> Result<Option<String>> {
-        let mut r = ureq::get(url)
-            .set("User-Agent", "oco-engine")
-            .set("Accept", "application/vnd.github+json");
+        let mut r = ureq::get(url).set("User-Agent", "ocoeco");
+        if let Some(a) = accept_for(url) {
+            r = r.set("Accept", a);
+        }
         if let Some(t) = &self.token {
             r = r.set("Authorization", &format!("Bearer {t}"));
         }
@@ -218,6 +226,19 @@ mod tests {
         assert!(
             c[2].mark.is_none() && c[2].problem.is_some(),
             "a broken mark is reported, not dropped"
+        );
+    }
+
+    #[test]
+    fn the_api_type_goes_only_to_the_api() {
+        assert_eq!(
+            accept_for("https://api.github.com/search/repositories?q=x"),
+            Some("application/vnd.github+json")
+        );
+        assert_eq!(
+            accept_for("https://raw.githubusercontent.com/o/r/main/oco/gathered/releases.json"),
+            None,
+            "raw files answer 501 to it when empty"
         );
     }
 }
