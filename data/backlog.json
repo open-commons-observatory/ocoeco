@@ -1,0 +1,9 @@
+{"id":"chaining","title":"Chaining: one project's data feeding another's","status":"in-progress","note":"Provenance on every row works; milestones already read other projects' data (device tests); next: declared chains between projects.","opened":"2026-11-10"}
+{"id":"core-moved","title":"The core moved into ocoeco","status":"open","note":"Mark, discovery and harvest move from the observatory's engine into ocoeco's Rust crates; the engine keeps the face.","opened":"2026-11-10"}
+{"id":"everywhere","title":"Every project gathers by itself","status":"open","note":"The principle lived: no project's data kept by hand.","opened":"2026-11-10"}
+{"id":"formats","title":"The formats and protocols","status":"in-progress","note":"tad (text as data) is the format ocoeco speaks: tables as JSON lines with a schema, canonical form, verification; the mark; to be specified here.","opened":"2026-11-10"}
+{"id":"gatherers","title":"Gatherers: data made by work","status":"in-progress","note":"Today ad hoc (feeds, test imports); next: standard gatherers for commits, CI results, tests and releases, as hooks and CI jobs.","opened":"2026-11-10"}
+{"id":"principle","title":"The principle, written","status":"in-progress","note":"Data is produced by projects as they are developed and as they function - never by hand.","opened":"2026-11-10"}
+{"id":"propagation","title":"Propagation: the mark, discovery, the harvest","status":"done","note":"Working today in the observatory's engine; every row carries its project.","opened":"2026-11-10"}
+{"id":"rhizcut","title":"ocoeco as a rhizcut in every repository","status":"open","note":"Owned, patchable, sending fixes back; needs rhizoid v1.","opened":"2026-11-10"}
+{"id":"rust-machinery","title":"tad's machinery in Rust","status":"open","note":"Verify, canonical form, schema and rendering - formats unchanged.","opened":"2026-11-10"}

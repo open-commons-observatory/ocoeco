@@ -1,0 +1,14 @@
+# This repository's mark: the observatory's information ecosystem.
+schema = 1
+
+[project]
+id = "open-commons-observatory/ocoeco"
+name = "ocoeco: the information ecosystem - data made by work, chained and propagated"
+title = "ocoeco"
+kind = "tool"
+parent = "open-commons-observatory"
+
+[exports]
+backlog = "data/backlog.json"
+milestones = "data/milestones.json"
+concepts = "data/concepts.json"
