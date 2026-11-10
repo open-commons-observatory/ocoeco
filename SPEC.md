@@ -100,3 +100,59 @@ edited by hand; to change it, change the source.
 Today's gatherers (to become standard parts of ocoeco): the linux-phone-oco/docs feeds (wiki claims,
 kernel activity, shell releases - weekly), and devlab's test results (written into test_results and
 test_runs after every run).
+
+## 8. Lenses
+
+The observatory looks through **lenses**. A lens is a repository of its own, marked with kind `lens`,
+that declares a family of projects and the views that show it - as data, in `lens.toml`. The
+observatory discovers lenses as it discovers projects and renders every lens with the same engine;
+anyone can make a lens of their own family of projects, or fork one, without touching the observatory.
+
+```toml
+schema = 1
+
+[lens]
+title = "Linux Phones"
+goal = "phones running Linux, as good as Android - and how close we are"
+
+[family]                              # the projects this lens gathers - any of:
+owners = ["linux-phone-oco"]          # every marked project these owners have
+topics = []                           # every marked project with one of these topics
+projects = ["creation-guidelines/lab-agent"]   # and these, by id
+
+[[view]]
+id = "how-close"
+title = "How close we are"
+kind = "path"                         # the path of a subject, with what the work says
+subject = "linux-phones"
+
+[[view]]
+id = "features"
+title = "Features"
+kind = "matrix"                       # rows x columns of statuses, columns ranked best first
+table = "feature_support"
+rows = "features"                     # the table naming the rows (id, name, category)
+row_key = "feature_id"
+columns = "platforms"                 # the table naming the columns (id, name)
+column_key = "platform_id"
+```
+
+**The view vocabulary** - the components every lens is drawn from:
+
+| kind | shows |
+|---|---|
+| `path` | a subject's milestones on the three horizons, readiness earned in order, what the work says |
+| `matrix` | statuses of rows against columns, rows grouped by category, columns ranked best first |
+| `families` | a matrix whose columns are groups of another table (devices by their SoC) |
+| `runs` | test runs as bars of passed, failed and skipped |
+| `backlog` | the family's backlog: open, in progress, done |
+| `log` | the family's session logs |
+| `ideas` | the family's concepts and decisions |
+| `heartbeat` | commits per day, releases and CI - made by work |
+| `cards` | any table as cards: a title field, a text field, a link field |
+
+The vocabulary grows only from what real lenses need.
+
+**Curated and discovered.** The observatory curates: its own `curated` table (lens id, order) puts
+lenses in its navigation. Every other lens it finds is listed among the discovered ones, rendered the
+same way. The observatory's own lenses are curated - and built exactly like everyone else's.
