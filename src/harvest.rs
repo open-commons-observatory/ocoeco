@@ -139,4 +139,11 @@ mod tests {
             .collect();
         assert_eq!(ids, ["c", "a", "b"], "a/a's rows first, then z/z's by id");
     }
+
+    #[test]
+    fn an_empty_table_is_zero_rows_not_a_problem() {
+        let (rows, bad) = tag_rows("", "o/r");
+        assert!(rows.is_empty());
+        assert_eq!(bad, 0);
+    }
 }
