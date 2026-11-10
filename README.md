@@ -14,6 +14,8 @@ builds, tests, releases, measurements - never kept by hand. Data made by work is
 - **chaining**: one project's data feeding another's, every row carrying where it came from;
 - **propagation**: discovery of marked projects and the harvest of their data into the observatory.
 
+The specification - the principle, the tad format, the mark, the standard tables, propagation, chaining and gatherers - is [SPEC.md](SPEC.md).
+
 ocoeco's own state is kept the same way: [`data/`](data) holds its backlog, milestones and concepts,
 which the observatory shows as its path. tad-engine (creation-guidelines) stays as it is, its formats
 unchanged; ocoeco is the working system from now on.
