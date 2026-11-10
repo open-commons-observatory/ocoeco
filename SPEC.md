@@ -156,3 +156,30 @@ The vocabulary grows only from what real lenses need.
 **Curated and discovered.** The observatory curates: its own `curated` table (lens id, order) puts
 lenses in its navigation. Every other lens it finds is listed among the discovered ones, rendered the
 same way. The observatory's own lenses are curated - and built exactly like everyone else's.
+
+## 9. Languages
+
+Text comes in two kinds, and each is translated where it belongs.
+
+**The interface** (headings, navigation, legends) belongs to the face that renders it, and is kept in
+message catalogs - Project Fluent (`i18n/<language>.ftl`), which handles each language's grammar
+(Russian plural forms: 1 коммит, 2 коммита, 5 коммитов).
+
+**The data** belongs to the projects. Its translations never change the source tables: a project keeps
+them in its own `translations` table, harvested like any other:
+
+| column | what it says |
+|---|---|
+| id | `<table>:<row>:<column>:<language>` |
+| table, row, column | the text translated |
+| lang | the language (a BCP 47 tag: `ru`, `uk`, `de`) |
+| text | the translation |
+| by | `human` or `machine` - an agent's translation is never passed off as a person's |
+
+A project's source language is its mark's `lang` (default `en`). Anything not translated falls back to
+the source: a partly translated page is still a whole page.
+
+**The site** is the same static files once per language, under `/<language>/` with identical paths;
+the root keeps the old addresses as redirects to the default language. Every page declares its
+`lang` and its translations (`hreflang`), and offers the others by their own names (English ·
+Русский) - never flags, which stand for countries, not languages.
