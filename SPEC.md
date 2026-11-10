@@ -53,7 +53,9 @@ Shared tables use standard names so they join across projects; more columns are 
 
 | table | columns | what it says |
 |---|---|---|
+| `idea` | id, ord, kind (lead, problem, idea, picture, limit, start), heading, text | why it exists, for anyone - an ordered piece of writing |
 | `backlog` | id, title, status (open, in-progress, done), note, opened | the work ahead and done |
+| `workings` | id, what, kind (tool, check, gatherer, test, practice), serves, how, why, evidence, uses | how each step is delivered and proven |
 | `milestones` | id, subject, ord, title, horizon (working, perfection, ongoing), readiness (1-9), criteria, why | the path |
 | `session_log` | id, entry_date, title, done, considered, rejected | how the work went |
 | `concepts` | id, name, summary, why | the ideas |
@@ -206,3 +208,21 @@ ocoeco check                                                              # the 
 then its topics on GitHub, `oco-project` and `oco-kind-<kind>`, by which the observatory finds it.
 `init` never overwrites what is there. After that the repository keeps its own backlog, milestones
 and session log in `oco/` - its path fills from them - and its work is gathered daily.
+
+## 11. A project, whole
+
+A project tells four things about itself, each in its own table, each leading to the next:
+
+1. **Its idea** - why it exists, written by the project for anyone: it starts from the reader's own
+   experience, names the problem, says the idea, gives a picture, admits its limits, and says where it
+   stands. An ordered piece of writing (`idea`), not a list of terms; a lens gathers and shows it and
+   never writes it.
+2. **Its path** - what it must reach: milestones on three horizons, each with criteria (`milestones`).
+3. **Its workings** - how each step is delivered and proven (`workings`): what serves which milestone,
+   how, why we care, and what evidence it produces. A working may be a tool, a check, a gatherer, a
+   test or a practice, and may point at another project (`uses`) - a shared tool is a project that
+   others' workings name.
+4. **Its work** - what actually happened: the backlog, the log, and what was gathered.
+
+How a project works is therefore not a manifest beside it but part of it, tied to its goals - and the
+observatory is one more project that tells the same four things.
