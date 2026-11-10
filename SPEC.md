@@ -193,3 +193,16 @@ the root keeps the old addresses as redirects to the default language. Every pag
 translates its own data, in its own repository; a lens translates only its own text (in the `lenses`
 table the column is the path in `lens.toml`: `lens.title`, `view.features.title`). Nobody translates
 another project's data by hand - the lenses use what the projects' own translations give.
+
+## 10. Joining
+
+A repository joins in three steps, the first two done by one command:
+
+```sh
+ocoeco init --id OWNER/REPO --name "Name: what it is for" --kind tool   # the mark, the gatherer's caller, oco/ for its records
+ocoeco check                                                              # the repository, as the harvest would read it
+```
+
+then its topics on GitHub, `oco-project` and `oco-kind-<kind>`, by which the observatory finds it.
+`init` never overwrites what is there. After that the repository keeps its own backlog, milestones
+and session log in `oco/` - its path fills from them - and its work is gathered daily.
