@@ -58,6 +58,11 @@ pub fn parse_github_search(text: &str) -> Result<Vec<Found>> {
         .unwrap_or_default())
 }
 
+/// Whether an address is GitHub's API, which alone gets the API's headers: its media type, the token.
+pub fn is_api(url: &str) -> bool {
+    url.starts_with("https://api.github.com/")
+}
+
 /// The Accept header a GitHub address wants: the API's own media type for the API, none for raw
 /// files - the raw file server answers 501 to an empty file asked for as the API's type.
 pub fn accept_for(url: &str) -> Option<&'static str> {
@@ -83,7 +88,11 @@ impl GitHub {
         if let Some(a) = accept_for(url) {
             r = r.set("Accept", a);
         }
-        if let Some(t) = &self.token {
+        // the token, like the media type, is for the API only: raw files of public repositories need
+
+        // neither, and the raw file server answers 501 to an empty file asked for with them
+
+        if let (Some(t), true) = (&self.token, is_api(url)) {
             r = r.set("Authorization", &format!("Bearer {t}"));
         }
         match r.call() {
