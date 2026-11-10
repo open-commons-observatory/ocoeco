@@ -6,6 +6,7 @@ id = "open-commons-observatory/ocoeco"
 name = "ocoeco: the information ecosystem - data made by work, chained and propagated"
 title = "ocoeco"
 kind = "tool"
+order = 2
 parent = "open-commons-observatory"
 
 [exports]
