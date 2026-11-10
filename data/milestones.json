@@ -1,6 +1,6 @@
 {"id":"eco-chains","subject":"ocoeco","ord":4,"title":"Data chains","horizon":"perfection","readiness":8,"criteria":"backlog:chaining","why":"One project's data feeds another's, traceably."}
 {"id":"eco-lived","subject":"ocoeco","ord":7,"title":"The principle lived","horizon":"ongoing","readiness":9,"criteria":"backlog:everywhere","why":"Every project gathers by itself."}
-{"id":"eco-made-by-work","subject":"ocoeco","ord":3,"title":"Data made by work, not by hands","horizon":"working","readiness":7,"criteria":"backlog:gatherers","why":"Commits, CI, tests and releases become data."}
+{"id":"eco-made-by-work","subject":"ocoeco","ord":3,"title":"Data made by work, not by hands","horizon":"working","readiness":7,"criteria":"backlog:gatherers backlog:gatherers-tests","why":"Commits, CI, tests and releases become data."}
 {"id":"eco-one-language","subject":"ocoeco","ord":1,"title":"One language for all data","horizon":"working","readiness":6,"criteria":"backlog:principle backlog:formats","why":"The principle and the formats every project speaks."}
 {"id":"eco-own-core","subject":"ocoeco","ord":5,"title":"Its own core, in Rust","horizon":"perfection","readiness":8,"criteria":"backlog:core-moved backlog:rust-machinery","why":"The machinery of the whole ecosystem in one place."}
 {"id":"eco-propagates","subject":"ocoeco","ord":2,"title":"Data rises by itself","horizon":"working","readiness":7,"criteria":"backlog:propagation","why":"Marked projects found, their data gathered with its provenance."}
