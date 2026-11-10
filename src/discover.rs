@@ -58,6 +58,12 @@ pub fn parse_github_search(text: &str) -> Result<Vec<Found>> {
         .unwrap_or_default())
 }
 
+/// Where a file of a repository is read: GitHub's contents API, asked for the raw file - current and
+/// authoritative (the raw file server caches for minutes, and answered some runners 501 for empty files).
+pub fn contents_url(repo: &str, branch: &str, path: &str) -> String {
+    format!("https://api.github.com/repos/{repo}/contents/{path}?ref={branch}")
+}
+
 /// Whether an address is GitHub's API, which alone gets the API's headers: its media type, the token.
 pub fn is_api(url: &str) -> bool {
     url.starts_with("https://api.github.com/")
@@ -84,8 +90,13 @@ impl GitHub {
 
     /// A GET on GitHub's API (None for 404), with the token when there is one.
     pub fn get(&self, url: &str) -> Result<Option<String>> {
+        self.get_as(url, accept_for(url))
+    }
+
+    /// A GET asking for the given media type (None for 404).
+    pub fn get_as(&self, url: &str, accept: Option<&str>) -> Result<Option<String>> {
         let mut r = ureq::get(url).set("User-Agent", "ocoeco");
-        if let Some(a) = accept_for(url) {
+        if let Some(a) = accept {
             r = r.set("Accept", a);
         }
         // the token, like the media type, is for the API only: raw files of public repositories need
@@ -134,10 +145,10 @@ impl Outlet for GitHub {
 
 impl Source for GitHub {
     fn read(&self, found: &Found, path: &str) -> Result<Option<String>> {
-        self.get(&format!(
-            "https://raw.githubusercontent.com/{}/{}/{}",
-            found.repo, found.branch, path
-        ))
+        self.get_as(
+            &contents_url(&found.repo, &found.branch, path),
+            Some("application/vnd.github.raw"),
+        )
     }
 }
 
@@ -249,5 +260,15 @@ mod tests {
             None,
             "raw files answer 501 to it when empty"
         );
+    }
+
+    #[test]
+    fn files_are_read_through_the_api() {
+        let u = contents_url("o/r", "main", "oco/gathered/releases.json");
+        assert_eq!(
+            u,
+            "https://api.github.com/repos/o/r/contents/oco/gathered/releases.json?ref=main"
+        );
+        assert!(is_api(&u), "so it is current, and the token applies");
     }
 }
