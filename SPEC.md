@@ -231,3 +231,6 @@ observatory is one more project that tells the same four things.
 many of the four are told and what is still to tell (`essence: N of 4 told`): an idea with no opening,
 no limit or no word on where it stands; a path not set; a step nothing delivers; a working that
 serves a step the repository does not have.
+
+A project's rows are recorded with `ocoeco note TABLE --id ID --set FIELD=VALUE [--add FIELD=TEXT]`:
+one row added or updated, checked against this format, every other line left exactly as it was.
