@@ -165,6 +165,9 @@ fn main() -> Result<()> {
             for l in &lacks {
                 println!("     - {l}");
             }
+            for k in join::unexported(&dir)? {
+                println!("kept but not exported (the harvest never sees it): {k}");
+            }
             let (words, clashes) = join::vocabulary(&dir)?;
             println!("vocabulary: {words} words of its own, beside ocoeco's shared words");
             for c in &clashes {
