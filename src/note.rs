@@ -60,145 +60,15 @@ impl Row {
     }
 }
 
-/// The shared format of a table: its fields in order, those that must not be empty, the values some
-/// may take, and the field a new row is dated by.
-struct Shape {
-    table: &'static str,
-    order: &'static [&'static str],
-    required: &'static [&'static str],
-    enums: &'static [(&'static str, &'static [&'static str])],
-    dated: Option<&'static str>,
+/// ocoeco's shared language: the tables every project may keep, declared as data in language.toml (a
+/// tad declaration). Each table is a minimum; a project's rows may carry more fields.
+pub fn language() -> &'static tad::Declaration {
+    static LANGUAGE: std::sync::OnceLock<tad::Declaration> = std::sync::OnceLock::new();
+    LANGUAGE.get_or_init(|| {
+        toml::from_str(include_str!("../language.toml"))
+            .expect("language.toml is a tad declaration")
+    })
 }
-
-const SHAPES: &[Shape] = &[
-    Shape {
-        table: "backlog",
-        order: &["id", "title", "status", "note", "opened"],
-        required: &["title", "status"],
-        enums: &[("status", &["open", "in-progress", "done"])],
-        dated: Some("opened"),
-    },
-    Shape {
-        table: "decisions",
-        order: &[
-            "id", "date", "decision", "why", "rejected", "about", "research", "sources",
-        ],
-        required: &["date", "decision", "why"],
-        enums: &[],
-        dated: Some("date"),
-    },
-    Shape {
-        table: "concepts",
-        order: &["id", "name", "summary", "why"],
-        required: &["name", "summary"],
-        enums: &[],
-        dated: None,
-    },
-    Shape {
-        table: "session_log",
-        order: &[
-            "id",
-            "entry_date",
-            "title",
-            "done",
-            "considered",
-            "rejected",
-        ],
-        required: &["entry_date", "title", "done"],
-        enums: &[],
-        dated: Some("entry_date"),
-    },
-    Shape {
-        table: "workings",
-        order: &[
-            "id", "what", "kind", "serves", "how", "why", "evidence", "uses",
-        ],
-        required: &["what", "kind", "serves", "how"],
-        enums: &[("kind", &["tool", "check", "gatherer", "test", "practice"])],
-        dated: None,
-    },
-    Shape {
-        table: "idea",
-        order: &["id", "ord", "kind", "heading", "text"],
-        required: &["ord", "kind", "text"],
-        enums: &[(
-            "kind",
-            &["lead", "problem", "idea", "picture", "limit", "start"],
-        )],
-        dated: None,
-    },
-    Shape {
-        table: "vocabulary",
-        order: &["id", "term", "means", "not", "see", "decided"],
-        required: &["term", "means"],
-        enums: &[],
-        dated: None,
-    },
-    Shape {
-        table: "manual_work",
-        order: &[
-            "id",
-            "action",
-            "count",
-            "first",
-            "last",
-            "status",
-            "automated_by",
-            "minutes",
-        ],
-        required: &["action", "count", "status"],
-        enums: &[("status", &["manual", "automated"])],
-        dated: Some("first"),
-    },
-    Shape {
-        table: "sources",
-        order: &["id", "title", "by", "year", "url", "takes"],
-        required: &["title", "takes"],
-        enums: &[],
-        dated: None,
-    },
-    Shape {
-        table: "research",
-        order: &["id", "question", "found", "sources", "date"],
-        required: &["question", "found"],
-        enums: &[],
-        dated: Some("date"),
-    },
-    Shape {
-        table: "manual_events",
-        order: &["id", "record", "at", "minutes", "load", "effort", "change"],
-        required: &["record", "at"],
-        enums: &[],
-        dated: None,
-    },
-    Shape {
-        table: "milestones",
-        order: &[
-            "id",
-            "subject",
-            "ord",
-            "title",
-            "horizon",
-            "readiness",
-            "criteria",
-            "why",
-        ],
-        required: &["subject", "ord", "title", "horizon", "readiness"],
-        enums: &[("horizon", &["working", "perfection", "ongoing"])],
-        dated: None,
-    },
-];
-
-const NUMBERS: [&str; 8] = [
-    "ord",
-    "readiness",
-    "order",
-    "count",
-    "minutes",
-    "load",
-    "effort",
-    "year",
-];
 
 /// One change to a field: set it, or append to its text.
 pub struct Change {
@@ -258,14 +128,14 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
     let sorted = rows
         .windows(2)
         .all(|w| w[0].0.text("id") <= w[1].0.text("id"));
-    let shape = SHAPES.iter().find(|s| s.table == table);
+    let shape = language().tables.get(table);
     let pos = rows.iter().position(|(r, _)| r.text("id") == id);
     let added = pos.is_none();
     let mut row = match pos {
         Some(i) => rows[i].0.clone(),
         None => {
             let mut r = Row(vec![("id".into(), Value::String(id.into()))]);
-            if let Some(f) = shape.and_then(|s| s.dated) {
+            if let Some(f) = shape.and_then(|s| s.dated.as_deref()) {
                 r.set(f, Value::String(today.into()));
             }
             r
@@ -282,14 +152,25 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
         } else {
             c.value.clone()
         };
-        let v = if NUMBERS.contains(&c.field.as_str()) {
-            Value::from(
+        let ty = shape
+            .and_then(|s| s.fields.iter().find(|f| f.name == c.field))
+            .map(|f| f.ty.as_str())
+            .unwrap_or("string");
+        let v = match ty {
+            "integer" => Value::from(
                 new.trim()
                     .parse::<i64>()
                     .with_context(|| format!("{} must be a whole number, not '{new}'", c.field))?,
-            )
-        } else {
-            Value::String(new.clone())
+            ),
+            "number" => match new.trim().parse::<i64>() {
+                Ok(n) => Value::from(n),
+                Err(_) => Value::from(
+                    new.trim()
+                        .parse::<f64>()
+                        .with_context(|| format!("{} must be a number, not '{new}'", c.field))?,
+                ),
+            },
+            _ => Value::String(new.clone()),
         };
         if !added && old != new {
             said.push(format!("{}: '{}' -> '{}'", c.field, cut(&old), cut(&new)));
@@ -300,35 +181,34 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
         if added {
             // a new row's fields in the format's order, then any others
             let mut ordered: Vec<(String, Value)> = s
-                .order
+                .fields
                 .iter()
+                .map(|f| f.name.as_str())
                 .filter_map(|k| row.get(k).map(|v| (k.to_string(), v.clone())))
                 .collect();
             ordered.extend(
                 row.0
                     .iter()
-                    .filter(|(k, _)| !s.order.contains(&k.as_str()))
+                    .filter(|(k, _)| !s.fields.iter().any(|f| f.name == *k))
                     .cloned(),
             );
             row = Row(ordered);
         }
         let missing: Vec<&str> = s
-            .required
+            .fields
             .iter()
-            .copied()
+            .filter(|f| f.required && f.name != "id")
+            .map(|f| f.name.as_str())
             .filter(|k| row.text(k).trim().is_empty())
             .collect();
         if !missing.is_empty() {
             bail!("{table}/{id} needs {}", missing.join(", "));
         }
-        for (k, allowed) in s.enums {
-            let v = row.text(k);
-            if !allowed.contains(&v.as_str()) {
-                bail!(
-                    "{table}/{id}: {k} '{v}' is not one of: {}",
-                    allowed.join(", ")
-                );
-            }
+        // everything else the shared language says about a row, checked by tad
+        let fields: serde_json::Map<String, Value> = row.0.iter().cloned().collect();
+        let problems = tad::check_row(s, &fields)?;
+        if !problems.is_empty() {
+            bail!("{table}/{id}: {}", problems.join("; "));
         }
     }
     match pos {
@@ -487,5 +367,16 @@ mod tests {
             .unwrap(),
             "added vocabulary/w"
         );
+    }
+
+    #[test]
+    fn the_shared_language_is_a_tad_declaration() {
+        let l = language();
+        assert_eq!(l.tables.len(), 12);
+        assert!(
+            l.tables.values().all(|t| t.extra_fields && t.key == ["id"]),
+            "each table a minimum, keyed by id"
+        );
+        assert_eq!(l.tables["backlog"].dated.as_deref(), Some("opened"));
     }
 }
