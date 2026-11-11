@@ -226,3 +226,8 @@ A project tells four things about itself, each in its own table, each leading to
 
 How a project works is therefore not a manifest beside it but part of it, tied to its goals - and the
 observatory is one more project that tells the same four things.
+
+`ocoeco check` reads a repository's essence too and says, as advice that never fails the check, how
+many of the four are told and what is still to tell (`essence: N of 4 told`): an idea with no opening,
+no limit or no word on where it stands; a path not set; a step nothing delivers; a working that
+serves a step the repository does not have.
