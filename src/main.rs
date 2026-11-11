@@ -165,6 +165,11 @@ fn main() -> Result<()> {
             for l in &lacks {
                 println!("     - {l}");
             }
+            let (words, clashes) = join::vocabulary(&dir)?;
+            println!("vocabulary: {words} words of its own, beside ocoeco's shared words");
+            for c in &clashes {
+                println!("     - {c}");
+            }
             println!("all is well: the harvest would read this repository");
         }
         Cmd::Gather { repo, out } => {

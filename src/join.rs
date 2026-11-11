@@ -215,6 +215,35 @@ pub fn essence(dir: &Path) -> Result<(usize, Vec<String>)> {
     Ok((told.iter().filter(|t| **t).count(), lacks))
 }
 
+/// The words ocoeco itself defines, compiled in: the language every project speaks travels with the
+/// tool, so a project learns offline when it redefines one.
+pub const SHARED_VOCABULARY: &str = include_str!("../data/vocabulary.json");
+
+/// A project's own words, and the shared words it redefines (advice, never a failure).
+pub fn vocabulary(dir: &Path) -> Result<(usize, Vec<String>)> {
+    let mark =
+        Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).context("no oco.toml here")?)?;
+    let own = rows(dir, &mark, "vocabulary");
+    if mark.project.id == "open-commons-observatory/ocoeco" {
+        return Ok((own.len(), Vec::new()));
+    }
+    let shared: Vec<String> = SHARED_VOCABULARY
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .map(|v| v["term"].as_str().unwrap_or("").to_lowercase())
+        .collect();
+    let clashes = own
+        .iter()
+        .filter_map(|v| {
+            let t = v["term"].as_str().unwrap_or("");
+            shared
+                .contains(&t.to_lowercase())
+                .then(|| format!("'{t}' is a shared word of ocoeco: use it as ocoeco defines it, or choose another word"))
+        })
+        .collect();
+    Ok((own.len(), clashes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,5 +368,28 @@ mod tests {
             "a working that serves nothing known is named"
         );
         assert!(!lacks.iter().any(|l| l.contains("'First'")));
+    }
+
+    #[test]
+    fn the_shared_words_travel_with_the_tool_and_a_redefinition_is_named() {
+        assert!(
+            SHARED_VOCABULARY.lines().count() >= 15,
+            "ocoeco's own words are compiled in"
+        );
+        assert!(SHARED_VOCABULARY.contains("\"term\":\"lens\""));
+        let d = scratch("words");
+        init(&d, &join(), "2026-11-11").unwrap();
+        let toml = std::fs::read_to_string(d.join("oco.toml"))
+            .unwrap()
+            .replace(
+                "[exports]\n",
+                "[exports]\nvocabulary = \"oco/vocabulary.json\"\n",
+            );
+        std::fs::write(d.join("oco.toml"), toml).unwrap();
+        std::fs::write(d.join("oco/vocabulary.json"), "{\"id\":\"a\",\"term\":\"Lens\",\"means\":\"x\"}\n{\"id\":\"b\",\"term\":\"shoot\",\"means\":\"y\"}\n").unwrap();
+        let (n, clashes) = vocabulary(&d).unwrap();
+        assert_eq!(n, 2);
+        assert_eq!(clashes.len(), 1, "{clashes:?}");
+        assert!(clashes[0].contains("'Lens' is a shared word"));
     }
 }
