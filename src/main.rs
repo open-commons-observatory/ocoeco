@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, gather, harvest, join, manual, note, pick};
+use ocoeco::{discover, gather, glimpse, harvest, join, manual, note, pick};
 
 #[derive(Parser)]
 #[command(
@@ -95,6 +95,39 @@ enum Cmd {
         /// FIELD=VALUE to append to the field's text (repeatable)
         #[arg(long = "add")]
         add: Vec<String>,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+    /// A glimpse: say what you just did, while it is fresh - one line; ocoeco supplies the rest
+    Glimpse {
+        /// What was done, in one line (at most 88 characters: it can become a commit title)
+        summary: String,
+        /// feat, fix, docs, refactor, perf, test, build, ci, chore, style or revert
+        #[arg(long, default_value = "docs")]
+        kind: String,
+        /// What it breaks, if anything
+        #[arg(long)]
+        breaking: Option<String>,
+        /// What it advances (backlog:ID or milestone:ID, repeatable); by default worked out from what was written
+        #[arg(long = "advances")]
+        advances: Vec<String>,
+        /// Minutes it took
+        #[arg(long)]
+        minutes: Option<String>,
+        /// How hard it was, 0-10
+        #[arg(long)]
+        load: Option<String>,
+        /// Who looked (default: OCOECO_BY, else USER)
+        #[arg(long)]
+        by: Option<String>,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+    /// Commit what changed, with a message rendered from the glimpses not yet committed
+    Commit {
+        /// Commit only what is staged, instead of everything changed
+        #[arg(long)]
+        staged: bool,
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
@@ -206,7 +239,39 @@ fn main() -> Result<()> {
                 changes.push(note::parse_change(s, true)?);
             }
             println!("{}", note::note(&dir, &table, &id, &changes, &today)?);
+            glimpse::remember(&dir, &table, &id)?;
         }
+        Cmd::Glimpse {
+            summary,
+            kind,
+            breaking,
+            advances,
+            minutes,
+            load,
+            by,
+            dir,
+        } => {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let (now, id) = glimpse::now_and_id(secs);
+            let by = by
+                .or_else(|| std::env::var("OCOECO_BY").ok())
+                .or_else(|| std::env::var("USER").ok())
+                .unwrap_or_else(|| "someone".into());
+            let g = glimpse::Glimpse {
+                summary,
+                kind,
+                breaking,
+                advances,
+                minutes,
+                load,
+                by,
+            };
+            println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
+        }
+        Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
         Cmd::Check { dir } => {
             let (well, problems) = join::check(&dir)?;
             for w in &well {

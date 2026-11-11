@@ -155,3 +155,20 @@ fields = [
     { name = "criteria", type = "string" },
     { name = "why", type = "string" },
 ]
+
+[tables.glimpses]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "at", type = "string", required = true },
+    { name = "by", type = "string" },
+    { name = "kind", type = "string", required = true, enum = ["feat", "fix", "docs", "refactor", "perf", "test", "build", "ci", "chore", "style", "revert"] },
+    { name = "summary", type = "string", required = true },
+    { name = "breaking", type = "string" },
+    { name = "advances", type = "string" },
+    { name = "touches", type = "string" },
+    { name = "minutes", type = "number" },
+    { name = "load", type = "number" },
+    { name = "released", type = "string" },
+]

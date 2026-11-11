@@ -215,6 +215,8 @@ and session log in `oco/` - its path fills from them - and its work is gathered 
 
 The shared tables are declared as data in `language.toml`, a tad declaration (creation-guidelines/tad-engine): each table's fields in order, their types, the required ones, the allowed values, and the field a new row is dated by. Each table is a minimum that a project may extend with fields of its own. `ocoeco note` checks the row it writes with tad's `check_row`, and keeps every other line exactly as it was.
 
+Work is recorded where it is fresh, as glimpses: `ocoeco glimpse "what was done"` at any moment - one typed line, the rest supplied (every row `ocoeco note` wrote since the last glimpse, the backlog items and milestones they serve, who and when). A glimpse needs no git. `ocoeco commit` is git's side: it renders a commit from the glimpses not yet committed - the weightiest kind as the title, every glimpse in the body, a `Glimpse:` trailer for each. Git depends on ocoeco, never the reverse.
+
 A project tells four things about itself, each in its own table, each leading to the next:
 
 1. **Its idea** - why it exists, written by the project for anyone: it starts from the reader's own
