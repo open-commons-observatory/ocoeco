@@ -76,6 +76,9 @@ enum Cmd {
         /// About how many minutes it takes by hand
         #[arg(long)]
         minutes: Option<i64>,
+        /// How draining it was this time, 0-10 (Borg CR10: 0 nothing, 2 easy, 5 hard, 10 maximal)
+        #[arg(long)]
+        load: Option<i64>,
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
@@ -141,6 +144,7 @@ fn main() -> Result<()> {
             id,
             new,
             minutes,
+            load,
             dir,
         } => {
             let today = gather::day(
@@ -151,7 +155,7 @@ fn main() -> Result<()> {
             );
             println!(
                 "{}",
-                hand::hand(&dir, &action, id.as_deref(), new, minutes, &today)?
+                hand::hand(&dir, &action, id.as_deref(), new, minutes, load, &today)?
             );
         }
         Cmd::Note {

@@ -248,3 +248,13 @@ record it matches or adds one; when the words only resemble a record it names it
 chooses (`--id` to bump, `--new` to add). Past three, a manual action is saturated: it asks for a tool.
 A record automated by a tool says so, and a bump after that asks why it was done by hand again; a
 record kept by hand deliberately (looking, listening, deciding) never asks to be automated.
+
+Each hand-work record keeps **minutes** (in all), **load** (how draining it is, 0-10, after Borg's CR10
+scale of perceived exertion: 0 nothing, 2 easy, 5 hard, 10 maximal) and **effort** - minutes weighted by
+load, where 5 counts as one. A manual action done three times, or one past 30 effort-minutes, is
+saturated: a short heavy chore can outrank a long light one. Looking, listening and deciding are
+counted like any other action - visual and audio checks, and rules written once, automate them too.
+
+A project's **sources** are the prior art it stands on - what people already learned, and what is
+taken from it (`| sources | id, title, by, year, url, takes |`). A concept or a decision cites them in
+its `sources` field (ids, comma-separated), so research travels with the ideas that rest on it.

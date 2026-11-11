@@ -145,8 +145,15 @@ const SHAPES: &[Shape] = &[
             "minutes",
         ],
         required: &["action", "count", "status"],
-        enums: &[("status", &["manual", "automated", "deliberate"])],
+        enums: &[("status", &["manual", "automated"])],
         dated: Some("first"),
+    },
+    Shape {
+        table: "sources",
+        order: &["id", "title", "by", "year", "url", "takes"],
+        required: &["title", "takes"],
+        enums: &[],
+        dated: None,
     },
     Shape {
         table: "milestones",
@@ -166,7 +173,16 @@ const SHAPES: &[Shape] = &[
     },
 ];
 
-const NUMBERS: [&str; 5] = ["ord", "readiness", "order", "count", "minutes"];
+const NUMBERS: [&str; 8] = [
+    "ord",
+    "readiness",
+    "order",
+    "count",
+    "minutes",
+    "load",
+    "effort",
+    "year",
+];
 
 /// One change to a field: set it, or append to its text.
 pub struct Change {
