@@ -272,3 +272,7 @@ Every record and bump also appends an **event** to `manual_events` (`| manual_ev
 minutes, load, effort, change |`): the exact time, this time's minutes, load and effort, and - when it
 was recorded on landing - the change it belonged to. The record keeps the totals; the events keep the
 when, so the views set manual work beside the commits and releases of the same days.
+
+A word is chosen like any decision: a vocabulary entry names the decision that chose it (`decided`,
+decision ids), and that decision records the words rejected and cites its research - so the
+vocabulary shows, beside each word, why this word and not another.
