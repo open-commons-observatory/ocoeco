@@ -129,7 +129,7 @@ const SHAPES: &[Shape] = &[
     },
     Shape {
         table: "vocabulary",
-        order: &["id", "term", "means", "not", "see"],
+        order: &["id", "term", "means", "not", "see", "decided"],
         required: &["term", "means"],
         enums: &[],
         dated: None,
