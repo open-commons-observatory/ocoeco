@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, gather, harvest, join};
+use ocoeco::{discover, gather, harvest, join, note};
 
 #[derive(Parser)]
 #[command(
@@ -63,6 +63,22 @@ enum Cmd {
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
+    /// Record: add or update one row of this project's own table, checked against the shared format
+    Note {
+        /// The table: backlog, decisions, concepts, workings, session_log, idea, milestones, ...
+        table: String,
+        /// The row's id
+        #[arg(long)]
+        id: String,
+        /// FIELD=VALUE to set (repeatable)
+        #[arg(long = "set")]
+        set: Vec<String>,
+        /// FIELD=VALUE to append to the field's text (repeatable)
+        #[arg(long = "add")]
+        add: Vec<String>,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     /// Read this repository as the harvest would: its mark and every table it shares
     Check {
         #[arg(long, default_value = ".")]
@@ -103,6 +119,28 @@ fn main() -> Result<()> {
             }
             println!("next: give the repository the topics oco-project and oco-kind-{} (the observatory finds it by them),", j.kind);
             println!("      write its backlog and milestones in oco/, and run `ocoeco check`.");
+        }
+        Cmd::Note {
+            table,
+            id,
+            set,
+            add,
+            dir,
+        } => {
+            let today = gather::day(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64 / 86_400)
+                    .unwrap_or(0),
+            );
+            let mut changes = Vec::new();
+            for s in &set {
+                changes.push(note::parse_change(s, false)?);
+            }
+            for s in &add {
+                changes.push(note::parse_change(s, true)?);
+            }
+            println!("{}", note::note(&dir, &table, &id, &changes, &today)?);
         }
         Cmd::Check { dir } => {
             let (well, problems) = join::check(&dir)?;
