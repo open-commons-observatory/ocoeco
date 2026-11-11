@@ -215,6 +215,41 @@ pub fn essence(dir: &Path) -> Result<(usize, Vec<String>)> {
     Ok((told.iter().filter(|t| **t).count(), lacks))
 }
 
+/// Tables a repository keeps beside the ones it exports, but does not export: the harvest never sees
+/// them (2026-11-11: a device lab's whole backlog, and a tool's decisions and log, went unseen for days).
+/// Advice: some may be kept deliberately for the project's own use.
+pub fn unexported(dir: &Path) -> Result<Vec<String>> {
+    let mark =
+        Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).context("no oco.toml here")?)?;
+    let local: Vec<&str> = mark
+        .exports
+        .values()
+        .filter(|p| !p.contains('@'))
+        .map(String::as_str)
+        .collect();
+    let mut folders: Vec<std::path::PathBuf> = local
+        .iter()
+        .filter_map(|p| Path::new(p).parent().map(Path::to_path_buf))
+        .collect();
+    folders.sort();
+    folders.dedup();
+    let mut kept = Vec::new();
+    for f in folders {
+        let Ok(entries) = std::fs::read_dir(dir.join(&f)) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let p = f.join(e.file_name());
+            let rel = p.to_string_lossy().to_string();
+            if rel.ends_with(".json") && !local.contains(&rel.as_str()) {
+                kept.push(rel);
+            }
+        }
+    }
+    kept.sort();
+    Ok(kept)
+}
+
 /// The words ocoeco itself defines, compiled in: the language every project speaks travels with the
 /// tool, so a project learns offline when it redefines one.
 pub const SHARED_VOCABULARY: &str = include_str!("../data/vocabulary.json");
@@ -391,5 +426,20 @@ mod tests {
         assert_eq!(n, 2);
         assert_eq!(clashes.len(), 1, "{clashes:?}");
         assert!(clashes[0].contains("'Lens' is a shared word"));
+    }
+
+    #[test]
+    fn a_table_kept_but_not_exported_is_named() {
+        let d = scratch("kept");
+        init(&d, &join(), "2026-11-11").unwrap();
+        assert!(
+            unexported(&d).unwrap().is_empty(),
+            "a fresh repository exports what it keeps"
+        );
+        std::fs::write(d.join("oco/decisions.json"), "").unwrap();
+        assert_eq!(
+            unexported(&d).unwrap(),
+            vec!["oco/decisions.json".to_string()]
+        );
     }
 }
