@@ -9,3 +9,22 @@
 {"id":"idea:05-limit:text:ru","table":"idea","row":"05-limit","column":"text","lang":"ru","text":"Оно может собрать то, что произошло. Оно не соберёт то, что никто не записал и ни один инструмент не наблюдал. Поэтому его настоящая работа — превращать всё больше важного в то, что производит сама работа.","by":"machine"}
 {"id":"idea:06-start:heading:ru","table":"idea","row":"06-start","column":"heading","lang":"ru","text":"Где мы сейчас","by":"machine"}
 {"id":"idea:06-start:text:ru","table":"idea","row":"06-start","column":"text","lang":"ru","text":"Работает. Оно находит помеченные проекты, ежедневно собирает их активность, выпуски и результаты тестов и читает их таблицы в обсерваторию. Впереди: путешествовать в каждый репозиторий как собственная часть, а не копия.","by":"machine"}
+{"id":"workings:w-01:how:ru","table":"workings","row":"w-01","column":"how","lang":"ru","text":"Договорённости, записанные: метка, общие таблицы, то, как данные одного проекта питают другой.","by":"machine"}
+{"id":"workings:w-01:what:ru","table":"workings","row":"w-01","column":"what","lang":"ru","text":"Спецификация","by":"machine"}
+{"id":"workings:w-01:why:ru","table":"workings","row":"w-01","column":"why","lang":"ru","text":"Без одного языка ничего нельзя собрать.","by":"machine"}
+{"id":"workings:w-02:how:ru","table":"workings","row":"w-02","column":"how","lang":"ru","text":"Читает репозиторий ровно так, как его прочтёт сбор, — до любой публикации.","by":"machine"}
+{"id":"workings:w-02:why:ru","table":"workings","row":"w-02","column":"why","lang":"ru","text":"Проект должен узнать дома, поймут ли его.","by":"machine"}
+{"id":"workings:w-03:how:ru","table":"workings","row":"w-03","column":"how","lang":"ru","text":"Находит каждый помеченный репозиторий и читает его таблицы; каждая строка несёт, откуда она.","by":"machine"}
+{"id":"workings:w-03:what:ru","table":"workings","row":"w-03","column":"what","lang":"ru","text":"Обнаружение и сбор","by":"machine"}
+{"id":"workings:w-03:why:ru","table":"workings","row":"w-03","column":"why","lang":"ru","text":"Никто не должен сообщать обсерватории, что проект существует.","by":"machine"}
+{"id":"workings:w-04:how:ru","table":"workings","row":"w-04","column":"how","lang":"ru","text":"Ежедневное задание в каждом помеченном репозитории записывает его коммиты, выпуски и прогоны тестов.","by":"machine"}
+{"id":"workings:w-04:what:ru","table":"workings","row":"w-04","column":"what","lang":"ru","text":"Сборщики","by":"machine"}
+{"id":"workings:w-04:why:ru","table":"workings","row":"w-04","column":"why","lang":"ru","text":"То, что производит сама работа, нельзя забыть или приукрасить.","by":"machine"}
+{"id":"workings:w-05:how:ru","table":"workings","row":"w-05","column":"how","lang":"ru","text":"Шаг может назвать своим доказательством задачу, возможность или тест другого проекта.","by":"machine"}
+{"id":"workings:w-05:what:ru","table":"workings","row":"w-05","column":"what","lang":"ru","text":"Критерии, указывающие в другие проекты","by":"machine"}
+{"id":"workings:w-05:why:ru","table":"workings","row":"w-05","column":"why","lang":"ru","text":"Проекты опираются друг на друга; их пути должны это говорить.","by":"machine"}
+{"id":"workings:w-06:how:ru","table":"workings","row":"w-06","column":"how","lang":"ru","text":"Обнаружение, сбор, присоединение и проверка — в одном типизированном ядре.","by":"machine"}
+{"id":"workings:w-06:what:ru","table":"workings","row":"w-06","column":"what","lang":"ru","text":"Одна программа","by":"machine"}
+{"id":"workings:w-06:why:ru","table":"workings","row":"w-06","column":"why","lang":"ru","text":"Скрипты, разбросанные по репозиториям, расходятся.","by":"machine"}
+{"id":"workings:w-07:how:ru","table":"workings","row":"w-07","column":"how","lang":"ru","text":"Одной командой даёт репозиторию метку, сборщик и место для записей.","by":"machine"}
+{"id":"workings:w-07:why:ru","table":"workings","row":"w-07","column":"why","lang":"ru","text":"Присоединение должно стоить минут — иначе никто не присоединится.","by":"machine"}
