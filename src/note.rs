@@ -33,16 +33,16 @@ impl<'de> Deserialize<'de> for Row {
 }
 
 impl Row {
-    fn get(&self, k: &str) -> Option<&Value> {
+    pub(crate) fn get(&self, k: &str) -> Option<&Value> {
         self.0.iter().find(|(x, _)| x == k).map(|(_, v)| v)
     }
-    fn set(&mut self, k: &str, v: Value) {
+    pub(crate) fn set(&mut self, k: &str, v: Value) {
         match self.0.iter_mut().find(|(x, _)| x == k) {
             Some(e) => e.1 = v,
             None => self.0.push((k.to_string(), v)),
         }
     }
-    fn text(&self, k: &str) -> String {
+    pub(crate) fn text(&self, k: &str) -> String {
         match self.get(k) {
             Some(Value::String(s)) => s.clone(),
             Some(Value::Null) | None => String::new(),
@@ -133,6 +133,22 @@ const SHAPES: &[Shape] = &[
         dated: None,
     },
     Shape {
+        table: "handwork",
+        order: &[
+            "id",
+            "action",
+            "count",
+            "first",
+            "last",
+            "status",
+            "automated_by",
+            "minutes",
+        ],
+        required: &["action", "count", "status"],
+        enums: &[("status", &["manual", "automated", "deliberate"])],
+        dated: Some("first"),
+    },
+    Shape {
         table: "milestones",
         order: &[
             "id",
@@ -150,7 +166,7 @@ const SHAPES: &[Shape] = &[
     },
 ];
 
-const NUMBERS: [&str; 3] = ["ord", "readiness", "order"];
+const NUMBERS: [&str; 5] = ["ord", "readiness", "order", "count", "minutes"];
 
 /// One change to a field: set it, or append to its text.
 pub struct Change {

@@ -56,6 +56,7 @@ Shared tables use standard names so they join across projects; more columns are 
 | `idea` | id, ord, kind (lead, problem, idea, picture, limit, start), heading, text | why it exists, for anyone - an ordered piece of writing |
 | `backlog` | id, title, status (open, in-progress, done), note, opened | the work ahead and done |
 | `vocabulary` | id, term, means, not, see | the words it speaks and exactly what they mean - and do not |
+| `handwork` | id, action, count, first, last, status (manual, automated, deliberate), automated_by, minutes | the small actions done by hand, and how often |
 | `workings` | id, what, kind (tool, check, gatherer, test, practice), serves, how, why, evidence, uses | how each step is delivered and proven |
 | `milestones` | id, subject, ord, title, horizon (working, perfection, ongoing), readiness (1-9), criteria, why | the path |
 | `session_log` | id, entry_date, title, done, considered, rejected | how the work went |
@@ -240,3 +241,10 @@ A project's **vocabulary** is the words it speaks: each with what it means in pl
 not, and related words. ocoeco defines the shared words in its own `vocabulary` table, compiled into
 the `ocoeco` tool; a project adds its own beside them, and `ocoeco check` names any shared word it
 redefines. A vocabulary translates jargon into plain words; it is not a licence for more of it.
+
+A project's **hand-work** is a ledger of the small actions done by hand - one action per record, a verb
+and its object, a dozen words at most - with how often each was done. `ocoeco hand "ACTION"` bumps the
+record it matches or adds one; when the words only resemble a record it names it, and the person
+chooses (`--id` to bump, `--new` to add). Past three, a manual action is saturated: it asks for a tool.
+A record automated by a tool says so, and a bump after that asks why it was done by hand again; a
+record kept by hand deliberately (looking, listening, deciding) never asks to be automated.

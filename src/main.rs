@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, gather, harvest, join, note};
+use ocoeco::{discover, gather, hand, harvest, join, note};
 
 #[derive(Parser)]
 #[command(
@@ -60,6 +60,22 @@ enum Cmd {
         title: Option<String>,
         #[arg(long, default_value = "open-commons-observatory")]
         parent: String,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
+    /// Hand-work: record a small action done by hand - bumps it if it was done before
+    Hand {
+        /// The action: a verb and its object, at most 12 words
+        action: String,
+        /// Bump this record (by its id) instead of matching the words
+        #[arg(long)]
+        id: Option<String>,
+        /// Add it as new even though it resembles a record
+        #[arg(long)]
+        new: bool,
+        /// About how many minutes it takes by hand
+        #[arg(long)]
+        minutes: Option<i64>,
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
@@ -119,6 +135,24 @@ fn main() -> Result<()> {
             }
             println!("next: give the repository the topics oco-project and oco-kind-{} (the observatory finds it by them),", j.kind);
             println!("      write its backlog and milestones in oco/, and run `ocoeco check`.");
+        }
+        Cmd::Hand {
+            action,
+            id,
+            new,
+            minutes,
+            dir,
+        } => {
+            let today = gather::day(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64 / 86_400)
+                    .unwrap_or(0),
+            );
+            println!(
+                "{}",
+                hand::hand(&dir, &action, id.as_deref(), new, minutes, &today)?
+            );
         }
         Cmd::Note {
             table,
