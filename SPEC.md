@@ -258,3 +258,12 @@ counted like any other action - visual and audio checks, and rules written once,
 A project's **sources** are the prior art it stands on - what people already learned, and what is
 taken from it (`| sources | id, title, by, year, url, takes |`). A concept or a decision cites them in
 its `sources` field (ids, comma-separated), so research travels with the ideas that rest on it.
+
+**Research** is the look around before acting: the question asked, what was found in plain words,
+the sources it rests on, and when (`| research | id, question, found, sources, date |`). It is kept
+even where no outside source exists - comparing one's own work with another's is research too.
+
+The chain runs **research → decisions → steps**: a decision cites the research and sources it rests
+on (`research`, `sources`) and names the milestones or workings it is about (`about`, ids
+comma-separated). The observatory shows each decision as a small badge beside the steps it concerns,
+so a reader sees at the step what was chosen, why, what was rejected, and what it rests on.

@@ -80,7 +80,9 @@ const SHAPES: &[Shape] = &[
     },
     Shape {
         table: "decisions",
-        order: &["id", "date", "decision", "why", "rejected"],
+        order: &[
+            "id", "date", "decision", "why", "rejected", "about", "research", "sources",
+        ],
         required: &["date", "decision", "why"],
         enums: &[],
         dated: Some("date"),
@@ -154,6 +156,13 @@ const SHAPES: &[Shape] = &[
         required: &["title", "takes"],
         enums: &[],
         dated: None,
+    },
+    Shape {
+        table: "research",
+        order: &["id", "question", "found", "sources", "date"],
+        required: &["question", "found"],
+        enums: &[],
+        dated: Some("date"),
     },
     Shape {
         table: "milestones",

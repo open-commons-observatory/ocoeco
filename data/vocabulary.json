@@ -16,6 +16,8 @@
 {"id":"ocoeco","term":"ocoeco","means":"The commons' language and machinery: the tables, the mark, the gatherers and the checks - the blood and heart every project lives by.","not":"The observatory's website.","see":"observatory, vocabulary"}
 {"id":"path","term":"path","means":"What a project must reach: its milestones on three horizons, each with the evidence that proves it.","not":"A plan of dates.","see":"milestone, horizon"}
 {"id":"project","term":"project","means":"A repository with a mark. It keeps its own idea, path, workings and work, in its own data.","not":"A folder of code alone.","see":"mark, essence"}
+{"id":"research","term":"research","means":"The look around before acting: the question asked, what was found in plain words, and the sources it rests on.","not":"A list of links.","see":"source, decision"}
+{"id":"source","term":"source","means":"A work someone made that a project stands on - a book, a paper, a page - with what is taken from it.","not":"Research: a source is what was read, research is the reading and what came of it.","see":"research"}
 {"id":"vocabulary","term":"vocabulary","means":"The words a project speaks and exactly what they mean - and what they do not mean. ocoeco defines the shared words; a project adds its own.","not":"Jargon: a vocabulary translates words into plain language.","see":"concept"}
 {"id":"work","term":"work","means":"What actually happens: the backlog, the log, and what the gatherers record.","not":"The plan of it.","see":"gatherer"}
 {"id":"working","term":"working","means":"Something that delivers or proves a step - a tool, a check, a gatherer, a test or a practice - and why we care.","not":"A task to do: that is the backlog.","see":"milestone, work"}
