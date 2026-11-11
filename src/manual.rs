@@ -1,4 +1,4 @@
-//! Hand-work saturation (SPEC.md section 11): a project's ledger of small actions done by hand. Each
+//! Manual work saturation (SPEC.md section 11): a project's ledger of small actions done by hand. Each
 //! record is one action - a verb and its object, a dozen words at most - and keeps how often it was
 //! done, how many minutes it took in all, how draining it was on average (load, 0-10, after Borg's
 //! CR10 scale of perceived exertion), and the effort it adds up to: minutes weighted by load, where 5
@@ -63,15 +63,16 @@ fn int(r: &Row, k: &str) -> Option<i64> {
 /// Records an action done by hand in the repository at `dir`: bumps the record it matches, adds a new
 /// one, or - when it only resembles some - names them and asks for --id or --new. `minutes` and `load`
 /// are this time's; left out, a bump takes the record's usual ones.
-pub fn hand(
+pub fn manual(
     dir: &Path,
     action: &str,
     id: Option<&str>,
     new: bool,
     minutes: Option<i64>,
     load: Option<i64>,
-    today: &str,
+    now: &str,
 ) -> Result<String> {
+    let today = now.get(..10).unwrap_or(now);
     if let Some(l) = load {
         if !(0..=10).contains(&l) {
             bail!("load is 0 to 10 (0 nothing, 2 easy, 5 hard, 10 maximal), not {l}");
@@ -84,13 +85,13 @@ pub fn hand(
         &std::fs::read_to_string(dir.join("oco.toml"))
             .context("no oco.toml here: this repository has no mark")?,
     )?;
-    let path = mark.exports.get("handwork").context("this repository does not export a handwork table (add handwork = \"oco/handwork.json\" to [exports] in oco.toml)")?;
+    let path = mark.exports.get("manual_work").context("this repository does not export a manual_work table (add manual_work = \"oco/manual_work.json\" to [exports] in oco.toml)")?;
     if path.contains('@') {
-        bail!("handwork is kept on another branch ({path}): it is written there");
+        bail!("manual work is kept on another branch ({path}): it is written there");
     }
     let n = action.split_whitespace().count();
     if id.is_none() && (n == 0 || n > 12) {
-        bail!("a hand-work record is one small action - a verb and its object, at most 12 words (this has {n}): split it");
+        bail!("a manual-work record is one small action - a verb and its object, at most 12 words (this has {n}): split it");
     }
     let file = dir.join(path);
     let text = std::fs::read_to_string(&file).unwrap_or_default();
@@ -102,6 +103,7 @@ pub fn hand(
             Some(l.to_string()),
         ));
     }
+    let event: Option<(String, i64, i64)>;
     let target = match id {
         Some(i) => rows.iter().position(|(r, _)| r.text("id") == i),
         None => {
@@ -146,6 +148,7 @@ pub fn hand(
                 1
             });
             let l = load.unwrap_or(load0);
+            event = Some((r.text("id"), per, l));
             let count = count0 + 1;
             let total = total0 + per;
             let eff = int(&r, "effort").unwrap_or_else(|| effort(total0, load0)) + effort(per, l);
@@ -167,7 +170,7 @@ pub fn hand(
                 }
                 _ => String::new(),
             };
-            let s = format!("bumped handwork/{} to {count}{note}", r.text("id"));
+            let s = format!("bumped manual_work/{} to {count}{note}", r.text("id"));
             rows[k] = (r, None);
             s
         }
@@ -177,6 +180,7 @@ pub fn hand(
                 bail!("a record needs an action");
             }
             let (per, l) = (minutes.unwrap_or(1), load.unwrap_or(5));
+            event = Some((rid.clone(), per, l));
             rows.push((
                 Row(vec![
                     ("id".into(), Value::String(rid.clone())),
@@ -193,7 +197,7 @@ pub fn hand(
                 None,
             ));
             rows.sort_by_key(|(r, _)| r.text("id"));
-            format!("added handwork/{rid}")
+            format!("added manual_work/{rid}")
         }
     };
     if let Some(p) = file.parent() {
@@ -205,7 +209,39 @@ pub fn hand(
             .map(|(r, o)| o.clone().unwrap_or_else(|| r.line()) + "\n")
             .collect::<String>(),
     )?;
-    Ok(said)
+    // when it was done: one event per record or bump, appended - so the views can set manual work beside
+    // the commits and releases of the same days
+    let when = match (event, mark.exports.get("manual_events")) {
+        (Some((rid, per, l)), Some(ep)) if !ep.contains('@') => {
+            let ef = dir.join(ep);
+            let mut ev = Row(vec![
+                ("id".into(), Value::String(format!("{now}-{rid}"))),
+                ("record".into(), Value::String(rid)),
+                ("at".into(), Value::String(now.into())),
+                ("minutes".into(), Value::from(per)),
+                ("load".into(), Value::from(l)),
+                ("effort".into(), Value::from(effort(per, l))),
+            ]);
+            if let Ok(c) = std::env::var("OCOECO_CHANGE") {
+                if !c.is_empty() {
+                    ev.set("change", Value::String(c));
+                }
+            }
+            if let Some(p) = ef.parent() {
+                std::fs::create_dir_all(p)?;
+            }
+            let mut t = std::fs::read_to_string(&ef).unwrap_or_default();
+            if !t.is_empty() && !t.ends_with('\n') {
+                t.push('\n');
+            }
+            t.push_str(&(ev.line() + "\n"));
+            std::fs::write(&ef, t)?;
+            String::new()
+        }
+        (Some(_), _) => " (add manual_events = \"oco/manual_events.json\" to [exports] to keep when it was done)".to_string(),
+        _ => String::new(),
+    };
+    Ok(said + &when)
 }
 
 #[cfg(test)]
@@ -213,21 +249,21 @@ mod tests {
     use super::*;
 
     fn repo(name: &str) -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("ocoeco-hand-{name}-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("ocoeco-manual-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(d.join("oco")).unwrap();
-        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R\"\nkind = \"tool\"\nparent = \"open-commons-observatory\"\n\n[exports]\nhandwork = \"oco/handwork.json\"\n").unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R\"\nkind = \"tool\"\nparent = \"open-commons-observatory\"\n\n[exports]\nmanual_work = \"oco/manual_work.json\"\nmanual_events = \"oco/manual_events.json\"\n").unwrap();
         d
     }
     fn file(d: &Path) -> String {
-        std::fs::read_to_string(d.join("oco/handwork.json")).unwrap()
+        std::fs::read_to_string(d.join("oco/manual_work.json")).unwrap()
     }
 
     #[test]
     fn a_bump_adds_time_and_effort_and_counts_saturation_by_either() {
         let d = repo("bump");
         assert_eq!(
-            hand(
+            manual(
                 &d,
                 "boot a test kernel and wait for the phone",
                 None,
@@ -237,10 +273,10 @@ mod tests {
                 "2026-11-11"
             )
             .unwrap(),
-            "added handwork/boot-a-test-kernel-and-wait-for"
+            "added manual_work/boot-a-test-kernel-and-wait-for"
         );
         assert!(
-            hand(
+            manual(
                 &d,
                 "Boot a test kernel, wait for the phone",
                 None,
@@ -253,7 +289,7 @@ mod tests {
             .ends_with("to 2"),
             "usual minutes and load when left out"
         );
-        let third = hand(
+        let third = manual(
             &d,
             "boot the test kernel and wait for phone",
             None,
@@ -277,7 +313,7 @@ mod tests {
     #[test]
     fn a_heavy_chore_saturates_before_three() {
         let d = repo("heavy");
-        hand(
+        manual(
             &d,
             "carry the heavy box upstairs",
             None,
@@ -287,7 +323,7 @@ mod tests {
             "x",
         )
         .unwrap();
-        let second = hand(
+        let second = manual(
             &d,
             "carry the heavy box upstairs",
             None,
@@ -306,7 +342,7 @@ mod tests {
     #[test]
     fn a_resemblance_is_shown_and_the_person_chooses() {
         let d = repo("near");
-        hand(
+        manual(
             &d,
             "patch source code by matching text",
             None,
@@ -316,7 +352,7 @@ mod tests {
             "x",
         )
         .unwrap();
-        let e = hand(
+        let e = manual(
             &d,
             "patch the workflow by matching its text",
             None,
@@ -331,7 +367,7 @@ mod tests {
             e.contains("resembles: patch-source-code-by-matching-text"),
             "{e}"
         );
-        assert!(hand(
+        assert!(manual(
             &d,
             "patch the workflow by matching its text",
             None,
@@ -342,7 +378,7 @@ mod tests {
         )
         .unwrap()
         .starts_with("added"));
-        assert!(hand(
+        assert!(manual(
             &d,
             "",
             Some("patch-source-code-by-matching-text"),
@@ -358,7 +394,7 @@ mod tests {
     #[test]
     fn records_stay_small_loads_stay_on_the_scale_and_an_automated_one_asks_why() {
         let d = repo("small");
-        assert!(hand(
+        assert!(manual(
             &d,
             "one two three four five six seven eight nine ten eleven twelve thirteen",
             None,
@@ -370,15 +406,58 @@ mod tests {
         .unwrap_err()
         .to_string()
         .contains("split it"));
-        assert!(hand(&d, "lift a box", None, false, None, Some(11), "x")
+        assert!(manual(&d, "lift a box", None, false, None, Some(11), "x")
             .unwrap_err()
             .to_string()
             .contains("0 to 10"));
-        std::fs::write(d.join("oco/handwork.json"), "{\"id\":\"w\",\"action\":\"write a row by hand\",\"count\":9,\"first\":\"a\",\"last\":\"b\",\"status\":\"automated\",\"automated_by\":\"ocoeco note\"}\n").unwrap();
+        std::fs::write(d.join("oco/manual_work.json"), "{\"id\":\"w\",\"action\":\"write a row by hand\",\"count\":9,\"first\":\"a\",\"last\":\"b\",\"status\":\"automated\",\"automated_by\":\"ocoeco note\"}\n").unwrap();
         assert!(
-            hand(&d, "write a row by hand", None, false, None, None, "x")
+            manual(&d, "write a row by hand", None, false, None, None, "x")
                 .unwrap()
                 .contains("automated by ocoeco note: why by hand again?")
+        );
+    }
+
+    #[test]
+    fn every_record_and_bump_keeps_when_it_was_done() {
+        let d = repo("when");
+        manual(
+            &d,
+            "flash the phone by hand",
+            None,
+            false,
+            Some(4),
+            Some(3),
+            "2026-11-11T10:00:00Z",
+        )
+        .unwrap();
+        manual(
+            &d,
+            "flash the phone by hand",
+            None,
+            false,
+            None,
+            None,
+            "2026-11-12T09:30:00Z",
+        )
+        .unwrap();
+        let ev = std::fs::read_to_string(d.join("oco/manual_events.json")).unwrap();
+        assert_eq!(ev.lines().count(), 2, "{ev}");
+        assert!(
+            ev.contains("\"at\":\"2026-11-11T10:00:00Z\"")
+                && ev.contains("\"record\":\"flash-the-phone-by-hand\"")
+        );
+        assert!(
+            ev.lines()
+                .nth(1)
+                .unwrap()
+                .contains("\"minutes\":4,\"load\":3,\"effort\":2"),
+            "a bump takes the usual minutes and load"
+        );
+        let t = file(&d);
+        assert!(
+            t.contains("\"first\":\"2026-11-11\"") && t.contains("\"last\":\"2026-11-12\""),
+            "the record keeps the day"
         );
     }
 }

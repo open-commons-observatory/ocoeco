@@ -135,7 +135,7 @@ const SHAPES: &[Shape] = &[
         dated: None,
     },
     Shape {
-        table: "handwork",
+        table: "manual_work",
         order: &[
             "id",
             "action",
@@ -163,6 +163,13 @@ const SHAPES: &[Shape] = &[
         required: &["question", "found"],
         enums: &[],
         dated: Some("date"),
+    },
+    Shape {
+        table: "manual_events",
+        order: &["id", "record", "at", "minutes", "load", "effort", "change"],
+        required: &["record", "at"],
+        enums: &[],
+        dated: None,
     },
     Shape {
         table: "milestones",

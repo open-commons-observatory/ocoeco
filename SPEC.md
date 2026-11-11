@@ -56,7 +56,7 @@ Shared tables use standard names so they join across projects; more columns are 
 | `idea` | id, ord, kind (lead, problem, idea, picture, limit, start), heading, text | why it exists, for anyone - an ordered piece of writing |
 | `backlog` | id, title, status (open, in-progress, done), note, opened | the work ahead and done |
 | `vocabulary` | id, term, means, not, see | the words it speaks and exactly what they mean - and do not |
-| `handwork` | id, action, count, first, last, status (manual, automated, deliberate), automated_by, minutes | the small actions done by hand, and how often |
+| `manual_work` | id, action, count, first, last, status (manual, automated, deliberate), automated_by, minutes | the small actions done by hand, and how often |
 | `workings` | id, what, kind (tool, check, gatherer, test, practice), serves, how, why, evidence, uses | how each step is delivered and proven |
 | `milestones` | id, subject, ord, title, horizon (working, perfection, ongoing), readiness (1-9), criteria, why | the path |
 | `session_log` | id, entry_date, title, done, considered, rejected | how the work went |
@@ -242,14 +242,14 @@ not, and related words. ocoeco defines the shared words in its own `vocabulary` 
 the `ocoeco` tool; a project adds its own beside them, and `ocoeco check` names any shared word it
 redefines. A vocabulary translates jargon into plain words; it is not a licence for more of it.
 
-A project's **hand-work** is a ledger of the small actions done by hand - one action per record, a verb
-and its object, a dozen words at most - with how often each was done. `ocoeco hand "ACTION"` bumps the
+A project's **manual work** is a ledger of the small actions done by hand - one action per record, a verb
+and its object, a dozen words at most - with how often each was done. `ocoeco manual "ACTION"` bumps the
 record it matches or adds one; when the words only resemble a record it names it, and the person
 chooses (`--id` to bump, `--new` to add). Past three, a manual action is saturated: it asks for a tool.
 A record automated by a tool says so, and a bump after that asks why it was done by hand again; a
 record kept by hand deliberately (looking, listening, deciding) never asks to be automated.
 
-Each hand-work record keeps **minutes** (in all), **load** (how draining it is, 0-10, after Borg's CR10
+Each manual work record keeps **minutes** (in all), **load** (how draining it is, 0-10, after Borg's CR10
 scale of perceived exertion: 0 nothing, 2 easy, 5 hard, 10 maximal) and **effort** - minutes weighted by
 load, where 5 counts as one. A manual action done three times, or one past 30 effort-minutes, is
 saturated: a short heavy chore can outrank a long light one. Looking, listening and deciding are
@@ -267,3 +267,8 @@ The chain runs **research → decisions → steps**: a decision cites the resear
 on (`research`, `sources`) and names the milestones or workings it is about (`about`, ids
 comma-separated). The observatory shows each decision as a small badge beside the steps it concerns,
 so a reader sees at the step what was chosen, why, what was rejected, and what it rests on.
+
+Every record and bump also appends an **event** to `manual_events` (`| manual_events | id, record, at,
+minutes, load, effort, change |`): the exact time, this time's minutes, load and effort, and - when it
+was recorded on landing - the change it belonged to. The record keeps the totals; the events keep the
+when, so the views set manual work beside the commits and releases of the same days.
