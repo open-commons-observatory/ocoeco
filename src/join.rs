@@ -133,6 +133,88 @@ pub fn check(dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
     Ok((well, problems))
 }
 
+/// The rows of one exported table kept in this repository (not on another branch).
+fn rows(dir: &Path, mark: &Mark, table: &str) -> Vec<serde_json::Value> {
+    mark.exports
+        .iter()
+        .find(|(t, path)| t.as_str() == table && !path.contains('@'))
+        .and_then(|(_, path)| std::fs::read_to_string(dir.join(path)).ok())
+        .map(|t| {
+            t.lines()
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// How completely the repository tells its essence (SPEC.md section 11): how many of the four are
+/// told - why it exists, what it must reach, how each step is delivered and proven, what is
+/// happening - and what is still to tell. Advice, never a failure: a gap is the truth, not an error.
+pub fn essence(dir: &Path) -> Result<(usize, Vec<String>)> {
+    let mark =
+        Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).context("no oco.toml here")?)?;
+    let text = |v: &serde_json::Value, k: &str| v[k].as_str().unwrap_or("").to_string();
+    let (idea, milestones, workings) = (
+        rows(dir, &mark, "idea"),
+        rows(dir, &mark, "milestones"),
+        rows(dir, &mark, "workings"),
+    );
+    let mut lacks = Vec::new();
+    if idea.is_empty() {
+        lacks.push("its idea is not written: why it exists, for someone who knows nothing of it (the idea table)".to_string());
+    } else {
+        for (kind, what) in [
+            ("lead", "does not open with anything (a lead)"),
+            ("limit", "does not admit a limit"),
+            ("start", "does not say where it stands"),
+        ] {
+            if !idea.iter().any(|r| text(r, "kind") == kind) {
+                lacks.push(format!("its idea {what}"));
+            }
+        }
+    }
+    if milestones.is_empty() {
+        lacks.push("it has no path: what it must reach, as steps with their evidence (the milestones table)".to_string());
+    }
+    let mut unserved = 0;
+    for m in &milestones {
+        if !workings.iter().any(|w| text(w, "serves") == text(m, "id")) {
+            unserved += 1;
+            lacks.push(format!(
+                "nothing delivers the step '{}' (no working serves {})",
+                text(m, "title"),
+                text(m, "id")
+            ));
+        }
+    }
+    if !milestones.is_empty() {
+        for w in &workings {
+            if !milestones
+                .iter()
+                .any(|m| text(m, "id") == text(w, "serves"))
+            {
+                lacks.push(format!("the working '{}' serves '{}', which is not one of this repository's milestones", text(w, "what"), text(w, "serves")));
+            }
+        }
+    }
+    let work = mark
+        .exports
+        .iter()
+        .any(|(t, _)| matches!(t.as_str(), "backlog" | "session_log" | "activity"));
+    if !work {
+        lacks.push(
+            "its work is not shown: a backlog, a log, or what the gatherer writes".to_string(),
+        );
+    }
+    let told = [
+        !idea.is_empty(),
+        !milestones.is_empty(),
+        !milestones.is_empty() && unserved == 0,
+        work,
+    ];
+    Ok((told.iter().filter(|t| **t).count(), lacks))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -214,5 +296,48 @@ mod tests {
             "an unknown kind is refused"
         );
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn essence_says_what_is_still_to_tell() {
+        let d = scratch("essence");
+        init(&d, &join(), "2026-11-11").unwrap();
+        let (told, lacks) = essence(&d).unwrap();
+        assert_eq!(
+            told, 1,
+            "a fresh repository shows its work and nothing else: {lacks:?}"
+        );
+        assert!(
+            lacks.iter().any(|l| l.contains("its idea is not written"))
+                && lacks.iter().any(|l| l.contains("no path"))
+        );
+        let toml = std::fs::read_to_string(d.join("oco.toml"))
+            .unwrap()
+            .replace(
+                "[exports]\n",
+                "[exports]\nidea = \"oco/idea.json\"\nworkings = \"oco/workings.json\"\n",
+            );
+        std::fs::write(d.join("oco.toml"), toml).unwrap();
+        std::fs::write(d.join("oco/idea.json"), "{\"id\":\"1\",\"ord\":1,\"kind\":\"lead\",\"text\":\"Why.\"}\n{\"id\":\"2\",\"ord\":2,\"kind\":\"start\",\"text\":\"Here.\"}\n").unwrap();
+        std::fs::write(
+            d.join("oco/milestones.json"),
+            "{\"id\":\"m1\",\"title\":\"First\"}\n{\"id\":\"m2\",\"title\":\"Second\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("oco/workings.json"), "{\"id\":\"w\",\"what\":\"A tool\",\"serves\":\"m1\"}\n{\"id\":\"x\",\"what\":\"A typo\",\"serves\":\"m9\"}\n").unwrap();
+        let (told, lacks) = essence(&d).unwrap();
+        assert_eq!(
+            told, 3,
+            "idea, path and work - not yet every step served: {lacks:?}"
+        );
+        assert!(lacks.contains(&"its idea does not admit a limit".to_string()));
+        assert!(lacks
+            .iter()
+            .any(|l| l.contains("nothing delivers the step 'Second'")));
+        assert!(
+            lacks.iter().any(|l| l.contains("'A typo' serves 'm9'")),
+            "a working that serves nothing known is named"
+        );
+        assert!(!lacks.iter().any(|l| l.contains("'First'")));
     }
 }

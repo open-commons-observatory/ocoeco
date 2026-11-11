@@ -115,6 +115,18 @@ fn main() -> Result<()> {
             if !problems.is_empty() {
                 anyhow::bail!("{} problems: the harvest would report them", problems.len());
             }
+            let (told, lacks) = join::essence(&dir)?;
+            println!(
+                "essence: {told} of 4 told{}",
+                if lacks.is_empty() {
+                    ""
+                } else {
+                    " - still to tell:"
+                }
+            );
+            for l in &lacks {
+                println!("     - {l}");
+            }
             println!("all is well: the harvest would read this repository");
         }
         Cmd::Gather { repo, out } => {
