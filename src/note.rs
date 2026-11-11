@@ -126,6 +126,13 @@ const SHAPES: &[Shape] = &[
         dated: None,
     },
     Shape {
+        table: "vocabulary",
+        order: &["id", "term", "means", "not", "see"],
+        required: &["term", "means"],
+        enums: &[],
+        dated: None,
+    },
+    Shape {
         table: "milestones",
         order: &[
             "id",
@@ -404,6 +411,33 @@ mod tests {
         assert!(
             !d.join("oco/backlog.json").exists(),
             "a refused change writes nothing"
+        );
+    }
+
+    #[test]
+    fn a_word_needs_its_meaning() {
+        let d = repo("word");
+        let t = std::fs::read_to_string(d.join("oco.toml"))
+            .unwrap()
+            .replace(
+                "[exports]\n",
+                "[exports]\nvocabulary = \"oco/vocabulary.json\"\n",
+            );
+        std::fs::write(d.join("oco.toml"), t).unwrap();
+        assert!(note(&d, "vocabulary", "w", &[set("term=word")], "x")
+            .unwrap_err()
+            .to_string()
+            .contains("needs means"));
+        assert_eq!(
+            note(
+                &d,
+                "vocabulary",
+                "w",
+                &[set("term=word"), set("means=what it says")],
+                "x"
+            )
+            .unwrap(),
+            "added vocabulary/w"
         );
     }
 }

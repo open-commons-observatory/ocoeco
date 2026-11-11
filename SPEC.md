@@ -55,6 +55,7 @@ Shared tables use standard names so they join across projects; more columns are 
 |---|---|---|
 | `idea` | id, ord, kind (lead, problem, idea, picture, limit, start), heading, text | why it exists, for anyone - an ordered piece of writing |
 | `backlog` | id, title, status (open, in-progress, done), note, opened | the work ahead and done |
+| `vocabulary` | id, term, means, not, see | the words it speaks and exactly what they mean - and do not |
 | `workings` | id, what, kind (tool, check, gatherer, test, practice), serves, how, why, evidence, uses | how each step is delivered and proven |
 | `milestones` | id, subject, ord, title, horizon (working, perfection, ongoing), readiness (1-9), criteria, why | the path |
 | `session_log` | id, entry_date, title, done, considered, rejected | how the work went |
@@ -234,3 +235,8 @@ serves a step the repository does not have.
 
 A project's rows are recorded with `ocoeco note TABLE --id ID --set FIELD=VALUE [--add FIELD=TEXT]`:
 one row added or updated, checked against this format, every other line left exactly as it was.
+
+A project's **vocabulary** is the words it speaks: each with what it means in plain words, what it is
+not, and related words. ocoeco defines the shared words in its own `vocabulary` table, compiled into
+the `ocoeco` tool; a project adds its own beside them, and `ocoeco check` names any shared word it
+redefines. A vocabulary translates jargon into plain words; it is not a licence for more of it.
