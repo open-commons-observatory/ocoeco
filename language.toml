@@ -1,0 +1,157 @@
+# ocoeco's shared language: the tables every project may keep, declared as data - a tad declaration
+# (creation-guidelines/tad-engine). Each table is a minimum: a project's rows may carry more fields
+# (extra_fields). `ocoeco note` checks the row it writes against this with tad's check_row, fills a new
+# row's dated field with today, and keeps every other line of the table exactly as it was.
+
+[tables.backlog]
+key = ["id"]
+extra_fields = true
+dated = "opened"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "status", type = "string", required = true, enum = ["open", "in-progress", "done"] },
+    { name = "note", type = "string" },
+    { name = "opened", type = "string" },
+]
+
+[tables.decisions]
+key = ["id"]
+extra_fields = true
+dated = "date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "date", type = "string", required = true },
+    { name = "decision", type = "string", required = true },
+    { name = "why", type = "string", required = true },
+    { name = "rejected", type = "string" },
+    { name = "about", type = "string" },
+    { name = "research", type = "string" },
+    { name = "sources", type = "string" },
+]
+
+[tables.concepts]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "name", type = "string", required = true },
+    { name = "summary", type = "string", required = true },
+    { name = "why", type = "string" },
+]
+
+[tables.session_log]
+key = ["id"]
+extra_fields = true
+dated = "entry_date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "entry_date", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "done", type = "string", required = true },
+    { name = "considered", type = "string" },
+    { name = "rejected", type = "string" },
+]
+
+[tables.workings]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "what", type = "string", required = true },
+    { name = "kind", type = "string", required = true, enum = ["tool", "check", "gatherer", "test", "practice"] },
+    { name = "serves", type = "string", required = true },
+    { name = "how", type = "string", required = true },
+    { name = "why", type = "string" },
+    { name = "evidence", type = "string" },
+    { name = "uses", type = "string" },
+]
+
+[tables.idea]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "ord", type = "integer", required = true },
+    { name = "kind", type = "string", required = true, enum = ["lead", "problem", "idea", "picture", "limit", "start"] },
+    { name = "heading", type = "string" },
+    { name = "text", type = "string", required = true },
+]
+
+[tables.vocabulary]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "term", type = "string", required = true },
+    { name = "means", type = "string", required = true },
+    { name = "not", type = "string" },
+    { name = "see", type = "string" },
+    { name = "decided", type = "string" },
+]
+
+[tables.manual_work]
+key = ["id"]
+extra_fields = true
+dated = "first"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "action", type = "string", required = true },
+    { name = "count", type = "integer", required = true },
+    { name = "first", type = "string" },
+    { name = "last", type = "string" },
+    { name = "status", type = "string", required = true, enum = ["manual", "automated"] },
+    { name = "automated_by", type = "string" },
+    { name = "minutes", type = "number" },
+]
+
+[tables.sources]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "by", type = "string" },
+    { name = "year", type = "integer" },
+    { name = "url", type = "string" },
+    { name = "takes", type = "string", required = true },
+]
+
+[tables.research]
+key = ["id"]
+extra_fields = true
+dated = "date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "question", type = "string", required = true },
+    { name = "found", type = "string", required = true },
+    { name = "sources", type = "string" },
+    { name = "date", type = "string" },
+]
+
+[tables.manual_events]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "record", type = "string", required = true },
+    { name = "at", type = "string", required = true },
+    { name = "minutes", type = "number" },
+    { name = "load", type = "number" },
+    { name = "effort", type = "number" },
+    { name = "change", type = "string" },
+]
+
+[tables.milestones]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "subject", type = "string", required = true },
+    { name = "ord", type = "integer", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "horizon", type = "string", required = true, enum = ["working", "perfection", "ongoing"] },
+    { name = "readiness", type = "integer", required = true },
+    { name = "criteria", type = "string" },
+    { name = "why", type = "string" },
+]
