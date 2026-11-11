@@ -9,7 +9,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use ocoeco::{discover, gather, harvest, join, manual, note};
+use ocoeco::{discover, gather, harvest, join, manual, note, pick};
 
 #[derive(Parser)]
 #[command(
@@ -66,7 +66,7 @@ enum Cmd {
     /// Manual work: record a small action done by hand - bumps it if done before, and keeps when
     Manual {
         /// The action: a verb and its object, at most 12 words
-        action: String,
+        action: Option<String>,
         /// Bump this record (by its id) instead of matching the words
         #[arg(long)]
         id: Option<String>,
@@ -158,10 +158,32 @@ fn main() -> Result<()> {
                 secs % 3_600 / 60,
                 secs % 60
             );
-            println!(
-                "{}",
-                manual::manual(&dir, &action, id.as_deref(), new, minutes, load, &now)?
-            );
+            // no action given: choose it from the list in the terminal, so it is never typed twice
+            let chosen = match action {
+                Some(a) => Some(pick::Pick {
+                    id: id.clone(),
+                    action: a,
+                    new,
+                    minutes,
+                    load,
+                }),
+                None => pick::run(&dir)?,
+            };
+            match chosen {
+                Some(p) => println!(
+                    "{}",
+                    manual::manual(
+                        &dir,
+                        &p.action,
+                        p.id.as_deref(),
+                        p.new,
+                        p.minutes,
+                        p.load,
+                        &now
+                    )?
+                ),
+                None => println!("nothing recorded"),
+            }
         }
         Cmd::Note {
             table,

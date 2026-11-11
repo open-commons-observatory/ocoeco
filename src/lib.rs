@@ -7,3 +7,4 @@ pub mod join;
 pub mod manual;
 pub mod mark;
 pub mod note;
+pub mod pick;
