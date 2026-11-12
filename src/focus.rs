@@ -4,6 +4,7 @@
 //! is made: the same data, brought into focus; and what is seen is laid out as plain text - the first
 //! of the ways a focus may be laid out.
 
+use crate::dome::Dome;
 use crate::join::rows;
 use crate::lenses::{lenses, Lens};
 use crate::mark::Mark;
@@ -118,8 +119,21 @@ pub fn laid_out(line: &str, answer: &Map<String, Value>) -> String {
     out
 }
 
-/// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD).
-pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) -> Result<String> {
+/// One part of a lens, brought into focus: its heading, if it has one, and each answer laid out as a line.
+/// How the parts are shown - indented, as a list, in a pane - is the surface's to say, not the lens's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Brought {
+    pub title: Option<String>,
+    pub lines: Vec<String>,
+}
+
+/// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
+pub fn brought(
+    lens: &str,
+    dirs: &[PathBuf],
+    today: &str,
+    engine: &dyn SqlEngine,
+) -> Result<Vec<Brought>> {
     let all = lenses();
     let Some(found) = all.iter().find(|l| l.lens.id == lens) else {
         bail!(
@@ -139,27 +153,31 @@ pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) 
         std::process::id(),
         CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
-    let brought = (|| -> Result<String> {
+    let parts = (|| -> Result<Vec<Brought>> {
         let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
-        let mut text = String::new();
+        let mut parts = Vec::new();
         for part in &found.focus {
             let rows = answers(engine, &load, &part.sql.replace("{today}", today))?;
             if rows.is_empty() && !part.always {
                 continue;
             }
-            if let Some(title) = &part.title {
-                text.push_str(&title.replace("{count}", &rows.len().to_string()));
-                text.push('\n');
-            }
-            for row in &rows {
-                text.push_str(&laid_out(&part.line, row));
-                text.push('\n');
-            }
+            parts.push(Brought {
+                title: part
+                    .title
+                    .as_ref()
+                    .map(|t| t.replace("{count}", &rows.len().to_string())),
+                lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
+            });
         }
-        Ok(text)
+        Ok(parts)
     })();
     let _ = std::fs::remove_dir_all(&scratch);
-    brought
+    parts
+}
+
+/// What the lens brings into focus, laid out on the plain-text surface.
+pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) -> Result<String> {
+    Ok(crate::dome::Text.lay_out(&brought(lens, dirs, today, engine)?))
 }
 
 /// Every lens with a focus, brought into focus over the place at `dir`: what fails to, and why.

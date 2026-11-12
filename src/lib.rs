@@ -2,6 +2,7 @@
 
 pub mod board;
 pub mod discover;
+pub mod dome;
 pub mod entries;
 pub mod focus;
 pub mod fulldome;

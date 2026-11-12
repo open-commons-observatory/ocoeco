@@ -1,6 +1,6 @@
 //! The fulldome, in a terminal: every lens, and what the chosen one brings into focus - to move through,
 //! not only to read. It is not a lens and no lens knows of it: a lens says what comes into focus, and
-//! this is one surface that lays it out, as plain text is another. A lens made before this existed
+//! this is one surface that lays it out - a dome made real (dome.rs), as plain text is another. A lens made before this existed
 //! shows here as it stands.
 
 use crate::lenses::lenses;
@@ -12,7 +12,7 @@ use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::Frame;
 
 /// What the dome shows: the lenses, the one chosen, and what it brings into focus.
-pub struct Dome {
+pub struct InTerminal {
     /// Each lens: its id, what it says of itself, and whether it has a focus.
     pub lenses: Vec<(String, String, bool)>,
     pub at: usize,
@@ -33,9 +33,9 @@ pub enum Asked {
     Leave,
 }
 
-impl Dome {
+impl InTerminal {
     /// Every lens, the first with a focus chosen.
-    pub fn new(scale: String) -> Dome {
+    pub fn new(scale: String) -> InTerminal {
         let lenses: Vec<(String, String, bool)> = lenses()
             .into_iter()
             .map(|l| (l.lens.id, l.lens.says, !l.focus.is_empty()))
@@ -45,7 +45,7 @@ impl Dome {
             .position(|(id, _, _)| id == "work")
             .or_else(|| lenses.iter().position(|(_, _, has)| *has))
             .unwrap_or(0);
-        Dome {
+        InTerminal {
             lenses,
             at,
             scroll: 0,
@@ -62,7 +62,7 @@ impl Dome {
 
     /// Moves as a key says, and says what is needed next.
     pub fn key(&mut self, code: KeyCode) -> Asked {
-        let choose = |dome: &mut Dome, at: usize| {
+        let choose = |dome: &mut InTerminal, at: usize| {
             dome.at = at;
             dome.scroll = 0;
             dome.glimpse = false;
@@ -141,7 +141,7 @@ impl Dome {
 /// Opens the dome in the terminal. `load` brings a lens into focus (false) or says what can be glimpsed
 /// through it (true); it is asked again whenever the lens changes.
 pub fn open(scale: String, mut load: impl FnMut(&str, bool) -> String) -> anyhow::Result<()> {
-    let mut dome = Dome::new(scale);
+    let mut dome = InTerminal::new(scale);
     dome.text = load(dome.lens(), false);
     let mut terminal = ratatui::init();
     let ended = (|| -> anyhow::Result<()> {
@@ -173,7 +173,7 @@ mod tests {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    fn seen(dome: &Dome) -> String {
+    fn seen(dome: &InTerminal) -> String {
         let mut terminal = Terminal::new(TestBackend::new(110, 16)).unwrap();
         terminal.draw(|frame| dome.draw(frame)).unwrap();
         terminal.backend().to_string()
@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn the_dome_shows_every_lens_and_what_the_chosen_one_brings_into_focus() {
-        let mut dome = Dome::new("this place".into());
+        let mut dome = InTerminal::new("this place".into());
         assert_eq!(dome.lens(), "work", "the flow of work is where one begins");
         dome.text = "in progress (1)\n  claude: r/a - A".into();
         let view = seen(&dome);
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn keys_move_between_lenses_and_say_what_is_needed() {
-        let mut dome = Dome::new("this place".into());
+        let mut dome = InTerminal::new("this place".into());
         let last = dome.lenses.len() - 1;
         assert_eq!(
             (dome.at, dome.key(KeyCode::Down)),

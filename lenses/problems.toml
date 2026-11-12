@@ -62,7 +62,7 @@ SELECT star, id, what, "by",
        date_diff('day', try_cast(seen AS DATE), DATE '{today}') AS days
 FROM problems WHERE coalesce(handled, '') = '' ORDER BY seen, seq
 """
-line = "  {star}/{id} - {what}{at} (seen by {by}, {days} day(s) ago)"
+line = "{star}/{id} - {what}{at} (seen by {by}, {days} day(s) ago)"
 
 [[focus]]
 title = "failing on main ({count})"
@@ -70,7 +70,7 @@ sql = """
 SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
 WHERE conclusion NOT IN ('success', 'skipped', 'neutral') ORDER BY "at", seq
 """
-line = "  {project} - {workflow}: {conclusion} since {day} - {url}"
+line = "{project} - {workflow}: {conclusion} since {day} - {url}"
 
 [[focus]]
 title = "stalled in the work ({count})"
@@ -80,7 +80,7 @@ FROM backlog WHERE status IN ('in-progress', 'waiting')
   AND date_diff('day', try_cast(since AS DATE), DATE '{today}') > 7
 ORDER BY days DESC, seq
 """
-line = "  {star}/{id} - {title}: {status} for {days} days"
+line = "{star}/{id} - {title}: {status} for {days} days"
 
 [[focus]]
 title = "handled lately ({count})"
@@ -89,4 +89,4 @@ SELECT star, id, what, countermeasure FROM problems
 WHERE coalesce(handled, '') <> '' AND date_diff('day', try_cast(handled AS DATE), DATE '{today}') <= 14
 ORDER BY handled DESC, seq
 """
-line = "  {star}/{id} - {what} - countermeasure: {countermeasure}"
+line = "{star}/{id} - {what} - countermeasure: {countermeasure}"

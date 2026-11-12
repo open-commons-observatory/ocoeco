@@ -158,6 +158,9 @@ enum Cmd {
         /// The place to bring into focus, when no ROOT is given
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
+        /// The surface to lay it out on: text or markdown
+        #[arg(long, default_value = "text")]
+        surface: String,
     },
     /// The board: every marked project's backlog under ROOT as one flow - in progress, waiting, next,
     /// and what needs attention
@@ -380,7 +383,12 @@ fn run() -> Result<()> {
                 }
             })?;
         }
-        Cmd::Focus { lens, root, dir } => {
+        Cmd::Focus {
+            lens,
+            root,
+            dir,
+            surface,
+        } => {
             let places =
                 match root {
                     Some(root) => ocoeco::board::projects(&std::path::PathBuf::from(
@@ -393,10 +401,8 @@ fn run() -> Result<()> {
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
-            print!(
-                "{}",
-                ocoeco::focus::focus(&lens, &places, &today, &tad::sql::DuckDb::find()?)?
-            );
+            let parts = ocoeco::focus::brought(&lens, &places, &today, &tad::sql::DuckDb::find()?)?;
+            print!("{}", ocoeco::dome::surface(&surface)?.lay_out(&parts));
         }
         Cmd::Board { root } => {
             // the board is the work lens, focused on every place under the root
