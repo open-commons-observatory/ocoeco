@@ -194,7 +194,7 @@ mod tests {
         )
         .unwrap();
         let text = focus("work", &[d], "2026-11-12", &StandIn).unwrap();
-        assert_eq!(text, "in progress (1)\n  claude: r/a - A - next: x\nopen 2 and parked 0, across 1 projects\n");
+        assert_eq!(text, "in progress (1)\n  claude: r/a - A - next: x\nopen 2 and parked 0, across 1 stars\n");
         assert!(focus("no-such-lens", &[], "2026-11-12", &StandIn)
             .unwrap_err()
             .to_string()

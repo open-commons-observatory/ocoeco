@@ -10,7 +10,7 @@ toml = "0.8"
 
 [dependencies]
 anyhow = "1"
-tad = { git = "https://github.com/creation-guidelines/tad-engine", tag = "tad-v0.4.0" }
+tad = { git = "https://github.com/creation-guidelines/tad-engine", tag = "tad-v0.5.0" }
 clap = { version = "4", features = ["derive"] }
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }
