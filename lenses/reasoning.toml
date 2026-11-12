@@ -35,3 +35,11 @@ to = ["milestones", "concepts", "backlog"]
 [[relation]]
 from = "decisions.refines"
 to = ["decisions"]
+
+# The glimpse of the lens of reasoning.
+[[glimpse]]
+entry = "decision"
+says = "What was decided, why, what was rejected, and what it rests on or refines."
+table = "decisions"
+asks = ["decision", "why", "rejected", "research", "sources", "about", "refines"]
+supplies = [{ field = "date", from = "today", when = "new" }]

@@ -42,3 +42,18 @@ to = ["*"]
 [[relation]]
 from = "reflections.answers"
 to = ["reflections"]
+
+# The glimpse of the lens of looking back.
+[[glimpse]]
+entry = "reflection"
+says = "Looking back: what was seen, what was learned, and what it changes."
+table = "reflections"
+asks = ["over", "saw", "learned", "changes", "answers", "touches"]
+supplies = [{ field = "date", from = "today", when = "new" }, { field = "by", from = "who", when = "new" }]
+
+[[glimpse]]
+entry = "session"
+says = "A session of work: what was done, considered and rejected."
+table = "session_log"
+asks = ["title", "done", "considered", "rejected"]
+supplies = [{ field = "entry_date", from = "today", when = "new" }]

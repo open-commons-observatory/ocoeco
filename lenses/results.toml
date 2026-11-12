@@ -73,3 +73,11 @@ to = ["*"]
 [[relation]]
 from = "workings.serves"
 to = ["milestones", "backlog"]
+
+# The glimpse of the lens of results. The record of work as it is done has its own way in -
+# ocoeco glimpse "what was done" - and work done by hand is recorded by ocoeco manual.
+[[glimpse]]
+entry = "working"
+says = "How something works, why, and the evidence that it does."
+table = "workings"
+asks = ["what", "kind", "serves", "how", "why", "evidence", "uses"]
