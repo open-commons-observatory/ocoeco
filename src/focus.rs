@@ -140,13 +140,17 @@ pub fn laid_out(line: &str, answer: &Map<String, Value>) -> String {
 
 /// One part of a lens, brought into focus: its heading, if it has one, and each answer laid out as a line.
 /// How the parts are shown - indented, as a list, in a pane - is the surface's to say, not the lens's.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct Brought {
     pub title: Option<String>,
     pub lines: Vec<String>,
     /// What a line means beyond its words, when the lens says so: a measure of a whole (so much, of so
     /// much), one for each line, or none. A lens adds meaning; how it looks is each surface's to say.
     pub measures: Vec<Option<(f64, f64)>>,
+    /// What each line is about, so it can be known again another time though its words change (an age,
+    /// a count): its star and id when the answer names them, otherwise the line itself.
+    #[serde(default)]
+    pub keys: Vec<String>,
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
@@ -189,6 +193,18 @@ pub fn brought(
                     .as_ref()
                     .map(|t| t.replace("{count}", &rows.len().to_string())),
                 lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
+                keys: rows
+                    .iter()
+                    .map(|row| {
+                        match (
+                            row.get("star").and_then(Value::as_str),
+                            row.get("id").and_then(Value::as_str),
+                        ) {
+                            (Some(star), Some(id)) => format!("{star}/{id}"),
+                            _ => laid_out(&part.line, row),
+                        }
+                    })
+                    .collect(),
                 measures: match &part.measure {
                     Some(column) => rows
                         .iter()
@@ -209,6 +225,63 @@ pub fn brought(
     })();
     let _ = std::fs::remove_dir_all(&scratch);
     parts
+}
+
+/// A heading without its count: "in progress (2)" is "in progress".
+fn named(title: &str) -> &str {
+    title.rsplit_once(" (").map_or(title, |(name, _)| name)
+}
+
+/// What is new in view since `before`: each line of a headed part that was not in that part before,
+/// said under its heading; and what is no longer in view at all. A part with no heading - a total -
+/// is not news, and a line whose words changed but which is about the same thing is not new.
+pub fn news(before: &[Brought], now: &[Brought]) -> Vec<String> {
+    let was_in = |name: &str| -> std::collections::BTreeSet<&String> {
+        before
+            .iter()
+            .filter(|p| p.title.as_deref().map(named) == Some(name))
+            .flat_map(|p| p.keys.iter())
+            .collect()
+    };
+    let mut said = Vec::new();
+    for part in now {
+        let Some(title) = &part.title else { continue };
+        let was = was_in(named(title));
+        for (key, line) in part.keys.iter().zip(&part.lines) {
+            if !was.contains(key) {
+                said.push(format!("{}: {line}", named(title)));
+            }
+        }
+    }
+    let in_view: std::collections::BTreeSet<&String> = now
+        .iter()
+        .filter(|p| p.title.is_some())
+        .flat_map(|p| p.keys.iter())
+        .collect();
+    let mut gone = std::collections::BTreeSet::new();
+    for key in before
+        .iter()
+        .filter(|p| p.title.is_some())
+        .flat_map(|p| p.keys.iter())
+    {
+        if !in_view.contains(key) && gone.insert(key) {
+            said.push(format!("no longer in view: {key}"));
+        }
+    }
+    said
+}
+
+/// What is new in view since the focus kept at `kept`, which then keeps this one. The first time
+/// nothing is kept, so nothing is new: it only keeps.
+pub fn since(kept: &Path, now: &[Brought]) -> Result<Vec<String>> {
+    let before: Option<Vec<Brought>> = std::fs::read_to_string(kept)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok());
+    if let Some(dir) = kept.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(kept, serde_json::to_string(now)?)?;
+    Ok(before.map(|before| news(&before, now)).unwrap_or_default())
 }
 
 /// What the lens brings into focus, laid out on the plain-text surface.
@@ -257,6 +330,53 @@ mod tests {
                 },
             )
         }
+    }
+
+    #[test]
+    fn what_is_new_in_view_is_said_once_and_a_changed_age_is_not_news() {
+        let part = |title: &str, rows: &[(&str, &str)]| Brought {
+            title: Some(title.into()),
+            lines: rows.iter().map(|(_, l)| l.to_string()).collect(),
+            keys: rows.iter().map(|(k, _)| k.to_string()).collect(),
+            measures: vec![],
+        };
+        let total = |line: &str| Brought {
+            title: None,
+            lines: vec![line.into()],
+            keys: vec![line.into()],
+            measures: vec![],
+        };
+        let before = [
+            part("in progress (1)", &[("r/a", "ann: r/a - A, 1 day(s)")]),
+            part("next (2)", &[("r/b", "r/b - B"), ("r/c", "r/c - C")]),
+            total("open 5"),
+        ];
+        let now = [
+            part(
+                "in progress (2)",
+                &[("r/a", "ann: r/a - A, 2 day(s)"), ("r/b", "bob: r/b - B")],
+            ),
+            part("waiting (1)", &[("r/d", "r/d - D - waits on E")]),
+            total("open 4"),
+        ];
+        assert_eq!(
+            news(&before, &now),
+            [
+                "in progress: bob: r/b - B",
+                "waiting: r/d - D - waits on E",
+                "no longer in view: r/c"
+            ]
+        );
+        assert!(news(&now, &now).is_empty());
+        let kept =
+            std::env::temp_dir().join(format!("ocoeco-since-{}/work.json", std::process::id()));
+        let _ = std::fs::remove_file(&kept);
+        assert!(
+            since(&kept, &before).unwrap().is_empty(),
+            "the first time only keeps"
+        );
+        assert_eq!(since(&kept, &now).unwrap().len(), 3);
+        assert!(since(&kept, &now).unwrap().is_empty(), "said once");
     }
 
     #[test]
