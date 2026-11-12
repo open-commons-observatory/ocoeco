@@ -131,6 +131,17 @@ enum Cmd {
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
+    /// Bring a lens into focus: what it shows of this place, or of every place under ROOT
+    Focus {
+        /// The lens: work, ...
+        lens: String,
+        /// Bring every place under ROOT into focus together (two levels down: owner/repository)
+        #[arg(long)]
+        root: Option<String>,
+        /// The place to bring into focus, when no ROOT is given
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     /// The board: every marked project's backlog under ROOT as one flow - in progress, waiting, next,
     /// and what needs attention
     Board {
@@ -282,9 +293,14 @@ fn main() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
-        Cmd::Board { root } => {
-            let home = std::env::var("HOME").unwrap_or_default();
-            let root = std::path::PathBuf::from(root.replacen('~', &home, 1));
+        Cmd::Focus { lens, root, dir } => {
+            let places =
+                match root {
+                    Some(root) => ocoeco::board::projects(&std::path::PathBuf::from(
+                        root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
+                    )),
+                    None => vec![dir],
+                };
             let today = std::process::Command::new("date")
                 .arg("+%F")
                 .output()
@@ -292,10 +308,22 @@ fn main() -> Result<()> {
                 .unwrap_or_default();
             print!(
                 "{}",
-                ocoeco::board::board(
-                    &ocoeco::board::items(&ocoeco::board::projects(&root)),
-                    &today
-                )
+                ocoeco::focus::focus(&lens, &places, &today, &tad::sql::DuckDb::find()?)?
+            );
+        }
+        Cmd::Board { root } => {
+            // the board is the work lens, focused on every place under the root
+            let home = std::env::var("HOME").unwrap_or_default();
+            let places =
+                ocoeco::board::projects(&std::path::PathBuf::from(root.replacen('~', &home, 1)));
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            print!(
+                "{}",
+                ocoeco::focus::focus("work", &places, &today, &tad::sql::DuckDb::find()?)?
             );
         }
         Cmd::Check { dir, root } => {

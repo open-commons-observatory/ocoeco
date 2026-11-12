@@ -27,6 +27,22 @@ pub struct Lens {
     /// How its rows relate to others.
     #[serde(default)]
     pub relation: Vec<Relation>,
+    /// Its focus: the parts it brings into view.
+    #[serde(default)]
+    pub focus: Vec<Part>,
+}
+
+/// One part of a focus: a query over the lens's gathered tables, and how one answer is laid out.
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct Part {
+    /// A heading; {count} is the number of answers. A part with none has no heading.
+    pub title: Option<String>,
+    /// Shown even when there are no answers.
+    #[serde(default)]
+    pub always: bool,
+    pub sql: String,
+    /// One answer, laid out: each {name} is that answer's value.
+    pub line: String,
 }
 
 /// Every lens, in the order of their files.
