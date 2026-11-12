@@ -72,6 +72,13 @@ pub struct Part {
     pub sql: String,
     /// One answer, laid out: each {name} is that answer's value.
     pub line: String,
+    /// The answer's column that is a measure of a whole, if its lines are such: meaning a surface may
+    /// show in its own way - a meter on a page, a bar in a terminal.
+    #[serde(default)]
+    pub measure: Option<String>,
+    /// The whole the measure is of.
+    #[serde(default)]
+    pub of: Option<f64>,
 }
 
 /// Every lens, in the order of their files.

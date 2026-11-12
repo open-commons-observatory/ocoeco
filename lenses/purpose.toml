@@ -66,6 +66,9 @@ WHERE horizon = 'working' AND try_cast(readiness AS INTEGER) < 9
 ORDER BY 3 DESC, star, seq LIMIT 20
 """
 line = "{star} - {title}: {readiness} of 9"
+# what the line means: readiness is a measure of a whole - each surface shows it in its own way
+measure = "readiness"
+of = 9
 
 [[focus]]
 always = true

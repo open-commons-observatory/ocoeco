@@ -22,6 +22,16 @@ pub trait Dome {
     fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String;
 }
 
+/// A measure of a whole, as ten cells: how the text surfaces show it.
+pub fn bar(so_much: f64, of: f64) -> String {
+    let filled = if of > 0.0 {
+        ((so_much / of) * 10.0).round().clamp(0.0, 10.0) as usize
+    } else {
+        0
+    };
+    format!("{}{}", "█".repeat(filled), "░".repeat(10 - filled))
+}
+
 /// The plain-text surface: a heading on its own line, its lines beneath it, set in by two spaces.
 pub struct Text;
 
@@ -34,8 +44,12 @@ impl Dome for Text {
                 text.push_str(title);
                 text.push('\n');
             }
-            for line in &part.lines {
+            for (at, line) in part.lines.iter().enumerate() {
                 text.push_str(inset);
+                if let Some((so_much, of)) = part.measures.get(at).copied().flatten() {
+                    text.push_str(&bar(so_much, of));
+                    text.push(' ');
+                }
                 text.push_str(line);
                 text.push('\n');
             }
@@ -70,8 +84,13 @@ impl Dome for Markdown {
             match &part.title {
                 Some(title) => {
                     text.push_str(&format!("### {title}\n\n"));
-                    for line in &part.lines {
-                        text.push_str(&format!("- {line}\n"));
+                    for (at, line) in part.lines.iter().enumerate() {
+                        match part.measures.get(at).copied().flatten() {
+                            Some((so_much, of)) => {
+                                text.push_str(&format!("- `{}` {line}\n", bar(so_much, of)))
+                            }
+                            None => text.push_str(&format!("- {line}\n")),
+                        }
                     }
                     if part.lines.is_empty() {
                         text.push_str("Nothing.\n");
@@ -126,8 +145,11 @@ impl Dome for Html {
                         text.push_str("<p class=\"none\">Nothing.</p>\n");
                     } else {
                         text.push_str("<ul>\n");
-                        for line in &part.lines {
-                            text.push_str(&format!("<li>{}</li>\n", escaped(line)));
+                        for (at, line) in part.lines.iter().enumerate() {
+                            match part.measures.get(at).copied().flatten() {
+                                Some((so_much, of)) => text.push_str(&format!("<li><meter value=\"{so_much}\" max=\"{of}\">{so_much} of {of}</meter> {}</li>\n", escaped(line))),
+                                None => text.push_str(&format!("<li>{}</li>\n", escaped(line))),
+                            }
                         }
                         text.push_str("</ul>\n");
                     }
@@ -181,14 +203,17 @@ mod tests {
             Brought {
                 title: Some("in progress (1)".into()),
                 lines: vec!["claude: r/a - A <b> & co".into()],
+                measures: vec![],
             },
             Brought {
                 title: Some("waiting (0)".into()),
                 lines: vec![],
+                measures: vec![],
             },
             Brought {
                 title: None,
                 lines: vec!["open 2, across 1 stars".into()],
+                measures: vec![],
             },
         ]
     }
@@ -246,6 +271,32 @@ mod tests {
         assert!(Markdown
             .fulldome("this place", &lenses)
             .contains("## purpose\n\nWhy a star exists.\n\n*the lens purpose has no focus yet*\n"));
+    }
+
+    #[test]
+    fn a_measure_is_one_meaning_shown_by_each_surface_in_its_own_way() {
+        let reached = [Brought {
+            title: Some("being reached (2)".into()),
+            lines: vec!["r - Published: 8 of 9".into(), "r - Begun".into()],
+            measures: vec![Some((8.0, 9.0)), None],
+        }];
+        assert_eq!(bar(8.0, 9.0), "█████████░");
+        assert_eq!(
+            (bar(0.0, 9.0), bar(12.0, 9.0), bar(1.0, 0.0)),
+            (
+                "░░░░░░░░░░".to_string(),
+                "██████████".to_string(),
+                "░░░░░░░░░░".to_string()
+            )
+        );
+        assert_eq!(
+            Text.lay_out(&reached),
+            "being reached (2)\n  █████████░ r - Published: 8 of 9\n  r - Begun\n"
+        );
+        assert!(Markdown
+            .lay_out(&reached)
+            .contains("- `█████████░` r - Published: 8 of 9\n- r - Begun\n"));
+        assert!(Html.lay_out(&reached).contains("<li><meter value=\"8\" max=\"9\">8 of 9</meter> r - Published: 8 of 9</li>\n<li>r - Begun</li>"));
     }
 
     #[test]
