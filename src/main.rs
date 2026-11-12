@@ -167,6 +167,12 @@ enum Cmd {
         /// The surface to lay it out on: text, markdown or html
         #[arg(long, default_value = "text")]
         surface: String,
+        /// What was observed: a folder ocoeco observe wrote, every row naming its project
+        #[arg(long)]
+        observed: Option<std::path::PathBuf>,
+        /// Say only what is new in view since the focus kept in FILE, and keep this one there
+        #[arg(long)]
+        since: Option<std::path::PathBuf>,
     },
     /// The board: every marked project's backlog under ROOT as one flow - in progress, waiting, next,
     /// and what needs attention
@@ -419,21 +425,31 @@ fn run() -> Result<()> {
             root,
             dir,
             surface,
+            observed,
+            since,
         } => {
-            let places =
-                match root {
-                    Some(root) => ocoeco::board::projects(&std::path::PathBuf::from(
-                        root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
-                    )),
-                    None => vec![dir],
-                };
+            let places = match (observed, root) {
+                (Some(observed), _) => vec![observed],
+                (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
+                    root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
+                )),
+                (None, None) => vec![dir],
+            };
             let today = std::process::Command::new("date")
                 .arg("+%F")
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
             let parts = ocoeco::focus::brought(&lens, &places, &today, &tad::sql::DuckDb::find()?)?;
-            print!("{}", ocoeco::dome::surface(&surface)?.lay_out(&parts));
+            match since {
+                // only what is new in view since last time
+                Some(kept) => {
+                    for new in ocoeco::focus::since(&kept, &parts)? {
+                        println!("{new}");
+                    }
+                }
+                None => print!("{}", ocoeco::dome::surface(&surface)?.lay_out(&parts)),
+            }
         }
         Cmd::Board { root } => {
             // the board is the work lens, focused on every place under the root

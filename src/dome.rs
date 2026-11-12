@@ -204,16 +204,19 @@ mod tests {
                 title: Some("in progress (1)".into()),
                 lines: vec!["claude: r/a - A <b> & co".into()],
                 measures: vec![],
+                keys: vec![],
             },
             Brought {
                 title: Some("waiting (0)".into()),
                 lines: vec![],
                 measures: vec![],
+                keys: vec![],
             },
             Brought {
                 title: None,
                 lines: vec!["open 2, across 1 stars".into()],
                 measures: vec![],
+                keys: vec![],
             },
         ]
     }
@@ -279,6 +282,7 @@ mod tests {
             title: Some("being reached (2)".into()),
             lines: vec!["r - Published: 8 of 9".into(), "r - Begun".into()],
             measures: vec![Some((8.0, 9.0)), None],
+            keys: vec![],
         }];
         assert_eq!(bar(8.0, 9.0), "█████████░");
         assert_eq!(
