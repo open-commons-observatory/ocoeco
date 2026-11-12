@@ -4,7 +4,7 @@
 
 use crate::join::rows;
 use crate::mark::Mark;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -137,6 +137,44 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
     Ok(problems)
 }
 
+/// Runs `write` on the place at `dir`, refusing what it wrote if it adds a link that points nowhere: the
+/// place's tables are put back as they were, and the new broken links are named. Links already broken
+/// stay as they are - they are the check's to report, not the write's.
+pub fn guarded<T>(dir: &Path, write: impl FnOnce() -> Result<T>) -> Result<T> {
+    let mark =
+        Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).context("no oco.toml here")?)?;
+    let before: BTreeSet<String> = broken(dir, &BTreeMap::new())?.into_iter().collect();
+    let saved: Vec<(PathBuf, Option<String>)> = mark
+        .exports
+        .values()
+        .map(|p| {
+            let path = dir.join(p.split('@').next().unwrap_or(p));
+            let text = std::fs::read_to_string(&path).ok();
+            (path, text)
+        })
+        .collect();
+    let done = write()?;
+    let added: Vec<String> = broken(dir, &BTreeMap::new())?
+        .into_iter()
+        .filter(|p| !before.contains(p))
+        .collect();
+    if !added.is_empty() {
+        for (path, text) in saved {
+            match text {
+                Some(text) => std::fs::write(&path, text)?,
+                None => {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
+        bail!(
+            "nothing written: it would add a link that points nowhere\n  {}",
+            added.join("\n  ")
+        );
+    }
+    Ok(done)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,6 +221,43 @@ mod tests {
         assert!(all
             .iter()
             .all(|r| r.from.split_once('.').is_some() && !r.to.is_empty()));
+    }
+
+    #[test]
+    fn a_write_that_adds_a_link_to_nowhere_is_put_back() {
+        let d = std::env::temp_dir().join(format!("ocoeco-guarded-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\ndecisions = \"data/decisions.json\"\n").unwrap();
+        let was = "{\"id\":\"d1\"}\n{\"id\":\"old\",\"refines\":\"long-gone\"}\n";
+        std::fs::write(d.join("data/decisions.json"), was).unwrap();
+        let add = |line: &'static str| {
+            let file = d.join("data/decisions.json");
+            move || -> Result<()> {
+                let mut text = std::fs::read_to_string(&file)?;
+                text.push_str(line);
+                std::fs::write(&file, text)?;
+                Ok(())
+            }
+        };
+        let refused = guarded(&d, add("{\"id\":\"d2\",\"refines\":\"d9\"}\n"))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            refused.contains("nothing written")
+                && refused.contains("d9")
+                && !refused.contains("long-gone"),
+            "{refused}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.join("data/decisions.json")).unwrap(),
+            was,
+            "put back as it was"
+        );
+        guarded(&d, add("{\"id\":\"d3\",\"refines\":\"d1\"}\n")).unwrap();
+        assert!(std::fs::read_to_string(d.join("data/decisions.json"))
+            .unwrap()
+            .contains("d3"));
     }
 
     #[test]
