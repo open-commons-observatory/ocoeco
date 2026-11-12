@@ -116,7 +116,9 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
 /// default branch, as rows of the table runs - each named by its project and workflow. A run that
 /// failed is a problem derived from the data: shown while it is true, gone when the next run passes.
 pub fn observe_runs(candidates: &[Candidate], runs: &dyn Runs, h: &mut Harvest) {
-    h.tables.entry("runs".into()).or_default();
+    // observed, never gathered: a place that exports runs it observed (the observatory does) must not
+    // feed them back in, so each observation replaces the table whole
+    h.tables.insert("runs".into(), Vec::new());
     for c in candidates {
         let Some(mark) = &c.mark else { continue };
         let id = &mark.project.id;
@@ -189,6 +191,10 @@ mod tests {
             tables: BTreeMap::new(),
             problems: Vec::new(),
         };
+        // runs a place exported - observed earlier, and gathered back in - are not kept
+        let earlier = json!({"id": "o/r:release", "project": "o/r", "workflow": "release", "conclusion": "success"});
+        h.tables
+            .insert("runs".into(), vec![earlier.as_object().unwrap().clone(); 2]);
         observe_runs(&[candidate("o/r"), candidate("o/broken")], &Seen, &mut h);
         let rows = &h.tables["runs"];
         assert_eq!(
