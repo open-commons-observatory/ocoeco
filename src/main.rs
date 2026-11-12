@@ -145,6 +145,12 @@ enum Cmd {
         /// Every place under ROOT together (two levels down: owner/repository)
         #[arg(long)]
         root: Option<String>,
+        /// What was observed: a folder ocoeco observe wrote, every row naming its project
+        #[arg(long)]
+        observed: Option<std::path::PathBuf>,
+        /// Lay the whole fulldome out on a surface - text, markdown or html - instead of opening it
+        #[arg(long)]
+        surface: Option<String>,
         /// The place, when no ROOT is given
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
@@ -158,7 +164,7 @@ enum Cmd {
         /// The place to bring into focus, when no ROOT is given
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
-        /// The surface to lay it out on: text or markdown
+        /// The surface to lay it out on: text, markdown or html
         #[arg(long, default_value = "text")]
         surface: String,
     },
@@ -355,23 +361,48 @@ fn run() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
-        Cmd::Fulldome { root, dir } => {
-            let scale = root.as_ref().map_or("this place".to_string(), |r| {
-                format!("every place under {r}")
-            });
-            let places =
-                match root {
-                    Some(root) => ocoeco::board::projects(&std::path::PathBuf::from(
-                        root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
-                    )),
-                    None => vec![dir],
-                };
+        Cmd::Fulldome {
+            root,
+            dir,
+            observed,
+            surface,
+        } => {
+            let scale = match (&observed, &root) {
+                (Some(_), _) => "every place observed".to_string(),
+                (None, Some(root)) => format!("every place under {root}"),
+                (None, None) => "this place".to_string(),
+            };
+            let places = match (observed, root) {
+                (Some(observed), _) => vec![observed],
+                (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
+                    root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
+                )),
+                (None, None) => vec![dir],
+            };
             let today = std::process::Command::new("date")
                 .arg("+%F")
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
             let engine = tad::sql::DuckDb::find()?;
+            if let Some(surface) = surface {
+                // the whole fulldome, laid out on a surface: every lens, and what each brought into focus
+                let lenses: Vec<ocoeco::dome::InDome> = ocoeco::lenses::lenses()
+                    .into_iter()
+                    .map(|l| ocoeco::dome::InDome {
+                        brought: ocoeco::focus::brought(&l.lens.id, &places, &today, &engine)
+                            .map_err(|e| format!("{e:#}")),
+                        id: l.lens.id,
+                        says: l.lens.says,
+                    })
+                    .collect();
+                print!(
+                    "{}",
+                    ocoeco::dome::surface(&surface)?
+                        .fulldome(&format!("{scale}, {today}"), &lenses)
+                );
+                return Ok(());
+            }
             ocoeco::fulldome::open(scale, |lens, glimpse| {
                 let found = ocoeco::lenses::lenses()
                     .into_iter()

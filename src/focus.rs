@@ -35,6 +35,25 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
         let (table, declared) = (&table, &declared);
         let (mut text, mut seq) = (String::new(), 0u64);
         for dir in dirs {
+            // what was observed is a place too: a folder of tables whose every row names its project
+            if !dir.join("oco.toml").is_file() && dir.join("projects.json").is_file() {
+                for mut fields in crate::harvest::read_rows(&dir.join(format!("{table}.json"))) {
+                    let project = fields
+                        .get("project")
+                        .and_then(|p| p.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    seq += 1;
+                    fields.insert(
+                        "star".into(),
+                        project.rsplit('/').next().unwrap_or(&project).into(),
+                    );
+                    fields.insert("seq".into(), seq.into());
+                    text.push_str(&serde_json::to_string(&fields)?);
+                    text.push('\n');
+                }
+                continue;
+            }
             let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
                 .map_err(anyhow::Error::from)
                 .and_then(|t| Mark::parse(&t))
