@@ -168,7 +168,7 @@ pub fn guarded<T>(dir: &Path, write: impl FnOnce() -> Result<T>) -> Result<T> {
             }
         }
         bail!(
-            "nothing written: it would add a link that points nowhere\n  {}",
+            "nothing written - the change above was put back: it would add a link that points nowhere\n  {}",
             added.join("\n  ")
         );
     }
