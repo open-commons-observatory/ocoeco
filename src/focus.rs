@@ -17,7 +17,21 @@ use tad::sql::SqlEngine;
 fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration> {
     std::fs::create_dir_all(into)?;
     let mut tables = toml::Table::new();
-    for (table, declared) in &lens.tables {
+    // its own tables, and those it reads from other lenses: one lens defines a piece of data, many read it
+    let all = crate::lenses::tables();
+    let read: Vec<(String, toml::Value)> = lens
+        .lens
+        .reads
+        .iter()
+        .filter_map(|t| all.get(t).map(|d| (t.clone(), d.clone())))
+        .collect();
+    for (table, declared) in lens
+        .tables
+        .iter()
+        .map(|(t, d)| (t.clone(), d.clone()))
+        .chain(read)
+    {
+        let (table, declared) = (&table, &declared);
         let (mut text, mut seq) = (String::new(), 0u64);
         for dir in dirs {
             let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))

@@ -375,7 +375,8 @@ mod tests {
     #[test]
     fn the_shared_language_is_a_tad_declaration() {
         let l = language();
-        assert_eq!(l.tables.len(), 14);
+        // every table some lens defines, and no other
+        assert_eq!(l.tables.len(), crate::lenses::tables().len());
         assert!(
             l.tables.values().all(|t| t.extra_fields && t.key == ["id"]),
             "each table a minimum, keyed by id"
