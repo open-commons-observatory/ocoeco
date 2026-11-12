@@ -5,6 +5,9 @@ edition = "2021"
 description = "The observatory's information ecosystem: the mark, discovery, the harvest"
 license = "MIT OR Apache-2.0"
 
+[build-dependencies]
+toml = "0.8"
+
 [dependencies]
 anyhow = "1"
 tad = { git = "https://github.com/creation-guidelines/tad-engine", tag = "tad-v0.4.0" }

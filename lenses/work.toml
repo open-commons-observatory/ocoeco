@@ -1,0 +1,29 @@
+# The lens of work.
+[lens]
+id = "work"
+says = "The flow of work: what is open, next, in progress and by whom with its next step, what waits and on what, what is done."
+
+# The backlog is also the board's flow (the board is a view over it, never a list of its own):
+# open -> next -> in-progress -> waiting / parked -> done or dropped. In progress, an item has a driver
+# (who holds it), a next step, and since (the day it entered its state); waiting says on what.
+[tables.backlog]
+key = ["id"]
+extra_fields = true
+dated = "opened"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "status", type = "string", required = true, enum = ["open", "next", "in-progress", "waiting", "parked", "done", "dropped"] },
+    { name = "note", type = "string" },
+    { name = "opened", type = "string" },
+    { name = "driver", type = "string" },
+    { name = "next", type = "string" },
+    { name = "since", type = "string" },
+    { name = "waits_on", type = "string" },
+    { name = "serves", type = "string" },
+]
+
+# why this work: the milestone or decision it serves
+[[relation]]
+from = "backlog.serves"
+to = ["milestones", "decisions"]

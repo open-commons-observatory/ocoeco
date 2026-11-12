@@ -60,13 +60,16 @@ impl Row {
     }
 }
 
-/// ocoeco's shared language: the tables every project may keep, declared as data in language.toml (a
-/// tad declaration). Each table is a minimum; a project's rows may carry more fields.
+/// ocoeco's shared language: the tables every star may keep - those the lenses define (lenses/*.toml),
+/// together, as a tad declaration. Each table is a minimum; a star's rows may carry more fields.
 pub fn language() -> &'static tad::Declaration {
     static LANGUAGE: std::sync::OnceLock<tad::Declaration> = std::sync::OnceLock::new();
     LANGUAGE.get_or_init(|| {
-        toml::from_str(include_str!("../language.toml"))
-            .expect("language.toml is a tad declaration")
+        let mut whole = toml::Table::new();
+        whole.insert("tables".into(), toml::Value::Table(crate::lenses::tables()));
+        toml::Value::Table(whole)
+            .try_into()
+            .expect("the lenses' tables are a tad declaration")
     })
 }
 

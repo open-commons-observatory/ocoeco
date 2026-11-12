@@ -1,0 +1,37 @@
+# The lens of purpose.
+[lens]
+id = "purpose"
+says = "Why a star exists and what it must reach: its idea, and its milestones with what makes each reached."
+
+[tables.idea]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "ord", type = "integer", required = true },
+    { name = "kind", type = "string", required = true, enum = ["lead", "problem", "idea", "picture", "limit", "start"] },
+    { name = "heading", type = "string" },
+    { name = "text", type = "string", required = true },
+]
+
+[tables.milestones]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "subject", type = "string", required = true },
+    { name = "ord", type = "integer", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "horizon", type = "string", required = true, enum = ["working", "perfection", "ongoing"] },
+    { name = "readiness", type = "integer", required = true },
+    { name = "criteria", type = "string" },
+    { name = "why", type = "string" },
+]
+
+# a milestone is reached when these are done: links to rows (backlog:id), and conditions - something
+# at a device or a level, always written with an @ (feature:voice-calls@linux-best,
+# component:kernel@xiaomi-surya, tests@xiaomi-surya) - which are not links to a row and are passed over
+[[relation]]
+from = "milestones.criteria"
+to = ["*"]
+passes_over = ["@"]

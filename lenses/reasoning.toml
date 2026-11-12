@@ -1,0 +1,37 @@
+# The lens of reasoning.
+[lens]
+id = "reasoning"
+says = "What was decided and why: decisions with what was rejected, what they rest on, and which they refine."
+
+[tables.decisions]
+key = ["id"]
+extra_fields = true
+dated = "date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "date", type = "string", required = true },
+    { name = "decision", type = "string", required = true },
+    { name = "why", type = "string", required = true },
+    { name = "rejected", type = "string" },
+    { name = "about", type = "string" },
+    { name = "refines", type = "string" },
+    { name = "research", type = "string" },
+    { name = "sources", type = "string" },
+]
+
+[[relation]]
+from = "decisions.research"
+to = ["research"]
+
+[[relation]]
+from = "decisions.sources"
+to = ["sources"]
+
+[[relation]]
+from = "decisions.about"
+to = ["milestones", "concepts", "backlog"]
+
+# one decision refining or replacing another - until 2026-11-12 written as prose
+[[relation]]
+from = "decisions.refines"
+to = ["decisions"]

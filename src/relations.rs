@@ -1,4 +1,4 @@
-//! The relations between rows: which field refers to which table (relations.toml), and whether every
+//! The relations between rows: which field refers to which table (each lens declares its own), and whether every
 //! link holds. Until 2026-11-12 the relations were kept by discipline - about 860 links, a handful
 //! pointing nowhere, and nothing to say so. The fulldome is one sky only if they are true.
 
@@ -7,11 +7,6 @@ use crate::mark::Mark;
 use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-
-#[derive(serde::Deserialize)]
-struct Declared {
-    relation: Vec<Relation>,
-}
 
 /// One declared relation: the rows of `from` (table.field) refer to rows of the tables in `to`.
 #[derive(serde::Deserialize, Clone, Debug)]
@@ -23,11 +18,9 @@ pub struct Relation {
     pub passes_over: Vec<String>,
 }
 
-/// The relations of the shared language.
+/// The relations of the shared language: those every lens declares.
 pub fn relations() -> Vec<Relation> {
-    toml::from_str::<Declared>(include_str!("../relations.toml"))
-        .expect("relations.toml is a list of relations")
-        .relation
+    crate::lenses::relations()
 }
 
 /// A link as written: an id, a table and an id (table:id), or a star, a table and an id.

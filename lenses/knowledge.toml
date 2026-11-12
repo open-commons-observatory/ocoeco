@@ -1,0 +1,58 @@
+# The lens of knowledge.
+[lens]
+id = "knowledge"
+says = "What is known and where it comes from: questions and what was found, sources, concepts, and the words with their meanings."
+
+[tables.research]
+key = ["id"]
+extra_fields = true
+dated = "date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "question", type = "string", required = true },
+    { name = "found", type = "string", required = true },
+    { name = "sources", type = "string" },
+    { name = "date", type = "string" },
+]
+
+[tables.sources]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "by", type = "string" },
+    { name = "year", type = "integer" },
+    { name = "url", type = "string" },
+    { name = "takes", type = "string", required = true },
+]
+
+[tables.concepts]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "name", type = "string", required = true },
+    { name = "summary", type = "string", required = true },
+    { name = "why", type = "string" },
+]
+
+[tables.vocabulary]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "term", type = "string", required = true },
+    { name = "means", type = "string", required = true },
+    { name = "not", type = "string" },
+    { name = "see", type = "string" },
+    { name = "decided", type = "string" },
+]
+
+[[relation]]
+from = "research.sources"
+to = ["sources"]
+
+[[relation]]
+from = "vocabulary.decided"
+to = ["decisions"]
