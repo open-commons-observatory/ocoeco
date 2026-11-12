@@ -57,3 +57,28 @@ says = "A session of work: what was done, considered and rejected."
 table = "session_log"
 asks = ["title", "done", "considered", "rejected"]
 supplies = [{ field = "entry_date", from = "today", when = "new" }]
+
+# The focus of the lens of looking back: the latest reflections and sessions.
+[[focus]]
+title = "reflections, the newest ({count})"
+sql = """
+SELECT left(CAST("date" AS VARCHAR), 10) AS day, "by" AS who, "over" AS about,
+       CASE WHEN length(learned) > 200 THEN left(learned, 200) || '...' ELSE learned END AS learned
+FROM reflections ORDER BY "date" DESC, seq DESC LIMIT 8
+"""
+line = "{day} {who}, over {about}: {learned}"
+
+[[focus]]
+title = "sessions, the newest ({count})"
+sql = """
+SELECT star, left(CAST(entry_date AS VARCHAR), 10) AS day, title FROM session_log ORDER BY entry_date DESC, seq DESC LIMIT 10
+"""
+line = "{day} {star} - {title}"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT count(*) FROM reflections) AS reflections, (SELECT count(*) FROM session_log) AS sessions,
+       (SELECT count(DISTINCT star) FROM session_log) AS stars
+"""
+line = "{reflections} reflections; {sessions} sessions in {stars} stars"

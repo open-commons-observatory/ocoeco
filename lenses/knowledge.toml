@@ -82,3 +82,29 @@ entry = "word"
 says = "A word and its one meaning: what it means, what it is not, and the decision that chose it."
 table = "vocabulary"
 asks = ["term", "means", "not", "see", "decided"]
+
+# The focus of the lens of knowledge: what was looked into lately, and the words and what they mean.
+[[focus]]
+title = "looked into lately ({count})"
+sql = """
+SELECT star, question, left(CAST("date" AS VARCHAR), 10) AS day FROM research
+WHERE try_cast("date" AS DATE) >= DATE '{today}' - INTERVAL 7 DAY
+ORDER BY "date" DESC, seq DESC LIMIT 12
+"""
+line = "{day} {star} - {question}"
+
+[[focus]]
+title = "the words, and what they mean ({count})"
+sql = """
+SELECT term, CASE WHEN length(means) > 170 THEN left(means, 170) || '...' ELSE means END AS means
+FROM vocabulary ORDER BY lower(term), seq
+"""
+line = "{term} - {means}"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT count(*) FROM research) AS questions, (SELECT count(*) FROM sources) AS sources,
+       (SELECT count(*) FROM concepts) AS concepts, (SELECT count(*) FROM vocabulary) AS words
+"""
+line = "{questions} questions looked into, {sources} sources, {concepts} concepts, {words} words"

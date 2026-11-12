@@ -184,6 +184,7 @@ mod tests {
         let mut dome = InTerminal::new("this place".into());
         assert_eq!(dome.lens(), "work", "the flow of work is where one begins");
         dome.text = "in progress (1)\n  claude: r/a - A".into();
+        dome.lenses[0].2 = false; // as if the first lens had no focus yet
         let view = seen(&dome);
         for lens in [
             "knowledge",

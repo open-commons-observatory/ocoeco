@@ -81,3 +81,29 @@ entry = "working"
 says = "How something works, why, and the evidence that it does."
 table = "workings"
 asks = ["what", "kind", "serves", "how", "why", "evidence", "uses"]
+
+# The focus of the lens of results: what was done lately, and what is still done by hand.
+[[focus]]
+title = "done lately, the newest ({count})"
+sql = """
+SELECT star, left(CAST("at" AS VARCHAR), 10) AS day, summary FROM glimpses ORDER BY "at" DESC, seq DESC LIMIT 15
+"""
+line = "{day} {star} - {summary}"
+
+[[focus]]
+title = "still done by hand ({count})"
+sql = """
+SELECT star, action, "count" AS times FROM manual_work WHERE status = 'manual'
+ORDER BY try_cast("count" AS INTEGER) DESC, star, seq
+"""
+line = "{star} - {action} ({times} times)"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT count(*) FROM glimpses) AS glimpses, (SELECT count(*) FROM workings) AS workings,
+       (SELECT count(*) FROM workings WHERE coalesce(evidence, '') <> '') AS shown,
+       (SELECT count(*) FROM manual_work WHERE status = 'automated') AS automated,
+       (SELECT count(*) FROM manual_work) AS byhand
+"""
+line = "{glimpses} glimpses of work; {workings} workings, {shown} with evidence; {automated} of {byhand} things once done by hand are automated"

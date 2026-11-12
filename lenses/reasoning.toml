@@ -43,3 +43,31 @@ says = "What was decided, why, what was rejected, and what it rests on or refine
 table = "decisions"
 asks = ["decision", "why", "rejected", "research", "sources", "about", "refines"]
 supplies = [{ field = "date", from = "today", when = "new" }]
+
+# The focus of the lens of reasoning: what was decided lately, what refines what, and how many
+# decisions do not say what was rejected.
+[[focus]]
+title = "decided lately, the newest ({count})"
+sql = """
+SELECT star, left(CAST("date" AS VARCHAR), 10) AS day,
+       CASE WHEN length(decision) > 170 THEN left(decision, 170) || '...' ELSE decision END AS decision
+FROM decisions ORDER BY "date" DESC, seq DESC LIMIT 12
+"""
+line = "{day} {star} - {decision}"
+
+[[focus]]
+title = "refining an earlier decision, the newest ({count})"
+sql = """
+SELECT star, id, refines FROM decisions WHERE coalesce(refines, '') <> ''
+ORDER BY "date" DESC, seq DESC LIMIT 12
+"""
+line = "{star}/{id} refines {refines}"
+
+[[focus]]
+always = true
+sql = """
+SELECT count(*) AS decisions, count(DISTINCT star) AS stars,
+       count(*) FILTER (WHERE coalesce(refines, '') <> '') AS refining,
+       count(*) FILTER (WHERE coalesce(rejected, '') = '') AS bare FROM decisions
+"""
+line = "{decisions} decisions in {stars} stars; {refining} refine an earlier one; {bare} do not say what was rejected"
