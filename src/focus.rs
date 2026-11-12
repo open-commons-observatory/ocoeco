@@ -140,10 +140,13 @@ pub fn laid_out(line: &str, answer: &Map<String, Value>) -> String {
 
 /// One part of a lens, brought into focus: its heading, if it has one, and each answer laid out as a line.
 /// How the parts are shown - indented, as a list, in a pane - is the surface's to say, not the lens's.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Brought {
     pub title: Option<String>,
     pub lines: Vec<String>,
+    /// What a line means beyond its words, when the lens says so: a measure of a whole (so much, of so
+    /// much), one for each line, or none. A lens adds meaning; how it looks is each surface's to say.
+    pub measures: Vec<Option<(f64, f64)>>,
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
@@ -186,6 +189,20 @@ pub fn brought(
                     .as_ref()
                     .map(|t| t.replace("{count}", &rows.len().to_string())),
                 lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
+                measures: match &part.measure {
+                    Some(column) => rows
+                        .iter()
+                        .map(|row| {
+                            let so_much = match row.get(column) {
+                                Some(Value::Number(n)) => n.as_f64(),
+                                Some(Value::String(s)) => s.parse().ok(),
+                                _ => None,
+                            };
+                            so_much.map(|v| (v, part.of.unwrap_or(1.0)))
+                        })
+                        .collect(),
+                    None => Vec::new(),
+                },
             });
         }
         Ok(parts)
