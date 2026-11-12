@@ -28,3 +28,4 @@
 {"id":"g-20261112-200427","at":"2026-11-12T20:04:27Z","by":"claude","kind":"fix","summary":"runs are observed, never gathered: no observation feeds the next","advances":"backlog:the-problems-lens"}
 {"id":"g-20261112-201646","at":"2026-11-12T20:16:46Z","by":"claude","kind":"feat","summary":"observe what a machine holds, and say what changed since last time","advances":"backlog:the-problems-lens"}
 {"id":"g-20261112-202151","at":"2026-11-12T20:21:51Z","by":"claude","kind":"fix","summary":"a link is checked when it is written: a link to nowhere is refused","advances":"backlog:declare-the-relations"}
+{"id":"g-20261112-203149","at":"2026-11-12T20:31:49Z","by":"claude","kind":"fix","summary":"a refused write says the change above was put back"}
