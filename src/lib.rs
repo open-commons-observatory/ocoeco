@@ -6,6 +6,7 @@ pub mod gather;
 pub mod glimpse;
 pub mod harvest;
 pub mod join;
+pub mod lenses;
 pub mod manual;
 pub mod mark;
 pub mod note;

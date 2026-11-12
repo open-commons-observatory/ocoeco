@@ -1,0 +1,44 @@
+# The lens of looking-back.
+[lens]
+id = "looking-back"
+says = "Looking back over the work: reflections, and the log of sessions."
+
+# A reflection: someone - a person or a machine - looks back over a stretch of work and says what they
+# saw, what they learned, and what changes because of it (after the After Action Review's questions).
+# It touches what it is about - decisions, practices, backlog, research, glimpses - as table:id in this
+# project or project/table:id in another, and may answer another reflection.
+[tables.reflections]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true, pattern = "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+$" },
+    { name = "date", type = "date", required = true },
+    { name = "by", type = "string", required = true },
+    { name = "over", type = "string", required = true },
+    { name = "saw", type = "string", required = true },
+    { name = "learned", type = "string", required = true },
+    { name = "changes", type = "string" },
+    { name = "answers", type = "string" },
+    { name = "touches", type = "string" },
+]
+
+[tables.session_log]
+key = ["id"]
+extra_fields = true
+dated = "entry_date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "entry_date", type = "string", required = true },
+    { name = "title", type = "string", required = true },
+    { name = "done", type = "string", required = true },
+    { name = "considered", type = "string" },
+    { name = "rejected", type = "string" },
+]
+
+[[relation]]
+from = "reflections.touches"
+to = ["*"]
+
+[[relation]]
+from = "reflections.answers"
+to = ["reflections"]

@@ -1,0 +1,75 @@
+# The lens of results.
+[lens]
+id = "results"
+says = "What the work produced: glimpses of work as it was done, how things work and the evidence, and what was done by hand."
+
+[tables.glimpses]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "at", type = "string", required = true },
+    { name = "by", type = "string" },
+    { name = "kind", type = "string", required = true, enum = ["feat", "fix", "docs", "refactor", "perf", "test", "build", "ci", "chore", "style", "revert"] },
+    { name = "summary", type = "string", required = true },
+    { name = "breaking", type = "string" },
+    { name = "advances", type = "string" },
+    { name = "touches", type = "string" },
+    { name = "minutes", type = "number" },
+    { name = "load", type = "number" },
+    { name = "released", type = "string" },
+]
+
+[tables.workings]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "what", type = "string", required = true },
+    { name = "kind", type = "string", required = true, enum = ["tool", "check", "gatherer", "test", "practice"] },
+    { name = "serves", type = "string", required = true },
+    { name = "how", type = "string", required = true },
+    { name = "why", type = "string" },
+    { name = "evidence", type = "string" },
+    { name = "uses", type = "string" },
+]
+
+[tables.manual_work]
+key = ["id"]
+extra_fields = true
+dated = "first"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "action", type = "string", required = true },
+    { name = "count", type = "integer", required = true },
+    { name = "first", type = "string" },
+    { name = "last", type = "string" },
+    { name = "status", type = "string", required = true, enum = ["manual", "automated"] },
+    { name = "automated_by", type = "string" },
+    { name = "minutes", type = "number" },
+]
+
+[tables.manual_events]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "record", type = "string", required = true },
+    { name = "at", type = "string", required = true },
+    { name = "minutes", type = "number" },
+    { name = "load", type = "number" },
+    { name = "effort", type = "number" },
+    { name = "change", type = "string" },
+]
+
+[[relation]]
+from = "glimpses.advances"
+to = ["*"]
+
+[[relation]]
+from = "glimpses.touches"
+to = ["*"]
+
+[[relation]]
+from = "workings.serves"
+to = ["milestones", "backlog"]
