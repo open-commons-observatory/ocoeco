@@ -391,10 +391,84 @@ pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) 
     Ok(crate::dome::Text.lay_out(&brought(lens, dirs, today, engine)?))
 }
 
-/// Every lens with a focus, brought into focus over the place at `dir`: what fails to, and why.
+/// What is not sound in the shape a lens gives what it brings into focus - checked with no data at all:
+/// a query has its columns whether or not anything answers it, and those columns are the shape. Each
+/// part's line may name only what its query gives, and so may its measure. A projection does not check
+/// what it projects - that is the data's to be sound in, and observing's to have gathered whole - only
+/// the shape it is projected in; so this is checked in the making, and need not be watched after.
+pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
+    static CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let scratch = std::env::temp_dir().join(format!(
+        "ocoeco-shape-{}-{}",
+        std::process::id(),
+        CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let doubts = (|| -> Result<Vec<String>> {
+        // the lens's tables, and those it reads, with nothing in them
+        let load = tad::sql::load_script(&scratch, &gather(lens, &[], &scratch)?);
+        let mut doubts = Vec::new();
+        for part in &lens.focus {
+            let heading = part
+                .title
+                .as_deref()
+                .map(named)
+                .unwrap_or("a part with no heading");
+            let described = answers(
+                engine,
+                &load,
+                &format!(
+                    "DESCRIBE {}",
+                    part.sql
+                        .replace("{today}", "2026-01-01")
+                        .trim()
+                        .trim_end_matches(';')
+                ),
+            )?;
+            let columns: Vec<&str> = described
+                .iter()
+                .filter_map(|c| c.get("column_name").and_then(Value::as_str))
+                .collect();
+            for name in asked(&part.line)
+                .into_iter()
+                .filter(|name| !columns.contains(name))
+            {
+                doubts.push(format!("{heading}: its line names {{{name}}}, which its query does not give (it gives {})", columns.join(", ")));
+            }
+            if let Some(measure) = part.measure.as_deref().filter(|m| !columns.contains(m)) {
+                doubts.push(format!(
+                    "{heading}: its measure is {measure}, which its query does not give"
+                ));
+            }
+            if part.measure.is_some() && part.of.is_none_or(|of| of <= 0.0) {
+                doubts.push(format!(
+                    "{heading}: it has a measure but not the whole it is of"
+                ));
+            }
+        }
+        Ok(doubts)
+    })();
+    let _ = std::fs::remove_dir_all(&scratch);
+    doubts
+}
+
+/// Every lens with a focus: whether its shape is sound, and whether it comes into focus over the place
+/// at `dir` - what does not, and why.
 pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
     let mut problems = Vec::new();
     for lens in lenses().iter().filter(|l| !l.focus.is_empty()) {
+        match shape(lens, engine) {
+            Err(e) => problems.push(format!(
+                "the shape of the lens {} cannot be told: {}",
+                lens.lens.id,
+                e.to_string().lines().next().unwrap_or_default()
+            )),
+            Ok(doubts) => problems.extend(doubts.into_iter().map(|doubt| {
+                format!(
+                    "the shape of the lens {} is not sound - {doubt}",
+                    lens.lens.id
+                )
+            })),
+        }
         match brought(&lens.lens.id, &[dir.to_path_buf()], "2026-01-01", engine) {
             Err(e) => problems.push(format!(
                 "the lens {} cannot come into focus here: {}",
@@ -557,6 +631,41 @@ mod tests {
         assert_eq!(
             asked("{star}/{id} - {title}: {so_much} of 9 {not a name} {}"),
             ["star", "id", "title", "so_much"]
+        );
+    }
+
+    #[test]
+    fn a_shape_is_checked_with_no_data_at_all() {
+        /// An engine that only tells a query's columns - as it can with nothing in any table.
+        struct Columns;
+        impl SqlEngine for Columns {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                assert!(
+                    script.contains("DESCRIBE"),
+                    "the shape is asked of the query, not of its answers"
+                );
+                Ok(
+                    r#"[{"column_name":"star"},{"column_name":"id"},{"column_name":"so_much"}]"#
+                        .into(),
+                )
+            }
+        }
+        let lens = |line: &str, more: &str| -> Lens {
+            toml::from_str(&format!("[lens]\nid = \"t\"\nsays = \"a lens to test with\"\n[tables.things]\nkey = [\"id\"]\nfields = [{{ name = \"id\", type = \"string\" }}]\n[[focus]]\ntitle = \"things ({{count}})\"\nsql = \"SELECT 1\"\nline = \"{line}\"\n{more}")).unwrap()
+        };
+        assert!(shape(
+            &lens("{star}/{id}", "measure = \"so_much\"\nof = 9\n"),
+            &Columns
+        )
+        .unwrap()
+        .is_empty());
+        assert_eq!(shape(&lens("{star}/{id} - {titel}", ""), &Columns).unwrap(), ["things: its line names {titel}, which its query does not give (it gives star, id, so_much)"]);
+        assert_eq!(
+            shape(&lens("{id}", "measure = \"readiness\"\n"), &Columns).unwrap(),
+            [
+                "things: its measure is readiness, which its query does not give",
+                "things: it has a measure but not the whole it is of"
+            ]
         );
     }
 
