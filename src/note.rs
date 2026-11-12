@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn the_shared_language_is_a_tad_declaration() {
         let l = language();
-        assert_eq!(l.tables.len(), 13);
+        assert_eq!(l.tables.len(), 14);
         assert!(
             l.tables.values().all(|t| t.extra_fields && t.key == ["id"]),
             "each table a minimum, keyed by id"
