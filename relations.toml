@@ -1,0 +1,54 @@
+# The relations of the shared language: which field refers to which table. Read by ocoeco check, which
+# verifies every link. A field may hold several: ids separated by commas, or table:id by spaces (commas
+# are accepted too). "*" means any table, written table:id; project/table:id points into another star.
+# What makes the fulldome one sky rather than separate lists is this file being true.
+
+[[relation]]
+from = "decisions.research"
+to = ["research"]
+
+[[relation]]
+from = "decisions.sources"
+to = ["sources"]
+
+[[relation]]
+from = "decisions.about"
+to = ["milestones", "concepts", "backlog"]
+
+# one decision refining or replacing another - until 2026-11-12 written as prose
+[[relation]]
+from = "decisions.refines"
+to = ["decisions"]
+
+[[relation]]
+from = "research.sources"
+to = ["sources"]
+
+[[relation]]
+from = "vocabulary.decided"
+to = ["decisions"]
+
+[[relation]]
+from = "workings.serves"
+to = ["milestones", "backlog"]
+
+# why this work: the milestone or decision it serves
+[[relation]]
+from = "backlog.serves"
+to = ["milestones", "decisions"]
+
+[[relation]]
+from = "glimpses.advances"
+to = ["*"]
+
+[[relation]]
+from = "glimpses.touches"
+to = ["*"]
+
+[[relation]]
+from = "reflections.touches"
+to = ["*"]
+
+[[relation]]
+from = "reflections.answers"
+to = ["reflections"]

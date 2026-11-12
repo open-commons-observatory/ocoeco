@@ -142,6 +142,9 @@ enum Cmd {
     Check {
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
+        /// Also check the links into other stars, found under ROOT two levels down (owner/repository)
+        #[arg(long)]
+        root: Option<String>,
     },
 }
 
@@ -295,8 +298,24 @@ fn main() -> Result<()> {
                 )
             );
         }
-        Cmd::Check { dir } => {
-            let (well, problems) = join::check(&dir)?;
+        Cmd::Check { dir, root } => {
+            let (well, mut problems) = join::check(&dir)?;
+            // the links: every one must lead somewhere - within this star, and with --root into others
+            let mut others = std::collections::BTreeMap::new();
+            if let Some(root) = root {
+                let home = std::env::var("HOME").unwrap_or_default();
+                for place in
+                    ocoeco::board::projects(&std::path::PathBuf::from(root.replacen('~', &home, 1)))
+                {
+                    if let Ok(mark) = std::fs::read_to_string(place.join("oco.toml"))
+                        .map_err(anyhow::Error::from)
+                        .and_then(|t| ocoeco::mark::Mark::parse(&t))
+                    {
+                        others.insert(mark.project.id, place);
+                    }
+                }
+            }
+            problems.extend(ocoeco::relations::broken(&dir, &others)?);
             for w in &well {
                 println!("ok   {w}");
             }
