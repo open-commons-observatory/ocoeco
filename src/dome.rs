@@ -20,6 +20,11 @@ pub trait Dome {
     fn lay_out(&self, parts: &[Brought]) -> String;
     /// Every lens, in focus, on this surface; `scale` says what is in view.
     fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String;
+    /// What this surface requires of whatever shows it, for the shapes to look as they were fitted -
+    /// so that when it looks wrong, it can be said why. A surface that flows requires nothing.
+    fn requires(&self) -> Option<String> {
+        None
+    }
 }
 
 /// A measure of a whole, as ten cells: how the text surfaces show it.
@@ -184,13 +189,152 @@ impl Dome for Html {
     }
 }
 
-/// The surface of that name.
-pub fn surface(name: &str) -> Result<Box<dyn Dome>> {
+/// How many columns a text takes on a screen of monospaced cells.
+fn wide(text: &str) -> usize {
+    unicode_width::UnicodeWidthStr::width(text)
+}
+
+/// Words fitted into lines no wider than `width` columns. A word wider than a whole line is broken
+/// where the line ends: that is its joint - nothing may reach past the volume.
+pub fn fitted(text: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut lines: Vec<String> = Vec::new();
+    let mut line = String::new();
+    for word in text.split_whitespace() {
+        let mut word = word.to_string();
+        loop {
+            let room = width - wide(&line);
+            let gap = usize::from(!line.is_empty());
+            if wide(&word) + gap <= room {
+                if gap == 1 {
+                    line.push(' ');
+                }
+                line.push_str(&word);
+                break;
+            }
+            if !line.is_empty() {
+                lines.push(std::mem::take(&mut line));
+                continue;
+            }
+            // wider than a whole line: as much as fits, and the rest goes on
+            let mut head = String::new();
+            let mut rest = String::new();
+            for c in word.chars() {
+                if rest.is_empty()
+                    && (head.is_empty()
+                        || wide(&head) + unicode_width::UnicodeWidthChar::width(c).unwrap_or(0)
+                            <= width)
+                {
+                    head.push(c);
+                } else {
+                    rest.push(c);
+                }
+            }
+            lines.push(head);
+            if rest.is_empty() {
+                break;
+            }
+            word = rest;
+        }
+    }
+    if !line.is_empty() || lines.is_empty() {
+        lines.push(line);
+    }
+    lines
+}
+
+/// Text as a screen: a volume of so many columns of monospaced characters, unwrapped. Shapes are fitted
+/// into it - a heading, a line whose continuation sits under its start, a bar that is never broken - so
+/// no line reaches past the width, whatever the data. It says what it requires of whatever shows it,
+/// and it looks at its own shape before a character is written.
+pub struct Screen {
+    pub width: usize,
+}
+
+impl Screen {
+    /// `text` fitted after `first`, its continuation under where it began.
+    fn put(&self, out: &mut Vec<String>, first: &str, text: &str) {
+        let under = " ".repeat(wide(first));
+        for (at, fitted) in fitted(text, self.width.saturating_sub(wide(first)))
+            .into_iter()
+            .enumerate()
+        {
+            out.push(format!("{}{fitted}", if at == 0 { first } else { &under }));
+        }
+    }
+
+    fn parts(&self, out: &mut Vec<String>, parts: &[Brought]) {
+        for part in parts {
+            let inset = if part.title.is_some() { "  " } else { "" };
+            if let Some(title) = &part.title {
+                self.put(out, "", title);
+            }
+            for (at, line) in part.lines.iter().enumerate() {
+                match part.measures.get(at).copied().flatten() {
+                    Some((so_much, of)) => {
+                        self.put(out, &format!("{inset}{} ", bar(so_much, of)), line)
+                    }
+                    None => self.put(out, inset, line),
+                }
+            }
+        }
+    }
+
+    /// The screen written out - after it has looked at its own shape: every line within the width.
+    fn written(&self, mut lines: Vec<String>) -> String {
+        let beyond = lines.iter().filter(|line| wide(line) > self.width).count();
+        if beyond > 0 {
+            lines.push(format!(
+                "this screen is not sound: {beyond} line(s) reach past {} columns",
+                self.width
+            ));
+        }
+        lines.join("\n") + "\n"
+    }
+}
+
+impl Dome for Screen {
+    fn lay_out(&self, parts: &[Brought]) -> String {
+        let mut out = Vec::new();
+        self.parts(&mut out, parts);
+        self.written(out)
+    }
+
+    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
+        let mut out = Vec::new();
+        self.put(&mut out, "", &format!("the fulldome - {scale}"));
+        self.put(
+            &mut out,
+            "",
+            &format!("(laid out for {})", self.requires().unwrap_or_default()),
+        );
+        for lens in lenses {
+            out.push(String::new());
+            self.put(&mut out, &format!("{}: ", lens.id), &lens.says);
+            match &lens.brought {
+                Ok(parts) => self.parts(&mut out, parts),
+                Err(why) => self.put(&mut out, "  ", &format!("({why})")),
+            }
+        }
+        self.written(out)
+    }
+
+    fn requires(&self) -> Option<String> {
+        Some(format!(
+            "{} columns of monospaced characters, unwrapped",
+            self.width
+        ))
+    }
+}
+
+/// The surface of that name; `width` is the screen's volume, in columns.
+pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
     Ok(match name {
         "text" => Box::new(Text),
         "markdown" => Box::new(Markdown),
         "html" => Box::new(Html),
-        other => bail!("no surface is called {other}: there are text, markdown and html (and the terminal: ocoeco fulldome)"),
+        "screen" => Box::new(Screen { width }),
+        other => bail!("no surface is called {other}: there are text, screen, markdown and html (and the terminal: ocoeco fulldome)"),
     })
 }
 
@@ -304,15 +448,95 @@ mod tests {
     }
 
     #[test]
+    fn words_are_fitted_into_a_width_and_nothing_reaches_past_it() {
+        assert_eq!(
+            fitted("one two three four", 9),
+            ["one two", "three", "four"]
+        );
+        assert_eq!(
+            fitted("https://a-very-long-address.example/x", 12),
+            ["https://a-ve", "ry-long-addr", "ess.example/", "x"],
+            "a word wider than a line is broken where the line ends"
+        );
+        assert_eq!(fitted("", 9), [""]);
+        for width in [1, 2, 7, 40] {
+            assert!(
+                fitted(
+                    "the same light, through a filter █████ shows what the plain view leaves flat",
+                    width
+                )
+                .iter()
+                .all(|l| wide(l) <= width),
+                "width {width}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_screen_fits_every_shape_into_its_volume_and_says_what_it_requires() {
+        let parts = [
+            Brought {
+                title: Some("being reached (2)".into()),
+                lines: vec![
+                    "argenv - Published and used by everything that starts: 8 of 9".into(),
+                    "docs - Begun".into(),
+                ],
+                measures: vec![Some((8.0, 9.0)), None],
+                keys: vec![],
+            },
+            Brought {
+                title: None,
+                lines: vec!["95 milestones in 15 stars".into()],
+                measures: vec![],
+                keys: vec![],
+            },
+        ];
+        let screen = Screen { width: 40 };
+        let laid = screen.lay_out(&parts);
+        assert_eq!(laid, "being reached (2)\n  █████████░ argenv - Published and used\n             by everything that starts:\n             8 of 9\n  docs - Begun\n95 milestones in 15 stars\n");
+        assert!(
+            laid.lines().all(|l| wide(l) <= 40),
+            "the bar is never broken, and a line's continuation sits under its start"
+        );
+        assert_eq!(
+            screen.requires().unwrap(),
+            "40 columns of monospaced characters, unwrapped"
+        );
+        // the same words in the same order as the text that flows: fitting loses nothing
+        let words = |text: &str| {
+            text.split_whitespace()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(words(&laid), words(&Text.lay_out(&parts)));
+        // a volume too small for a shape's own beginning cannot be met: the screen says so, in itself
+        let cramped = Screen { width: 8 }.lay_out(&parts);
+        assert!(
+            cramped.contains("this screen is not sound: ")
+                && cramped.contains(" line(s) reach past 8 columns"),
+            "{cramped}"
+        );
+        let whole = screen.fulldome(
+            "this place",
+            &[InDome {
+                id: "work".into(),
+                says: "The flow of work.".into(),
+                brought: Ok(parts.to_vec()),
+            }],
+        );
+        assert!(whole.starts_with("the fulldome - this place\n(laid out for 40 columns of monospaced\ncharacters, unwrapped)\n\nwork: The flow of work.\n") && whole.lines().all(|l| wide(l) <= 40), "{whole}");
+    }
+
+    #[test]
     fn a_surface_is_found_by_its_name() {
         assert_eq!(
-            surface("html").unwrap().lay_out(&parts()),
+            surface("html", 80).unwrap().lay_out(&parts()),
             Html.lay_out(&parts())
         );
-        assert!(surface("paper")
+        assert!(surface("paper", 80)
             .err()
             .unwrap()
             .to_string()
-            .contains("there are text, markdown and html"));
+            .contains("there are text, screen, markdown and html"));
     }
 }

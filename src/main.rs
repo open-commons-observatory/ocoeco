@@ -148,7 +148,10 @@ enum Cmd {
         /// What was observed: a folder ocoeco observe wrote, every row naming its project
         #[arg(long)]
         observed: Option<std::path::PathBuf>,
-        /// Lay the whole fulldome out on a surface - text, markdown or html - instead of opening it
+        /// The width of the screen surface, in columns
+        #[arg(long, default_value_t = 80)]
+        width: usize,
+        /// Lay the whole fulldome out on a surface - text, screen, markdown or html - instead of opening it
         #[arg(long)]
         surface: Option<String>,
         /// The place, when no ROOT is given
@@ -164,7 +167,10 @@ enum Cmd {
         /// The place to bring into focus, when no ROOT is given
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
-        /// The surface to lay it out on: text, markdown or html
+        /// The width of the screen surface, in columns
+        #[arg(long, default_value_t = 80)]
+        width: usize,
+        /// The surface to lay it out on: text, screen, markdown or html
         #[arg(long, default_value = "text")]
         surface: String,
         /// What was observed: a folder ocoeco observe wrote, every row naming its project
@@ -372,6 +378,7 @@ fn run() -> Result<()> {
             dir,
             observed,
             surface,
+            width,
         } => {
             let scale = match (&observed, &root) {
                 (Some(_), _) => "every place observed".to_string(),
@@ -404,7 +411,7 @@ fn run() -> Result<()> {
                     .collect();
                 print!(
                     "{}",
-                    ocoeco::dome::surface(&surface)?
+                    ocoeco::dome::surface(&surface, width)?
                         .fulldome(&format!("{scale}, {today}"), &lenses)
                 );
                 return Ok(());
@@ -425,6 +432,7 @@ fn run() -> Result<()> {
             root,
             dir,
             surface,
+            width,
             observed,
             since,
         } => {
@@ -448,7 +456,10 @@ fn run() -> Result<()> {
                         println!("{new}");
                     }
                 }
-                None => print!("{}", ocoeco::dome::surface(&surface)?.lay_out(&parts)),
+                None => print!(
+                    "{}",
+                    ocoeco::dome::surface(&surface, width)?.lay_out(&parts)
+                ),
             }
         }
         Cmd::Board { root } => {
