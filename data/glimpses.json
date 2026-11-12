@@ -22,3 +22,4 @@
 {"id":"g-20261112-141422","at":"2026-11-12T14:14:22Z","by":"lab-agent-session","kind":"feat","summary":"the work lens's focus, landed for real; the board's hand-written view removed","advances":"backlog:lenses-as-data","touches":"backlog:declare-the-relations backlog:lenses-as-data"}
 {"id":"g-20261112-181834","at":"2026-11-12T18:18:34Z","by":"claude","kind":"feat","summary":"the work lens glimpses: entries declared, the computer supplies what it knows","advances":"backlog:lenses-as-data","touches":"decisions:2026-11-12-entries-declared backlog:ocoeco-on-argenv"}
 {"id":"g-20261112-182613","at":"2026-11-12T18:26:13Z","by":"claude","kind":"feat","summary":"every lens glimpses: eleven entries, the computer supplies date and who","advances":"backlog:lenses-as-data"}
+{"id":"g-20261112-183138","at":"2026-11-12T18:31:38Z","by":"claude","kind":"feat","summary":"the problems lens: raised by anyone, in view until a countermeasure","advances":"backlog:the-problems-lens"}

@@ -15,6 +15,9 @@ pub struct About {
     /// The lens this one grew from, if any: lenses are additive, and a changed lens is a new one.
     #[serde(default)]
     pub grew_from: Option<String>,
+    /// Tables it reads that other lenses define: one lens defines a piece of data, many read it.
+    #[serde(default)]
+    pub reads: Vec<String>,
 }
 
 /// One lens, as declared.
@@ -24,6 +27,7 @@ pub struct Lens {
     /// The tables its glimpse defines (tad's declaration of each).
     #[serde(default)]
     pub tables: toml::Table,
+
     /// How its rows relate to others.
     #[serde(default)]
     pub relation: Vec<Relation>,
@@ -105,7 +109,15 @@ mod tests {
         let was: toml::Table = include_str!("../tests/fixtures/language-as-it-stood.toml")
             .parse()
             .unwrap();
-        assert_eq!(&tables(), was["tables"].as_table().unwrap());
+        // lenses are additive: every table as it stood is still there, unchanged; new lenses may add
+        let now_tables = tables();
+        for (name, table) in was["tables"].as_table().unwrap() {
+            assert_eq!(
+                now_tables.get(name),
+                Some(table),
+                "the table {name} changed"
+            );
+        }
         #[derive(serde::Deserialize)]
         struct Declared {
             relation: Vec<Relation>,
@@ -119,10 +131,11 @@ mod tests {
         .iter()
         .map(key)
         .collect();
-        let mut now: Vec<_> = relations().iter().map(key).collect();
+        let now: Vec<_> = relations().iter().map(key).collect();
         stood.sort();
-        now.sort();
-        assert_eq!(now, stood);
+        for relation in &stood {
+            assert!(now.contains(relation), "the relation {relation:?} is gone");
+        }
     }
 
     #[test]
@@ -133,6 +146,7 @@ mod tests {
             [
                 "knowledge",
                 "looking-back",
+                "problems",
                 "purpose",
                 "reasoning",
                 "results",
@@ -140,6 +154,12 @@ mod tests {
             ]
         );
         assert!(all.iter().all(|l| l.lens.says.len() > 20));
+        let problems = all.iter().find(|l| l.lens.id == "problems").unwrap();
+        assert_eq!(
+            problems.lens.reads,
+            ["backlog"],
+            "the problems lens reads the work"
+        );
         assert_eq!(
             all.iter().map(|l| l.tables.len()).sum::<usize>(),
             tables().len(),

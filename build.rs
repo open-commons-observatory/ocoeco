@@ -17,6 +17,7 @@ fn main() {
     let (mut ids, mut tables): (BTreeMap<String, String>, BTreeMap<String, String>) =
         Default::default();
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
+    let mut reads: Vec<(String, String)> = Vec::new();
     let mut out = String::from("/// Every lens built into this ocoeco: its file's name and its text.\npub const LENSES: &[(&str, &str)] = &[\n");
     for file in &files {
         let name = file
@@ -69,7 +70,22 @@ fn main() {
                 panic!("{name}: the entry {called} fills the table {table:?}, which this lens does not define");
             }
         }
+        for read in lens
+            .get("lens")
+            .and_then(|l| l.get("reads"))
+            .and_then(|r| r.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|r| r.as_str())
+        {
+            reads.push((name.clone(), read.to_string()));
+        }
         out.push_str(&format!("    ({name:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/lenses/{name}\"))),\n"));
+    }
+    for (lens, table) in &reads {
+        if !tables.contains_key(table) {
+            panic!("{lens} reads the table {table}, which no lens defines");
+        }
     }
     out.push_str("];\n");
     fs::write(
