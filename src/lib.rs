@@ -2,6 +2,7 @@
 
 pub mod board;
 pub mod discover;
+pub mod focus;
 pub mod gather;
 pub mod glimpse;
 pub mod harvest;
