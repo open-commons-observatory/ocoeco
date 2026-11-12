@@ -168,6 +168,24 @@ enum Cmd {
 }
 
 fn main() -> Result<()> {
+    // what writes rows - glimpse, in both its forms, and note - is guarded: a write that would add a link
+    // pointing nowhere is refused, and the place's tables are put back as they were
+    let said: Vec<String> = std::env::args().collect();
+    if matches!(said.get(1).map(String::as_str), Some("glimpse" | "note")) && said.len() > 2 {
+        let dir = said
+            .iter()
+            .position(|a| a == "--dir")
+            .and_then(|i| said.get(i + 1))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| ".".into());
+        if dir.join("oco.toml").is_file() {
+            return ocoeco::relations::guarded(&dir, run);
+        }
+    }
+    run()
+}
+
+fn run() -> Result<()> {
     // `ocoeco glimpse` alone, or with an entry a lens declares, is answered from the lenses; anything
     // else - the record of work as it is done among it - goes on as before
     let said: Vec<String> = std::env::args().collect();
