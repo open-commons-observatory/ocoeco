@@ -25,3 +25,4 @@
 {"id":"g-20261112-183138","at":"2026-11-12T18:31:38Z","by":"claude","kind":"feat","summary":"the problems lens: raised by anyone, in view until a countermeasure","advances":"backlog:the-problems-lens"}
 {"id":"g-20261112-183533","at":"2026-11-12T18:35:33Z","by":"claude","kind":"fix","summary":"ocoeco check brings every lens into focus; a broken lens cannot land","advances":"backlog:the-problems-lens"}
 {"id":"g-20261112-193815","at":"2026-11-12T19:38:15Z","by":"claude","kind":"feat","summary":"observe what has run: a failing run is a problem the picture shows","advances":"backlog:the-problems-lens"}
+{"id":"g-20261112-200427","at":"2026-11-12T20:04:27Z","by":"claude","kind":"fix","summary":"runs are observed, never gathered: no observation feeds the next","advances":"backlog:the-problems-lens"}
