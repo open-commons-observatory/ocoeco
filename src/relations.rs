@@ -18,7 +18,7 @@ struct Declared {
 pub struct Relation {
     pub from: String,
     pub to: Vec<String>,
-    /// Words before a colon that are not tables: conditions of another kind, passed over.
+    /// Marks of what is not a link to a row: a value holding one of these is passed over.
     #[serde(default)]
     pub passes_over: Vec<String>,
 }
@@ -101,10 +101,10 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
             };
             let from = format!("{table} {}: {field}", row["id"].as_str().unwrap_or("?"));
             for link in links(value) {
-                if link
-                    .table
-                    .as_ref()
-                    .is_some_and(|t| relation.passes_over.contains(t))
+                if relation
+                    .passes_over
+                    .iter()
+                    .any(|mark| link.id.contains(mark.as_str()))
                 {
                     continue;
                 }
