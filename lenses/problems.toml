@@ -42,7 +42,7 @@ supplies = [
 title = "raised, not yet handled ({count})"
 always = true
 sql = """
-SELECT star, id, what, by,
+SELECT star, id, what, "by",
        CASE WHEN coalesce("where", '') <> '' THEN ' - at ' || "where" ELSE '' END AS at,
        date_diff('day', try_cast(seen AS DATE), DATE '{today}') AS days
 FROM problems WHERE coalesce(handled, '') = '' ORDER BY seen, seq

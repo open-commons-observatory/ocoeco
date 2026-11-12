@@ -162,6 +162,25 @@ pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) 
     brought
 }
 
+/// Every lens with a focus, brought into focus over the place at `dir`: what fails to, and why.
+pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
+    lenses()
+        .iter()
+        .filter(|l| !l.focus.is_empty())
+        .filter_map(|l| {
+            focus(&l.lens.id, &[dir.to_path_buf()], "2026-01-01", engine)
+                .err()
+                .map(|e| {
+                    format!(
+                        "the lens {} cannot come into focus here: {}",
+                        l.lens.id,
+                        e.to_string().lines().next().unwrap_or_default()
+                    )
+                })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
