@@ -160,6 +160,30 @@ enum Cmd {
 }
 
 fn main() -> Result<()> {
+    // `ocoeco glimpse` alone, or with an entry a lens declares, is answered from the lenses; anything
+    // else - the record of work as it is done among it - goes on as before
+    let said: Vec<String> = std::env::args().collect();
+    if said.get(1).map(String::as_str) == Some("glimpse") {
+        if said.len() == 2 {
+            print!("{}", ocoeco::entries::composed());
+            return Ok(());
+        }
+        if ocoeco::entries::is_entry(&said[2]) {
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            let who = std::env::var("OCOECO_BY")
+                .or_else(|_| std::env::var("USER"))
+                .unwrap_or_default();
+            println!(
+                "{}",
+                ocoeco::entries::enter(&said[2], &said[3..], &today, &who)?
+            );
+            return Ok(());
+        }
+    }
     let gh = discover::GitHub::new();
     match Cli::parse().cmd {
         Cmd::Init {

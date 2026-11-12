@@ -27,9 +27,34 @@ pub struct Lens {
     /// How its rows relate to others.
     #[serde(default)]
     pub relation: Vec<Relation>,
+    /// Its glimpse: what can be entered through it.
+    #[serde(default)]
+    pub glimpse: Vec<Entry>,
     /// Its focus: the parts it brings into view.
     #[serde(default)]
     pub focus: Vec<Part>,
+}
+
+/// One thing that can be entered through a lens: the table it fills, what a person is asked for, and
+/// what the computer supplies.
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct Entry {
+    pub entry: String,
+    pub says: String,
+    pub table: String,
+    /// The fields a person is asked for, in the order they are shown.
+    pub asks: Vec<String>,
+    #[serde(default)]
+    pub supplies: Vec<Supply>,
+}
+
+/// A field the computer supplies: from what it knows (today, who), and when (new, always, FIELD
+/// changes, FIELD becomes VALUE).
+#[derive(serde::Deserialize, Clone, Debug)]
+pub struct Supply {
+    pub field: String,
+    pub from: String,
+    pub when: String,
 }
 
 /// One part of a focus: a query over the lens's gathered tables, and how one answer is laid out.

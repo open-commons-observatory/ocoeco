@@ -28,6 +28,18 @@ fields = [
 from = "backlog.serves"
 to = ["milestones", "decisions"]
 
+# The glimpse of the lens of work: what can be entered through it. A person is asked only for what
+# the computer cannot know; the rest is supplied - and what a person does give always stands.
+[[glimpse]]
+entry = "item"
+says = "A piece of work: opened, or moved along the flow."
+table = "backlog"
+asks = ["title", "status", "next", "waits_on", "serves", "note"]
+supplies = [
+    { field = "since", from = "today", when = "status changes" },
+    { field = "driver", from = "who", when = "status becomes in-progress" },
+]
+
 # The focus of the lens of work: the flow as Kanban asks it to be seen, and what needs attention.
 # Each part is a query over the gathered rows (every row with its star, and seq - its place in the
 # order gathered) and a line laying out one answer; {today} is supplied by the computer.

@@ -16,6 +16,7 @@ fn main() {
     files.sort();
     let (mut ids, mut tables): (BTreeMap<String, String>, BTreeMap<String, String>) =
         Default::default();
+    let mut entries: BTreeMap<String, String> = BTreeMap::new();
     let mut out = String::from("/// Every lens built into this ocoeco: its file's name and its text.\npub const LENSES: &[(&str, &str)] = &[\n");
     for file in &files {
         let name = file
@@ -42,6 +43,30 @@ fn main() {
         {
             if let Some(other) = tables.insert(table.clone(), name.clone()) {
                 panic!("the table {table} is defined by two lenses, {other} and {name}: one lens defines a piece of data, others read it");
+            }
+        }
+        for entry in lens
+            .get("glimpse")
+            .and_then(|g| g.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let called = entry
+                .get("entry")
+                .and_then(|e| e.as_str())
+                .unwrap_or_else(|| {
+                    panic!("{name}: an entry says what it is called - entry = \"...\"")
+                })
+                .to_string();
+            if let Some(other) = entries.insert(called.clone(), name.clone()) {
+                panic!("two entries are called {called}: in {other} and in {name}");
+            }
+            let table = entry
+                .get("table")
+                .and_then(|t| t.as_str())
+                .unwrap_or_default();
+            if lens.get("tables").and_then(|t| t.get(table)).is_none() {
+                panic!("{name}: the entry {called} fills the table {table:?}, which this lens does not define");
             }
         }
         out.push_str(&format!("    ({name:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/lenses/{name}\"))),\n"));
