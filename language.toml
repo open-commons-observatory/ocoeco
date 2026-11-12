@@ -20,6 +20,7 @@ fields = [
     { name = "next", type = "string" },
     { name = "since", type = "string" },
     { name = "waits_on", type = "string" },
+    { name = "serves", type = "string" },
 ]
 
 [tables.decisions]
@@ -33,6 +34,7 @@ fields = [
     { name = "why", type = "string", required = true },
     { name = "rejected", type = "string" },
     { name = "about", type = "string" },
+    { name = "refines", type = "string" },
     { name = "research", type = "string" },
     { name = "sources", type = "string" },
 ]
