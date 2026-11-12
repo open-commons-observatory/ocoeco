@@ -53,7 +53,9 @@ to = ["*"]
 from = "reflections.answers"
 to = ["reflections"]
 
-# a milestone is reached when these are done
+# a milestone is reached when these are done: links to rows (backlog:id), and conditions of another
+# kind that are not links to a row - a feature at a level (feature:name@level) - which are passed over
 [[relation]]
 from = "milestones.criteria"
 to = ["*"]
+passes_over = ["feature"]
