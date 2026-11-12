@@ -56,3 +56,29 @@ to = ["sources"]
 [[relation]]
 from = "vocabulary.decided"
 to = ["decisions"]
+
+# The glimpse of the lens of knowledge.
+[[glimpse]]
+entry = "research"
+says = "A question looked into, and what was found."
+table = "research"
+asks = ["question", "found", "sources"]
+supplies = [{ field = "date", from = "today", when = "new" }]
+
+[[glimpse]]
+entry = "source"
+says = "Where something known comes from, and what is taken from it."
+table = "sources"
+asks = ["title", "by", "year", "url", "takes"]
+
+[[glimpse]]
+entry = "concept"
+says = "An idea the work stands on."
+table = "concepts"
+asks = ["name", "summary", "why"]
+
+[[glimpse]]
+entry = "word"
+says = "A word and its one meaning: what it means, what it is not, and the decision that chose it."
+table = "vocabulary"
+asks = ["term", "means", "not", "see", "decided"]

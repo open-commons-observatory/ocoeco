@@ -35,3 +35,16 @@ fields = [
 from = "milestones.criteria"
 to = ["*"]
 passes_over = ["@"]
+
+# The glimpse of the lens of purpose.
+[[glimpse]]
+entry = "milestone"
+says = "What must be reached, and what makes it reached."
+table = "milestones"
+asks = ["title", "subject", "horizon", "readiness", "ord", "criteria", "why"]
+
+[[glimpse]]
+entry = "idea"
+says = "Why the star exists: one part of its idea."
+table = "idea"
+asks = ["kind", "heading", "text", "ord"]
