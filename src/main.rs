@@ -140,6 +140,15 @@ enum Cmd {
         dir: std::path::PathBuf,
     },
     /// Bring a lens into focus: what it shows of this place, or of every place under ROOT
+    /// The fulldome, in the terminal: every lens, and what each brings into focus - to move through
+    Fulldome {
+        /// Every place under ROOT together (two levels down: owner/repository)
+        #[arg(long)]
+        root: Option<String>,
+        /// The place, when no ROOT is given
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     Focus {
         /// The lens: work, ...
         lens: String,
@@ -343,6 +352,34 @@ fn run() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
+        Cmd::Fulldome { root, dir } => {
+            let scale = root.as_ref().map_or("this place".to_string(), |r| {
+                format!("every place under {r}")
+            });
+            let places =
+                match root {
+                    Some(root) => ocoeco::board::projects(&std::path::PathBuf::from(
+                        root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
+                    )),
+                    None => vec![dir],
+                };
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            let engine = tad::sql::DuckDb::find()?;
+            ocoeco::fulldome::open(scale, |lens, glimpse| {
+                let found = ocoeco::lenses::lenses()
+                    .into_iter()
+                    .find(|l| l.lens.id == lens);
+                match (glimpse, found) {
+                    (true, Some(found)) => ocoeco::entries::of(&found),
+                    _ => ocoeco::focus::focus(lens, &places, &today, &engine)
+                        .unwrap_or_else(|e| format!("{e:#}")),
+                }
+            })?;
+        }
         Cmd::Focus { lens, root, dir } => {
             let places =
                 match root {
