@@ -38,6 +38,12 @@ enum Cmd {
     Observe {
         #[arg(long)]
         out: std::path::PathBuf,
+        /// Observe the places held under ROOT (owner/repository, two levels down) instead of searching
+        #[arg(long)]
+        root: Option<String>,
+        /// Observe only what has run (runs), not the places' tables
+        #[arg(long)]
+        only: Option<String>,
     },
     /// Gather a repository's activity, releases and CI into DIR - data made by work
     Gather {
@@ -437,19 +443,43 @@ fn main() -> Result<()> {
                 );
             }
         }
-        Cmd::Observe { out } => {
-            let found = discover::discover(&[(&gh, &gh)], None)?;
-            let mut h = harvest::harvest(&found, &gh);
+        Cmd::Observe { out, root, only } => {
+            let before = harvest::read_rows(&out.join("runs.json"));
+            let held = root.map(|r| {
+                discover::Held::new(std::path::PathBuf::from(r.replacen(
+                    '~',
+                    &std::env::var("HOME").unwrap_or_default(),
+                    1,
+                )))
+            });
+            let found = match &held {
+                Some(held) => discover::discover(&[(held, held)], None)?,
+                None => discover::discover(&[(&gh, &gh)], None)?,
+            };
+            let mut h = match (only.as_deref(), &held) {
+                (Some("runs"), _) => harvest::Harvest {
+                    projects: Vec::new(),
+                    tables: Default::default(),
+                    problems: Vec::new(),
+                },
+                (Some(other), _) => anyhow::bail!("--only knows runs, not {other}"),
+                (None, Some(held)) => harvest::harvest(&found, held),
+                (None, None) => harvest::harvest(&found, &gh),
+            };
             harvest::observe_runs(&found, &gh, &mut h);
             harvest::write(&mut h, &out)?;
             println!(
                 "{} projects, {} tables ({} rows), {} problems -> {}",
-                h.projects.len(),
+                found.len(),
                 h.tables.len(),
                 h.tables.values().map(Vec::len).sum::<usize>(),
                 h.problems.len(),
                 out.display()
             );
+            // what changed since the last observation: said at every scale
+            for change in harvest::changes(&before, &h.tables["runs"]) {
+                println!("{change}");
+            }
         }
     }
     Ok(())
