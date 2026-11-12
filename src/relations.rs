@@ -18,6 +18,9 @@ struct Declared {
 pub struct Relation {
     pub from: String,
     pub to: Vec<String>,
+    /// Words before a colon that are not tables: conditions of another kind, passed over.
+    #[serde(default)]
+    pub passes_over: Vec<String>,
 }
 
 /// The relations of the shared language.
@@ -98,6 +101,13 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
             };
             let from = format!("{table} {}: {field}", row["id"].as_str().unwrap_or("?"));
             for link in links(value) {
+                if link
+                    .table
+                    .as_ref()
+                    .is_some_and(|t| relation.passes_over.contains(t))
+                {
+                    continue;
+                }
                 let found = match (&link.star, &link.table) {
                     (Some(star), Some(t)) => {
                         let Some(there) = others.get(star) else {
