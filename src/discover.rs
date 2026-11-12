@@ -21,6 +21,58 @@ pub trait Outlet {
     fn find(&self, kind: Option<&str>) -> Result<Vec<Found>>;
 }
 
+/// The latest finished run of one workflow on a repository's default branch.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Run {
+    pub workflow: String,
+    pub conclusion: String,
+    pub at: String,
+    pub url: String,
+}
+
+/// A port: what has run in a found repository - the latest finished run of each of its active
+/// workflows on its default branch.
+pub trait Runs {
+    fn latest(&self, found: &Found) -> Result<Vec<Run>>;
+}
+
+/// The latest finished run of each active workflow, from a platform's list of workflows and its runs
+/// on the default branch, newest first. Runs for pull requests and Dependabot's own jobs are not the
+/// branch's: they are left out, as are workflows no longer active.
+pub fn latest_runs(workflows: &str, runs: &str) -> Result<Vec<Run>> {
+    let workflows: serde_json::Value =
+        serde_json::from_str(workflows).context("the workflows are not JSON")?;
+    let active: std::collections::BTreeSet<&str> = workflows["workflows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|w| w["state"] == "active")
+        .filter_map(|w| w["name"].as_str())
+        .collect();
+    let runs: serde_json::Value = serde_json::from_str(runs).context("the runs are not JSON")?;
+    let mut seen = std::collections::BTreeSet::new();
+    let mut latest = Vec::new();
+    for r in runs["workflow_runs"].as_array().into_iter().flatten() {
+        let (Some(name), Some(event)) = (r["name"].as_str(), r["event"].as_str()) else {
+            continue;
+        };
+        if r["status"] != "completed"
+            || matches!(event, "pull_request" | "pull_request_target" | "dynamic")
+            || !active.contains(name)
+            || !seen.insert(name)
+        {
+            continue;
+        }
+        latest.push(Run {
+            workflow: name.to_string(),
+            conclusion: r["conclusion"].as_str().unwrap_or("unknown").to_string(),
+            at: r["created_at"].as_str().unwrap_or_default().to_string(),
+            url: r["html_url"].as_str().unwrap_or_default().to_string(),
+        });
+    }
+    Ok(latest)
+}
+
 /// A port: reads a file from a found repository (None when it has no such file).
 pub trait Source {
     fn read(&self, found: &Found, path: &str) -> Result<Option<String>>;
@@ -152,6 +204,22 @@ impl Source for GitHub {
     }
 }
 
+impl Runs for GitHub {
+    fn latest(&self, found: &Found) -> Result<Vec<Run>> {
+        let base = format!("https://api.github.com/repos/{}/actions", found.repo);
+        let workflows = self
+            .get(&format!("{base}/workflows?per_page=100"))?
+            .unwrap_or_else(|| "{}".into());
+        let runs = self
+            .get(&format!(
+                "{base}/runs?branch={}&per_page=100&exclude_pull_requests=true",
+                found.branch
+            ))?
+            .unwrap_or_else(|| "{}".into());
+        latest_runs(&workflows, &runs)
+    }
+}
+
 /// A candidate, confirmed or not: its mark, or why it is not one.
 #[derive(Debug, Serialize)]
 pub struct Candidate {
@@ -192,6 +260,25 @@ pub fn discover(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_latest_finished_run_of_each_active_workflow_is_kept() {
+        let workflows = r#"{"workflows":[{"name":"ci","state":"active"},{"name":"release","state":"active"},{"name":"old","state":"disabled_manually"}]}"#;
+        let runs = r#"{"workflow_runs":[
+            {"name":"ci","event":"push","status":"in_progress","conclusion":null,"created_at":"5","html_url":"u5"},
+            {"name":"release","event":"push","status":"completed","conclusion":"failure","created_at":"4","html_url":"u4"},
+            {"name":"ci","event":"pull_request","status":"completed","conclusion":"failure","created_at":"3","html_url":"u3"},
+            {"name":"pip in /x","event":"dynamic","status":"completed","conclusion":"failure","created_at":"3","html_url":"d"},
+            {"name":"ci","event":"push","status":"completed","conclusion":"success","created_at":"2","html_url":"u2"},
+            {"name":"release","event":"push","status":"completed","conclusion":"success","created_at":"1","html_url":"u1"},
+            {"name":"old","event":"push","status":"completed","conclusion":"failure","created_at":"1","html_url":"o"}]}"#;
+        let latest = latest_runs(workflows, runs).unwrap();
+        let seen: Vec<(&str, &str, &str)> = latest
+            .iter()
+            .map(|r| (r.workflow.as_str(), r.conclusion.as_str(), r.at.as_str()))
+            .collect();
+        assert_eq!(seen, [("release", "failure", "4"), ("ci", "success", "2")]);
+    }
 
     #[test]
     fn the_query_finds_all_or_one_kind() {

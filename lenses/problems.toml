@@ -20,6 +20,21 @@ fields = [
     { name = "handled", type = "string" },
 ]
 
+# What has run in each place: the latest finished run of each workflow on its default branch, observed -
+# never written by hand. A run that failed is a problem derived from the data: shown while true, gone
+# when the next run passes.
+[tables.runs]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "project", type = "string", required = true },
+    { name = "workflow", type = "string", required = true },
+    { name = "conclusion", type = "string", required = true },
+    { name = "at", type = "string" },
+    { name = "url", type = "string" },
+]
+
 # where a problem was seen, and what its countermeasure is, are links to rows
 [[relation]]
 from = "problems.where"
@@ -48,6 +63,14 @@ SELECT star, id, what, "by",
 FROM problems WHERE coalesce(handled, '') = '' ORDER BY seen, seq
 """
 line = "  {star}/{id} - {what}{at} (seen by {by}, {days} day(s) ago)"
+
+[[focus]]
+title = "failing on main ({count})"
+sql = """
+SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
+WHERE conclusion NOT IN ('success', 'skipped', 'neutral') ORDER BY "at", seq
+"""
+line = "  {project} - {workflow}: {conclusion} since {day} - {url}"
 
 [[focus]]
 title = "stalled in the work ({count})"

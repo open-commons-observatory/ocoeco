@@ -33,7 +33,9 @@ enum Cmd {
         json: bool,
     },
     /// Read every confirmed project's shared tables into DIR: each row with its project, merged, canonical
-    Harvest {
+    /// Observe every place: gather their tables and what has run there (once called harvest)
+    #[command(alias = "harvest")]
+    Observe {
         #[arg(long)]
         out: std::path::PathBuf,
     },
@@ -435,9 +437,10 @@ fn main() -> Result<()> {
                 );
             }
         }
-        Cmd::Harvest { out } => {
+        Cmd::Observe { out } => {
             let found = discover::discover(&[(&gh, &gh)], None)?;
             let mut h = harvest::harvest(&found, &gh);
+            harvest::observe_runs(&found, &gh, &mut h);
             harvest::write(&mut h, &out)?;
             println!(
                 "{} projects, {} tables ({} rows), {} problems -> {}",

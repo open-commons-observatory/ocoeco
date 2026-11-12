@@ -2,7 +2,7 @@
 //! by table name into the observatory's own tad data - with a registry of the projects and a list of
 //! problems (a broken mark, a table that could not be read), shown rather than lost.
 
-use crate::discover::{Candidate, Source};
+use crate::discover::{Candidate, Runs, Source};
 use anyhow::Result;
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
@@ -112,6 +112,28 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
     h
 }
 
+/// Observes what has run in every confirmed candidate: the latest finished run of each workflow on its
+/// default branch, as rows of the table runs - each named by its project and workflow. A run that
+/// failed is a problem derived from the data: shown while it is true, gone when the next run passes.
+pub fn observe_runs(candidates: &[Candidate], runs: &dyn Runs, h: &mut Harvest) {
+    h.tables.entry("runs".into()).or_default();
+    for c in candidates {
+        let Some(mark) = &c.mark else { continue };
+        let id = &mark.project.id;
+        match runs.latest(&c.found) {
+            Ok(latest) => {
+                for r in latest {
+                    let row = json!({"id": format!("{id}:{}", r.workflow), "project": id, "workflow": r.workflow, "conclusion": r.conclusion, "at": r.at, "url": r.url});
+                    if let Some(row) = row.as_object() {
+                        h.tables.entry("runs".into()).or_default().push(row.clone());
+                    }
+                }
+            }
+            Err(e) => h.problems.push(json!({"id": format!("{id}:runs"), "project": id, "problem": format!("its runs could not be read: {e:#}")})),
+        }
+    }
+}
+
 /// Writes the harvest as tad tables into `dir`: one file per table, projects.json, problems.json.
 pub fn write(h: &mut Harvest, dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir)?;
@@ -137,6 +159,51 @@ pub fn write(h: &mut Harvest, dir: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runs_are_observed_as_rows_and_an_unreadable_place_is_a_problem() {
+        use crate::discover::{Found, Run};
+        struct Seen;
+        impl Runs for Seen {
+            fn latest(&self, found: &Found) -> Result<Vec<Run>> {
+                if found.repo == "o/broken" {
+                    anyhow::bail!("403");
+                }
+                Ok(vec![Run {
+                    workflow: "release".into(),
+                    conclusion: "failure".into(),
+                    at: "2026-11-12".into(),
+                    url: "u".into(),
+                }])
+            }
+        }
+        let candidate = |repo: &str| {
+            Candidate {
+            found: Found { platform: "github".into(), repo: repo.into(), branch: "main".into(), url: String::new() },
+            mark: Some(crate::mark::Mark::parse(&format!("schema = 1\n[project]\nid = \"{repo}\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n")).unwrap()),
+            problem: None,
+        }
+        };
+        let mut h = Harvest {
+            projects: Vec::new(),
+            tables: BTreeMap::new(),
+            problems: Vec::new(),
+        };
+        observe_runs(&[candidate("o/r"), candidate("o/broken")], &Seen, &mut h);
+        let rows = &h.tables["runs"];
+        assert_eq!(
+            (
+                rows.len(),
+                rows[0]["id"].as_str(),
+                rows[0]["conclusion"].as_str()
+            ),
+            (1, Some("o/r:release"), Some("failure"))
+        );
+        assert!(h.problems[0]["problem"]
+            .as_str()
+            .unwrap()
+            .contains("its runs could not be read: 403"));
+    }
 
     #[test]
     fn rows_are_tagged_with_their_project_and_bad_lines_counted() {
