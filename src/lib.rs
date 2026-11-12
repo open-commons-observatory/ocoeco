@@ -4,6 +4,7 @@ pub mod board;
 pub mod discover;
 pub mod entries;
 pub mod focus;
+pub mod fulldome;
 pub mod gather;
 pub mod glimpse;
 pub mod harvest;

@@ -75,48 +75,56 @@ fn fields(lens: &Lens, table: &str) -> Vec<(String, bool, Vec<String>)> {
         .collect()
 }
 
+/// What can be entered through one lens: its entries, with what a person is asked for and what the
+/// computer supplies.
+pub fn of(lens: &Lens) -> String {
+    let mut text = format!("{}: {}\n", lens.lens.id, lens.lens.says);
+    if lens.glimpse.is_empty() {
+        let tables: Vec<&str> = lens.tables.keys().map(String::as_str).collect();
+        text.push_str(&format!(
+            "  no entries yet - its tables are written with ocoeco note: {}\n",
+            tables.join(", ")
+        ));
+    }
+    for e in &lens.glimpse {
+        text.push_str(&format!("  {} - {}\n", e.entry, e.says));
+        let declared = fields(lens, &e.table);
+        let asked: Vec<String> = e
+            .asks
+            .iter()
+            .map(|a| match declared.iter().find(|(n, _, _)| n == a) {
+                Some((_, true, allowed)) if !allowed.is_empty() => {
+                    format!("{a} (needed: {})", allowed.join(", "))
+                }
+                Some((_, true, _)) => format!("{a} (needed)"),
+                Some((_, false, allowed)) if !allowed.is_empty() => {
+                    format!("{a} ({})", allowed.join(", "))
+                }
+                _ => a.clone(),
+            })
+            .collect();
+        text.push_str(&format!("    asks: {}\n", asked.join("; ")));
+        let supplied: Vec<String> = e
+            .supplies
+            .iter()
+            .map(|s| format!("{} ({}, when {})", s.field, s.from, s.when))
+            .collect();
+        if !supplied.is_empty() {
+            text.push_str(&format!(
+                "    the computer supplies: {}\n",
+                supplied.join("; ")
+            ));
+        }
+    }
+    text
+}
+
 /// Every entry of every lens: what a person is asked for and what the computer supplies.
 pub fn composed() -> String {
     let mut text = String::from("what can be glimpsed - ocoeco glimpse ENTRY --id ID --FIELD VALUE ... (--add-FIELD MORE adds to a field's text)\n");
     for lens in lenses() {
-        text.push_str(&format!("\n{}: {}\n", lens.lens.id, lens.lens.says));
-        if lens.glimpse.is_empty() {
-            let tables: Vec<&str> = lens.tables.keys().map(String::as_str).collect();
-            text.push_str(&format!(
-                "  no entries yet - its tables are written with ocoeco note: {}\n",
-                tables.join(", ")
-            ));
-        }
-        for e in &lens.glimpse {
-            text.push_str(&format!("  {} - {}\n", e.entry, e.says));
-            let declared = fields(&lens, &e.table);
-            let asked: Vec<String> = e
-                .asks
-                .iter()
-                .map(|a| match declared.iter().find(|(n, _, _)| n == a) {
-                    Some((_, true, allowed)) if !allowed.is_empty() => {
-                        format!("{a} (needed: {})", allowed.join(", "))
-                    }
-                    Some((_, true, _)) => format!("{a} (needed)"),
-                    Some((_, false, allowed)) if !allowed.is_empty() => {
-                        format!("{a} ({})", allowed.join(", "))
-                    }
-                    _ => a.clone(),
-                })
-                .collect();
-            text.push_str(&format!("    asks: {}\n", asked.join("; ")));
-            let supplied: Vec<String> = e
-                .supplies
-                .iter()
-                .map(|s| format!("{} ({}, when {})", s.field, s.from, s.when))
-                .collect();
-            if !supplied.is_empty() {
-                text.push_str(&format!(
-                    "    the computer supplies: {}\n",
-                    supplied.join("; ")
-                ));
-            }
-        }
+        text.push('\n');
+        text.push_str(&of(&lens));
     }
     text.push_str(
         "\nthe record of work as it is done: ocoeco glimpse \"what was done\" --kind KIND\n",
