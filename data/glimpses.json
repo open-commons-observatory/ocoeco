@@ -31,3 +31,4 @@
 {"id":"g-20261112-203149","at":"2026-11-12T20:31:49Z","by":"claude","kind":"fix","summary":"a refused write says the change above was put back"}
 {"id":"g-20261112-203520","at":"2026-11-12T20:35:20Z","by":"claude","kind":"docs","summary":"work in progress made honest: two finished items closed"}
 {"id":"g-20261112-205347","at":"2026-11-12T20:53:47Z","by":"claude","kind":"feat","summary":"the fulldome in a terminal: every lens in focus, to move through","advances":"backlog:lenses-as-data"}
+{"id":"g-20261112-212124","at":"2026-11-12T21:21:24Z","by":"claude","kind":"feat","summary":"the dome is the port, surfaces its adapters; markdown the second surface","advances":"backlog:lenses-as-data"}

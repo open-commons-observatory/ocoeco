@@ -53,7 +53,7 @@ SELECT coalesce(nullif(driver, ''), 'nobody') AS driver, star, id, title,
             THEN ', ' || date_diff('day', try_cast(since AS DATE), DATE '{today}') || ' day(s)' ELSE '' END AS age
 FROM backlog WHERE status = 'in-progress' ORDER BY 1, seq
 """
-line = "  {driver}: {star}/{id} - {title}{next}{age}"
+line = "{driver}: {star}/{id} - {title}{next}{age}"
 
 [[focus]]
 title = "waiting ({count})"
@@ -61,12 +61,12 @@ sql = """
 SELECT star, id, title, coalesce(nullif(waits_on, ''), 'nothing said') AS waits_on
 FROM backlog WHERE status = 'waiting' ORDER BY seq
 """
-line = "  {star}/{id} - {title} - waits on {waits_on}"
+line = "{star}/{id} - {title} - waits on {waits_on}"
 
 [[focus]]
 title = "next ({count})"
 sql = "SELECT star, id, title FROM backlog WHERE status = 'next' ORDER BY seq"
-line = "  {star}/{id} - {title}"
+line = "{star}/{id} - {title}"
 
 # a driver holding more than three at once; work in progress held by nobody or with no next step;
 # work that has not moved for more than a week
@@ -89,7 +89,7 @@ SELECT text FROM (
      AND date_diff('day', try_cast(since AS DATE), DATE '{today}') > 7
 ) ORDER BY g, o, s, k
 """
-line = "  {text}"
+line = "{text}"
 
 [[focus]]
 always = true
