@@ -80,7 +80,7 @@ pub fn advances(dir: &Path, touches: &[String]) -> Result<Vec<String>> {
             .filter(|a| a.starts_with("backlog:"))
             .any(|b| criteria.split_whitespace().any(|c| c == b))
         {
-            let id = format!("milestone:{}", m.text("id"));
+            let id = format!("milestones:{}", m.text("id"));
             if !out.contains(&id) {
                 out.push(id);
             }
@@ -313,7 +313,7 @@ mod tests {
         };
         let said = glimpse(&d, &g, "2026-11-11T21:00:00Z", "g-20261111-210000").unwrap();
         assert!(
-            said.contains("advances backlog:b, milestone:m") && said.contains("1 row(s)"),
+            said.contains("advances backlog:b, milestones:m") && said.contains("1 row(s)"),
             "{said}"
         );
         let line = std::fs::read_to_string(d.join("oco/glimpses.json")).unwrap();
