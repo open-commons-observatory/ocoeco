@@ -1,5 +1,6 @@
 //! ocoeco: the observatory's information ecosystem - the mark, discovery, the harvest (SPEC.md).
 
+pub mod board;
 pub mod discover;
 pub mod gather;
 pub mod glimpse;

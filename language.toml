@@ -3,6 +3,9 @@
 # (extra_fields). `ocoeco note` checks the row it writes against this with tad's check_row, fills a new
 # row's dated field with today, and keeps every other line of the table exactly as it was.
 
+# The backlog is also the board's flow (the board is a view over it, never a list of its own):
+# open -> next -> in-progress -> waiting / parked -> done or dropped. In progress, an item has a driver
+# (who holds it), a next step, and since (the day it entered its state); waiting says on what.
 [tables.backlog]
 key = ["id"]
 extra_fields = true
@@ -10,9 +13,13 @@ dated = "opened"
 fields = [
     { name = "id", type = "string", required = true },
     { name = "title", type = "string", required = true },
-    { name = "status", type = "string", required = true, enum = ["open", "in-progress", "done"] },
+    { name = "status", type = "string", required = true, enum = ["open", "next", "in-progress", "waiting", "parked", "done", "dropped"] },
     { name = "note", type = "string" },
     { name = "opened", type = "string" },
+    { name = "driver", type = "string" },
+    { name = "next", type = "string" },
+    { name = "since", type = "string" },
+    { name = "waits_on", type = "string" },
 ]
 
 [tables.decisions]

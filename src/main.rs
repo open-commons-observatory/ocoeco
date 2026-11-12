@@ -131,6 +131,13 @@ enum Cmd {
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
+    /// The board: every marked project's backlog under ROOT as one flow - in progress, waiting, next,
+    /// and what needs attention
+    Board {
+        /// Where the projects are kept, two levels down (owner/repository)
+        #[arg(long, default_value = "~/Projects")]
+        root: String,
+    },
     /// Read this repository as the harvest would: its mark and every table it shares
     Check {
         #[arg(long, default_value = ".")]
@@ -272,6 +279,22 @@ fn main() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
+        Cmd::Board { root } => {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let root = std::path::PathBuf::from(root.replacen('~', &home, 1));
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            print!(
+                "{}",
+                ocoeco::board::board(
+                    &ocoeco::board::items(&ocoeco::board::projects(&root)),
+                    &today
+                )
+            );
+        }
         Cmd::Check { dir } => {
             let (well, problems) = join::check(&dir)?;
             for w in &well {

@@ -134,7 +134,7 @@ pub fn check(dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
 }
 
 /// The rows of one exported table kept in this repository (not on another branch).
-fn rows(dir: &Path, mark: &Mark, table: &str) -> Vec<serde_json::Value> {
+pub fn rows(dir: &Path, mark: &Mark, table: &str) -> Vec<serde_json::Value> {
     mark.exports
         .iter()
         .find(|(t, path)| t.as_str() == table && !path.contains('@'))
