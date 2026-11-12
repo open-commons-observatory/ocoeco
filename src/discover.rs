@@ -220,6 +220,76 @@ impl Runs for GitHub {
     }
 }
 
+/// An outlet and a source for the places a machine holds: every marked repository under a root, two
+/// levels down (owner/repository) - found where it lives on its platform by its git remote, and read
+/// from the disk. The same act, observe, then works without searching.
+pub struct Held {
+    root: std::path::PathBuf,
+}
+
+impl Held {
+    pub fn new(root: std::path::PathBuf) -> Held {
+        Held { root }
+    }
+}
+
+/// owner/repository from a git remote on GitHub (https or ssh), if it is one.
+pub fn github_repo(remote: &str) -> Option<String> {
+    let rest = remote
+        .trim()
+        .split_once("github.com")?
+        .1
+        .trim_start_matches([':', '/']);
+    let repo = rest.trim_end_matches('/').trim_end_matches(".git");
+    (repo.split('/').count() == 2).then(|| repo.to_string())
+}
+
+impl Outlet for Held {
+    fn platform(&self) -> &str {
+        "github"
+    }
+    fn find(&self, _kind: Option<&str>) -> Result<Vec<Found>> {
+        let git = |dir: &std::path::Path, args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        };
+        Ok(crate::board::projects(&self.root)
+            .into_iter()
+            .filter_map(|dir| {
+                let repo = github_repo(&git(&dir, &["remote", "get-url", "origin"])?)?;
+                let branch = git(
+                    &dir,
+                    &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+                )
+                .and_then(|b| b.strip_prefix("origin/").map(str::to_string))
+                .unwrap_or_else(|| "main".into());
+                Some(Found {
+                    platform: "github".into(),
+                    repo,
+                    branch,
+                    url: dir.display().to_string(),
+                })
+            })
+            .collect())
+    }
+}
+
+impl Source for Held {
+    fn read(&self, found: &Found, path: &str) -> Result<Option<String>> {
+        match std::fs::read_to_string(std::path::Path::new(&found.url).join(path)) {
+            Ok(text) => Ok(Some(text)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
 /// A candidate, confirmed or not: its mark, or why it is not one.
 #[derive(Debug, Serialize)]
 pub struct Candidate {
@@ -278,6 +348,23 @@ mod tests {
             .map(|r| (r.workflow.as_str(), r.conclusion.as_str(), r.at.as_str()))
             .collect();
         assert_eq!(seen, [("release", "failure", "4"), ("ci", "success", "2")]);
+    }
+
+    #[test]
+    fn a_held_place_is_found_on_github_by_its_remote() {
+        assert_eq!(
+            github_repo("https://github.com/o/r.git").as_deref(),
+            Some("o/r")
+        );
+        assert_eq!(
+            github_repo("git@github.com:o/r.git\n").as_deref(),
+            Some("o/r")
+        );
+        assert_eq!(
+            github_repo("https://github.com/o/r").as_deref(),
+            Some("o/r")
+        );
+        assert_eq!(github_repo("https://gitlab.com/o/r.git"), None);
     }
 
     #[test]
