@@ -179,13 +179,29 @@ pub fn brought(
         std::process::id(),
         CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
-    let parts = (|| -> Result<Vec<Brought>> {
+    let projected = (|| -> Result<(Vec<Brought>, Vec<String>)> {
         let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
-        let mut parts = Vec::new();
+        let (mut parts, mut doubts) = (Vec::new(), Vec::new());
         for part in &found.focus {
             let rows = answers(engine, &load, &part.sql.replace("{today}", today))?;
             if rows.is_empty() && !part.always {
                 continue;
+            }
+            // a line that names what its answers do not hold would be laid out with a hole in it
+            if let Some(first) = rows.first() {
+                let heading = part
+                    .title
+                    .as_deref()
+                    .map(named)
+                    .unwrap_or("a part with no heading");
+                for name in asked(&part.line)
+                    .into_iter()
+                    .filter(|name| !first.contains_key(*name))
+                {
+                    doubts.push(format!(
+                        "{heading}: its line names {{{name}}}, which its answers do not hold"
+                    ));
+                }
             }
             parts.push(Brought {
                 title: part
@@ -221,10 +237,96 @@ pub fn brought(
                 },
             });
         }
-        Ok(parts)
+        Ok((parts, doubts))
     })();
     let _ = std::fs::remove_dir_all(&scratch);
-    parts
+    // the projection looks at itself before it reaches any surface: what is not sound becomes a part
+    // of it - so every surface shows it, the voice says it, and the check fails; never silently
+    let (mut parts, mut doubts) = projected?;
+    doubts.extend(unsound(&parts));
+    if !doubts.is_empty() {
+        parts.push(Brought {
+            title: Some(format!("{NOT_SOUND} ({})", doubts.len())),
+            lines: doubts.clone(),
+            keys: doubts,
+            measures: Vec::new(),
+        });
+    }
+    Ok(parts)
+}
+
+/// The heading of the part a projection adds to itself when it is not sound.
+pub const NOT_SOUND: &str = "this focus is not sound";
+
+/// The names a line asks its answer for: each {name}.
+fn asked(line: &str) -> Vec<&str> {
+    let mut names = Vec::new();
+    let mut rest = line;
+    while let Some(open) = rest.find('{') {
+        let Some(close) = rest[open..].find('}') else {
+            break;
+        };
+        let name = &rest[open + 1..open + close];
+        if !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            names.push(name);
+        }
+        rest = &rest[open + close + 1..];
+    }
+    names
+}
+
+/// What is not sound in a projection - what a lens brought into focus, still as structure, before any
+/// surface lays it out. True of every projection, whatever the lens: each line has what it is about;
+/// the same thing is not shown twice in one part; a measure lies within its whole. This is where a
+/// focus can be checked: here, while it is still intelligible - not afterwards, in a surface's text.
+pub fn unsound(parts: &[Brought]) -> Vec<String> {
+    let mut doubts = Vec::new();
+    for part in parts {
+        let heading = part
+            .title
+            .as_deref()
+            .map(named)
+            .unwrap_or("a part with no heading");
+        if part.keys.len() != part.lines.len() {
+            doubts.push(format!(
+                "{heading}: {} lines, but {} things they are about",
+                part.lines.len(),
+                part.keys.len()
+            ));
+        }
+        if !part.measures.is_empty() && part.measures.len() != part.lines.len() {
+            doubts.push(format!(
+                "{heading}: {} lines, but {} measures",
+                part.lines.len(),
+                part.measures.len()
+            ));
+        }
+        // a line that is about something of its own (a star's item), shown more than once
+        let mut shown = std::collections::BTreeMap::new();
+        for (key, _) in part
+            .keys
+            .iter()
+            .zip(&part.lines)
+            .filter(|(key, line)| key != line)
+        {
+            *shown.entry(key).or_insert(0usize) += 1;
+        }
+        for (key, times) in shown.into_iter().filter(|(_, times)| *times > 1) {
+            doubts.push(format!("{heading}: {key} is shown {times} times"));
+        }
+        for (so_much, of) in part.measures.iter().flatten() {
+            if *of <= 0.0 || *so_much < 0.0 || so_much > of {
+                doubts.push(format!(
+                    "{heading}: a measure of {so_much} of {of} is not within its whole"
+                ));
+            }
+        }
+    }
+    doubts
 }
 
 /// A heading without its count: "in progress (2)" is "in progress".
@@ -291,21 +393,27 @@ pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) 
 
 /// Every lens with a focus, brought into focus over the place at `dir`: what fails to, and why.
 pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
-    lenses()
-        .iter()
-        .filter(|l| !l.focus.is_empty())
-        .filter_map(|l| {
-            focus(&l.lens.id, &[dir.to_path_buf()], "2026-01-01", engine)
-                .err()
-                .map(|e| {
-                    format!(
-                        "the lens {} cannot come into focus here: {}",
-                        l.lens.id,
-                        e.to_string().lines().next().unwrap_or_default()
-                    )
-                })
-        })
-        .collect()
+    let mut problems = Vec::new();
+    for lens in lenses().iter().filter(|l| !l.focus.is_empty()) {
+        match brought(&lens.lens.id, &[dir.to_path_buf()], "2026-01-01", engine) {
+            Err(e) => problems.push(format!(
+                "the lens {} cannot come into focus here: {}",
+                lens.lens.id,
+                e.to_string().lines().next().unwrap_or_default()
+            )),
+            Ok(parts) => {
+                for part in parts
+                    .iter()
+                    .filter(|p| p.title.as_deref().is_some_and(|t| t.starts_with(NOT_SOUND)))
+                {
+                    problems.extend(part.lines.iter().map(|doubt| {
+                        format!("the lens {} is not sound here - {doubt}", lens.lens.id)
+                    }));
+                }
+            }
+        }
+    }
+    problems
 }
 
 #[cfg(test)]
@@ -377,6 +485,79 @@ mod tests {
         );
         assert_eq!(since(&kept, &now).unwrap().len(), 3);
         assert!(since(&kept, &now).unwrap().is_empty(), "said once");
+    }
+
+    #[test]
+    fn a_projection_says_what_is_not_sound_in_it() {
+        let part =
+            |title: &str, rows: &[(&str, &str)], measures: Vec<Option<(f64, f64)>>| Brought {
+                title: Some(title.into()),
+                lines: rows.iter().map(|(_, l)| l.to_string()).collect(),
+                keys: rows.iter().map(|(k, _)| k.to_string()).collect(),
+                measures,
+            };
+        let sound = [
+            part(
+                "in progress (2)",
+                &[("r/a", "ann: r/a - A"), ("r/b", "bob: r/b - B")],
+                vec![],
+            ),
+            part(
+                "done lately (2)",
+                &[("r - tidied", "r - tidied"), ("r - tidied", "r - tidied")],
+                vec![],
+            ),
+            part(
+                "reached (1)",
+                &[("r/m", "r - M: 8 of 9")],
+                vec![Some((8.0, 9.0))],
+            ),
+        ];
+        assert!(
+            unsound(&sound).is_empty(),
+            "two glimpses with the same words are two glimpses: {:?}",
+            unsound(&sound)
+        );
+        // what fed back into itself on 2026-11-12: the same run, three times over
+        let fed_back = [part(
+            "failing on main (3)",
+            &[
+                ("r/ci", "r - ci: failure"),
+                ("r/ci", "r - ci: failure"),
+                ("r/ci", "r - ci: failure"),
+            ],
+            vec![],
+        )];
+        assert_eq!(
+            unsound(&fed_back),
+            ["failing on main: r/ci is shown 3 times"]
+        );
+        let beyond = [part(
+            "reached (1)",
+            &[("r/m", "r - M: 12 of 9")],
+            vec![Some((12.0, 9.0))],
+        )];
+        assert_eq!(
+            unsound(&beyond),
+            ["reached: a measure of 12 of 9 is not within its whole"]
+        );
+        let mut torn = part(
+            "next (2)",
+            &[("r/a", "r/a - A"), ("r/b", "r/b - B")],
+            vec![Some((1.0, 2.0))],
+        );
+        torn.keys.pop();
+        assert_eq!(
+            unsound(&[torn]),
+            [
+                "next: 2 lines, but 1 things they are about",
+                "next: 2 lines, but 1 measures"
+            ]
+        );
+        assert_eq!(
+            asked("{star}/{id} - {title}: {so_much} of 9 {not a name} {}"),
+            ["star", "id", "title", "so_much"]
+        );
     }
 
     #[test]
