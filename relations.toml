@@ -53,9 +53,10 @@ to = ["*"]
 from = "reflections.answers"
 to = ["reflections"]
 
-# a milestone is reached when these are done: links to rows (backlog:id), and conditions of another
-# kind that are not links to a row - a feature at a level (feature:name@level) - which are passed over
+# a milestone is reached when these are done: links to rows (backlog:id), and conditions - something
+# at a device or a level, always written with an @ (feature:voice-calls@linux-best,
+# component:kernel@xiaomi-surya, tests@xiaomi-surya) - which are not links to a row and are passed over
 [[relation]]
 from = "milestones.criteria"
 to = ["*"]
-passes_over = ["feature"]
+passes_over = ["@"]
