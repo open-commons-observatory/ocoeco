@@ -349,19 +349,31 @@ mod tests {
                 "knowledge",
                 "language",
                 "looking-back",
-                "problems",
                 "purpose",
                 "reasoning",
                 "results",
+                "signs",
                 "work"
             ]
         );
         assert!(all.iter().all(|l| l.lens.says.len() > 20));
-        let problems = all.iter().find(|l| l.lens.id == "problems").unwrap();
+        let signs = all.iter().find(|l| l.lens.id == "signs").unwrap();
         assert_eq!(
-            problems.lens.reads,
-            ["backlog"],
-            "the problems lens reads the work"
+            signs.lens.reads,
+            ["backlog", "connections"],
+            "the lens of signs reads the work, and what came of a sign"
+        );
+        assert_eq!(
+            signs.lens.grew_from.as_deref(),
+            Some("problems"),
+            "it grew from the lens of problems, whose table it keeps"
+        );
+        assert!(
+            !signs
+                .glimpse
+                .iter()
+                .any(|e| e.asks.iter().any(|a| a == "countermeasure")),
+            "nothing is asked about what was done"
         );
         assert_eq!(
             all.iter().map(|l| l.tables.len()).sum::<usize>(),

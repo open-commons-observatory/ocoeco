@@ -399,7 +399,7 @@ mod tests {
         for lens in [
             "knowledge",
             "looking-back",
-            "problems",
+            "signs",
             "purpose",
             "reasoning",
             "results",
@@ -520,16 +520,13 @@ mod tests {
             (last, Asked::Nothing),
             "work is last: nothing below it"
         );
-        assert_eq!(
-            (dome.key(KeyCode::Up), dome.lens()),
-            (Asked::Load, "results")
-        );
+        assert_eq!((dome.key(KeyCode::Up), dome.lens()), (Asked::Load, "signs"));
         assert_eq!(
             (dome.key(KeyCode::Char('g')), dome.glimpse),
             (Asked::Load, true)
         );
         dome.text = "  working - How something works".into();
-        assert!(seen(&dome).contains("results: what can be glimpsed"));
+        assert!(seen(&dome).contains("signs: what can be glimpsed"));
         assert_eq!(
             (dome.key(KeyCode::Up), dome.glimpse),
             (Asked::Load, false),

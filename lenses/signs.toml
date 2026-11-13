@@ -1,0 +1,114 @@
+# The lens of signs. What goes wrong is a sign that something does not fit the whole - stale,
+# overlapping, lacking, unclear - not a thing to be countered. A sign is said by whoever sees it: what,
+# where, and what kind. It is shown while nothing has come of it, and it stops being shown when a
+# connection leads from it to what was seen - a decision, a piece of work. Nothing is written about what
+# was done: what came of it is a row to be pointed at. Many signs may lead to one thing, and then they
+# all stop together. Signs read off the work - a run that fails, work that has not moved - are shown
+# while they are true, and nobody ends them.
+#
+# The table keeps the name it was stored under, problems, and the two fields that were asked before
+# 2026-11-13 (countermeasure, handled): rows written then are as they were written. A name is not the
+# place it names.
+[lens]
+id = "signs"
+grew_from = "problems"
+says = "What does not fit, said by whoever sees it and shown while nothing has come of it: a sign of something stale, overlapping, lacking or unclear - and what fails or has not moved, read off the work."
+reads = ["backlog", "connections"]
+
+[tables.problems]
+key = ["id"]
+extra_fields = true
+dated = "seen"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "what", type = "string", required = true },
+    { name = "seen", type = "string", required = true },
+    { name = "by", type = "string", required = true },
+    { name = "where", type = "string" },
+    { name = "kind", type = "string", enum = ["stale", "overlapping", "lacking", "unclear"] },
+    { name = "countermeasure", type = "string" },
+    { name = "handled", type = "string" },
+]
+
+# What has run in each place: the latest finished run of each workflow on its default branch, observed -
+# never written by hand. A run that failed is a sign read off the data: shown while true, gone when the
+# next run passes.
+[tables.runs]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "project", type = "string", required = true },
+    { name = "workflow", type = "string", required = true },
+    { name = "conclusion", type = "string", required = true },
+    { name = "at", type = "string" },
+    { name = "url", type = "string" },
+]
+
+# where a sign was seen is a link to a row
+[[relation]]
+from = "problems.where"
+to = ["*"]
+
+# The glimpse of the lens of signs.
+[[glimpse]]
+entry = "sign"
+says = "Something that does not fit, said by whoever sees it: what, where, and what kind - stale, overlapping, lacking, unclear. It is shown until a connection leads from it to what was seen."
+table = "problems"
+asks = ["what", "where", "kind"]
+supplies = [
+    { field = "seen", from = "today", when = "new" },
+    { field = "by", from = "who", when = "new" },
+]
+
+# The focus of the lens of signs. A sign has come to something when a connection leads from it (this
+# place's own, or one drawn in another place), or - for rows written before - when it was marked handled.
+[[focus]]
+title = "showing - nothing has come of it yet ({count})"
+always = true
+sql = """
+SELECT p.star, p.id, p.what, p."by",
+       CASE WHEN coalesce(p."where", '') <> '' THEN ' - at ' || p."where" ELSE '' END AS at,
+       CASE WHEN coalesce(p.kind, '') <> '' THEN ' [' || p.kind || ']' ELSE '' END AS of_kind,
+       date_diff('day', try_cast(p.seen AS DATE), DATE '{today}') AS days
+FROM problems p
+WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
+  SELECT 1 FROM connections c WHERE c.how = 'led to'
+    AND ((c.star = p.star AND c."from" = 'problems:' || p.id) OR c."from" LIKE '%/' || p.star || '/problems:' || p.id))
+ORDER BY p.seen, p.seq
+"""
+line = "{star}/{id}{of_kind} - {what}{at} (seen by {by}, {days} day(s) ago)"
+
+[[focus]]
+title = "failing on main ({count})"
+sql = """
+SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
+WHERE conclusion NOT IN ('success', 'skipped', 'neutral') ORDER BY "at", seq
+"""
+line = "{project} - {workflow}: {conclusion} since {day} - {url}"
+
+[[focus]]
+title = "not moved in the work ({count})"
+sql = """
+SELECT star, id, title, status, date_diff('day', try_cast(since AS DATE), DATE '{today}') AS days
+FROM backlog WHERE status IN ('in-progress', 'waiting')
+  AND date_diff('day', try_cast(since AS DATE), DATE '{today}') > 7
+ORDER BY days DESC, seq
+"""
+line = "{star}/{id} - {title}: {status} for {days} days"
+
+[[focus]]
+title = "what came of it, lately ({count})"
+sql = """
+SELECT star, id, what, came FROM (
+  SELECT p.star, p.id, p.what, 'led to ' || regexp_replace(c."to", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g') || ' - ' || c.says AS came,
+         c.date AS came_on, p.seq
+  FROM problems p JOIN connections c ON c.how = 'led to'
+    AND ((c.star = p.star AND c."from" = 'problems:' || p.id) OR c."from" LIKE '%/' || p.star || '/problems:' || p.id)
+  WHERE date_diff('day', try_cast(c.date AS DATE), DATE '{today}') <= 14
+  UNION ALL
+  SELECT star, id, what, 'written then: ' || countermeasure, handled, seq FROM problems
+  WHERE coalesce(handled, '') <> '' AND date_diff('day', try_cast(handled AS DATE), DATE '{today}') <= 14
+) ORDER BY came_on DESC, seq
+"""
+line = "{star}/{id} - {what} - {came}"
