@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.6.0...ocoeco-v0.7.0) (2026-11-13)
+
+
+### Features
+
+* lenses read the graph: six parts join on edges, and show what they showed ([#135](https://github.com/open-commons-observatory/ocoeco/issues/135)) ([a098b68](https://github.com/open-commons-observatory/ocoeco/commit/a098b68ce32ee3f964e78ced851def9d609d098d))
+
 ## [0.6.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.5.0...ocoeco-v0.6.0) (2026-11-13)
 
 
