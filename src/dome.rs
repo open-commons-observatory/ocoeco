@@ -327,14 +327,40 @@ impl Dome for Screen {
     }
 }
 
+/// The projection as it is, before any pot: its parts, each with its lines, what each line is about and
+/// what it means - for a program, or an agent, to read as structure and not as laid-out text.
+pub struct Json;
+
+impl Dome for Json {
+    fn lay_out(&self, parts: &[Brought]) -> String {
+        serde_json::to_string_pretty(parts).unwrap_or_default() + "\n"
+    }
+
+    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
+        let lenses: Vec<serde_json::Value> = lenses
+            .iter()
+            .map(|lens| match &lens.brought {
+                Ok(parts) => serde_json::json!({"id": lens.id, "says": lens.says, "parts": parts}),
+                Err(why) => {
+                    serde_json::json!({"id": lens.id, "says": lens.says, "nothing_because": why})
+                }
+            })
+            .collect();
+        serde_json::to_string_pretty(&serde_json::json!({"scale": scale, "lenses": lenses}))
+            .unwrap_or_default()
+            + "\n"
+    }
+}
+
 /// The surface of that name; `width` is the screen's volume, in columns.
 pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
     Ok(match name {
         "text" => Box::new(Text),
         "markdown" => Box::new(Markdown),
         "html" => Box::new(Html),
+        "json" => Box::new(Json),
         "screen" => Box::new(Screen { width }),
-        other => bail!("no surface is called {other}: there are text, screen, markdown and html (and the terminal: ocoeco fulldome)"),
+        other => bail!("no surface is called {other}: there are text, screen, markdown, html and json (and the terminal: ocoeco fulldome)"),
     })
 }
 
@@ -528,6 +554,44 @@ mod tests {
     }
 
     #[test]
+    fn the_projection_itself_is_a_surface_for_programs() {
+        let parts = [Brought {
+            title: Some("next (1)".into()),
+            lines: vec!["r/a - A".into()],
+            measures: vec![],
+            keys: vec!["r/a".into()],
+        }];
+        let read: Vec<Brought> = serde_json::from_str(&Json.lay_out(&parts)).unwrap();
+        assert_eq!(
+            read, parts,
+            "what is read back is the projection, whole - what each line is about with it"
+        );
+        let whole: serde_json::Value = serde_json::from_str(&Json.fulldome(
+            "this place",
+            &[
+                InDome {
+                    id: "work".into(),
+                    says: "The flow.".into(),
+                    brought: Ok(parts.to_vec()),
+                },
+                InDome {
+                    id: "purpose".into(),
+                    says: "Why.".into(),
+                    brought: Err("nothing yet".into()),
+                },
+            ],
+        ))
+        .unwrap();
+        assert_eq!(
+            (
+                whole["lenses"][0]["parts"][0]["keys"][0].as_str(),
+                whole["lenses"][1]["nothing_because"].as_str()
+            ),
+            (Some("r/a"), Some("nothing yet"))
+        );
+    }
+
+    #[test]
     fn a_surface_is_found_by_its_name() {
         assert_eq!(
             surface("html", 80).unwrap().lay_out(&parts()),
@@ -537,6 +601,6 @@ mod tests {
             .err()
             .unwrap()
             .to_string()
-            .contains("there are text, screen, markdown and html"));
+            .contains("there are text, screen, markdown, html and json"));
     }
 }

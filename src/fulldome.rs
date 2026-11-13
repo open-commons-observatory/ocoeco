@@ -204,7 +204,7 @@ mod tests {
             "{view}"
         );
         assert!(
-            view.contains("knowledge ·") && !view.contains("problems ·"),
+            view.contains("insight ·") && !view.contains("problems ·"),
             "a lens with no focus yet is marked:\n{view}"
         );
     }
