@@ -445,6 +445,8 @@ fn run() -> Result<()> {
             surface,
             width,
         } => {
+            // an entry can be made only where one place is stood in: it has somewhere to go
+            let single = observed.is_none() && root.is_none();
             let (places, scale) = match (observed, root) {
                 (Some(observed), _) => (vec![observed], "every place observed".to_string()),
                 (None, Some(root)) => (
@@ -482,16 +484,31 @@ fn run() -> Result<()> {
                 );
                 return Ok(());
             }
-            ocoeco::fulldome::open(scale, |lens, glimpse| {
-                let found = ocoeco::lenses::lenses()
-                    .into_iter()
-                    .find(|l| l.lens.id == lens);
-                match (glimpse, found) {
-                    (true, Some(found)) => ocoeco::entries::of(&found),
-                    _ => ocoeco::focus::focus(lens, &places, &today, &engine)
-                        .unwrap_or_else(|e| format!("{e:#}")),
-                }
-            })?;
+            ocoeco::fulldome::open(
+                scale,
+                single,
+                |lens, glimpse| {
+                    let found = ocoeco::lenses::lenses()
+                        .into_iter()
+                        .find(|l| l.lens.id == lens);
+                    match (glimpse, found) {
+                        (true, Some(found)) => ocoeco::entries::of(&found),
+                        _ => ocoeco::focus::focus(lens, &places, &today, &engine)
+                            .unwrap_or_else(|e| format!("{e:#}")),
+                    }
+                },
+                |entry, args| {
+                    // an entry made from the fulldome goes the way ocoeco glimpse goes: guarded, into this place
+                    let mut all = args.to_vec();
+                    all.extend(["--dir".to_string(), dir.display().to_string()]);
+                    let who = std::env::var("OCOECO_BY")
+                        .or_else(|_| std::env::var("USER"))
+                        .unwrap_or_default();
+                    ocoeco::relations::guarded(&dir, || {
+                        ocoeco::entries::enter(entry, &all, &today, &who)
+                    })
+                },
+            )?;
         }
         Cmd::Focus {
             lens,

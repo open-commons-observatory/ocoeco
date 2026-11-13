@@ -75,6 +75,49 @@ fn fields(lens: &Lens, table: &str) -> Vec<(String, bool, Vec<String>)> {
         .collect()
 }
 
+/// What one entry asks a person for: each field with whether it is needed and the values it allows,
+/// and what the computer supplies, in words.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asks {
+    pub entry: String,
+    pub says: String,
+    pub fields: Vec<(String, bool, Vec<String>)>,
+    pub supplied: Vec<String>,
+}
+
+/// The entries of one lens, as what each asks a person for - the same declaration ocoeco glimpse reads.
+pub fn asks_of(lens: &str) -> Vec<Asks> {
+    let Some(lens) = lenses().into_iter().find(|l| l.lens.id == lens) else {
+        return Vec::new();
+    };
+    lens.glimpse
+        .iter()
+        .map(|e| {
+            let declared = fields(&lens, &e.table);
+            Asks {
+                entry: e.entry.clone(),
+                says: e.says.clone(),
+                fields: e
+                    .asks
+                    .iter()
+                    .map(|a| {
+                        declared
+                            .iter()
+                            .find(|(n, _, _)| n == a)
+                            .cloned()
+                            .unwrap_or((a.clone(), false, Vec::new()))
+                    })
+                    .collect(),
+                supplied: e
+                    .supplies
+                    .iter()
+                    .map(|s| format!("{} ({}, when {})", s.field, s.from, s.when))
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
 /// What can be entered through one lens: its entries, with what a person is asked for and what the
 /// computer supplies.
 pub fn of(lens: &Lens) -> String {
