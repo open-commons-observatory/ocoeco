@@ -1,7 +1,7 @@
 # The lens of work.
 [lens]
 id = "work"
-says = "The flow of work: what is open, next, in progress and by whom with its next step, what waits and on what, what is done."
+says = "The flow of work: what is in progress and by whom - read off what was done - what is next, what waits and on what, what was finished."
 reads = ["glimpses"]
 
 # The backlog is also the board's flow (the board is a view over it, never a list of its own):
@@ -44,23 +44,12 @@ supplies = [
 # The focus of the lens of work: the flow as Kanban asks it to be seen, and what needs attention.
 # Each part is a query over the gathered rows (every row with its star, and seq - its place in the
 # order gathered) and a line laying out one answer; {today} is supplied by the computer.
-[[focus]]
-title = "in progress ({count})"
-always = true
-sql = """
-SELECT coalesce(nullif(driver, ''), 'nobody') AS driver, star, id, title,
-       CASE WHEN coalesce(next, '') <> '' THEN ' - next: ' || next ELSE '' END AS next,
-       CASE WHEN try_cast(since AS DATE) IS NOT NULL
-            THEN ', ' || date_diff('day', try_cast(since AS DATE), DATE '{today}') || ' day(s)' ELSE '' END AS age
-FROM backlog WHERE status = 'in-progress' ORDER BY 1, seq
-"""
-line = "{driver}: {star}/{id} - {title}{next}{age}"
-
 # What is being worked on is not a state to set: it is read off the work. Every record of work says
-# which item it advances, so the items worked on lately - how often, when last, by whom - are a fact,
-# shown beside what each is said to be. Where the two disagree, that is a sign.
+# which item it advances. An item worked on lately and not said to be done is in progress - by whom,
+# how often, when last; one said to be done is finished lately. Nobody types either, so neither drifts.
+# One question, laid out once for each of the two.
 [[focus]]
-title = "worked on lately - read off what was done ({count})"
+title = "{state} ({count})"
 sql = """
 WITH done AS (
   SELECT g.star, substr(t.token, 9) AS id, CAST(g."at" AS VARCHAR) AS at_, lower(g."by") AS who
@@ -68,12 +57,16 @@ WITH done AS (
   WHERE t.token LIKE 'backlog:%'
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
 )
-SELECT b.star, b.id, b.title, count(*) AS times, max(left(d.at_, 10)) AS last,
-       string_agg(DISTINCT d.who, ', ' ORDER BY d.who) AS who, b.status
+SELECT CASE WHEN b.status = 'done' THEN 'finished lately' ELSE 'in progress - read off what was done' END AS state,
+       string_agg(DISTINCT d.who, ', ' ORDER BY d.who) AS who, b.star, b.id, b.title,
+       CASE WHEN b.status <> 'done' AND coalesce(b.next, '') <> '' THEN ' - next: ' || b.next ELSE '' END AS next,
+       count(*) AS times, max(left(d.at_, 10)) AS last
 FROM done d JOIN backlog b ON b.star = d.star AND b.id = d.id
-GROUP BY b.star, b.id, b.title, b.status ORDER BY max(d.at_) DESC, b.star, b.id LIMIT 15
+WHERE b.status NOT IN ('dropped', 'parked')
+GROUP BY b.star, b.id, b.title, b.next, b.status ORDER BY 1 DESC, max(d.at_) DESC, b.star, b.id LIMIT 24
 """
-line = "{star}/{id} - {title}: {times} time(s), the last on {last}, by {who} (said to be {status})"
+line = "{who}: {star}/{id} - {title}{next} ({times} time(s), the last on {last})"
+per = "state"
 
 [[focus]]
 title = "said to be in progress, though nothing done lately advances it ({count})"
