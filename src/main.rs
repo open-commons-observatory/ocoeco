@@ -60,7 +60,8 @@ enum Cmd {
         /// "Name: what it is for"
         #[arg(long)]
         name: String,
-        /// observatory, canon, lens, picture, conveyor, device-lab, tool or research
+        /// What it is for: canon, picture, conveyor, device-lab, tool, research (or lens, the older word) -
+        /// or, for a place that gathers, constellation or observatory
         #[arg(long)]
         kind: String,
         /// A short name for navigation
@@ -68,6 +69,10 @@ enum Cmd {
         title: Option<String>,
         #[arg(long, default_value = "open-commons-observatory")]
         parent: String,
+        /// What this place gathers (repeatable): a star as owner/repository, or every star of an owner
+        /// as owner/* - for a constellation or an observatory
+        #[arg(long = "gathers")]
+        gathers: Vec<String>,
         #[arg(long, default_value = ".")]
         dir: std::path::PathBuf,
     },
@@ -248,6 +253,7 @@ fn run() -> Result<()> {
             kind,
             title,
             parent,
+            gathers,
             dir,
         } => {
             let today = gather::day(
@@ -263,7 +269,20 @@ fn run() -> Result<()> {
                 kind,
                 parent,
             };
+            if !gathers.is_empty() && !ocoeco::mark::PLACES.contains(&j.kind.as_str()) {
+                anyhow::bail!("only a place that gathers - a constellation or an observatory - says what it gathers; this is a {}", j.kind);
+            }
             let written = join::init(&dir, &j, &today)?;
+            // a place that gathers says so in its mark, from its first day
+            let mark_at = dir.join("oco.toml");
+            let mark = std::fs::read_to_string(&mark_at)?;
+            if !gathers.is_empty() && !mark.contains("\n[place]") {
+                let named: Vec<String> = gathers.iter().map(|g| format!("{g:?}")).collect();
+                let with_place = format!("{mark}\n# What place this is, and what it gathers: a star by name, or every star of an owner (owner/*).\n[place]\nis = \"{}\"\ngathers = [{}]\n", j.kind, named.join(", "));
+                ocoeco::mark::Mark::parse(&with_place)?;
+                std::fs::write(&mark_at, with_place)?;
+                println!("written: what it gathers ({})", gathers.join(", "));
+            }
             for f in &written {
                 println!("written: {f}");
             }
@@ -584,6 +603,19 @@ fn run() -> Result<()> {
             let found = match &held {
                 Some(held) => discover::discover(&[(held, held)], None)?,
                 None => discover::discover(&[(&gh, &gh)], None)?,
+            };
+            // a place observes what its mark says it gathers, and itself - not whatever is found. A
+            // place whose mark names nothing gathered (the first observatory) observes all, as before.
+            let own = std::fs::read_to_string("oco.toml")
+                .ok()
+                .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
+                .filter(|m| m.place.as_ref().is_some_and(|p| !p.gathers.is_empty()));
+            let found: Vec<_> = match &own {
+                Some(own) => found
+                    .into_iter()
+                    .filter(|c| own.gathers(&c.found.repo) || c.found.repo == own.project.id)
+                    .collect(),
+                None => found,
             };
             let mut h = match (only.as_deref(), &held) {
                 (Some("runs"), _) => harvest::Harvest {
