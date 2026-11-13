@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.7.0...ocoeco-v0.8.0) (2026-11-13)
+
+
+### Features
+
+* a named shape: a part names what it shapes, and others ask of it ([#137](https://github.com/open-commons-observatory/ocoeco/issues/137)) ([06b45db](https://github.com/open-commons-observatory/ocoeco/commit/06b45db0f57759f793a338828467268ece72919a))
+
 ## [0.7.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.6.0...ocoeco-v0.7.0) (2026-11-13)
 
 
