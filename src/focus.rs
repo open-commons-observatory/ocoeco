@@ -490,11 +490,14 @@ pub fn beam(
             ..Default::default()
         };
         for (at, part) in found.focus.iter().enumerate() {
-            let heading = part
-                .title
-                .as_deref()
-                .map(named)
-                .unwrap_or("a part with no heading");
+            // a heading laid out once for each value is named by what it is laid out per
+            let heading = match (part.title.as_deref().map(named), &part.per) {
+                (Some(title), Some(per)) if title.contains('{') => {
+                    format!("laid out once for each {per}")
+                }
+                (Some(title), _) => title.to_string(),
+                (None, _) => "a part with no heading".to_string(),
+            };
             let (line, measure) = match &part.through {
                 Some(other) => {
                     let came: usize = if all.iter().any(|l| l.lens.id == *other) {
