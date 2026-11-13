@@ -15,6 +15,8 @@ extra_fields = true
 fields = [
     { name = "id", type = "string", required = true },
     { name = "says", type = "string", required = true },
+    { name = "grew_from", type = "string" },
+    { name = "reads", type = "string" },
 ]
 
 [tables.lens_tables]
@@ -58,11 +60,32 @@ fields = [
     { name = "lens", type = "string", required = true },
     { name = "part", type = "integer", required = true },
     { name = "title", type = "string" },
-    { name = "query", type = "string", required = true },
+    { name = "always", type = "boolean" },
+    { name = "query", type = "string" },
     { name = "lays_out", type = "string" },
     { name = "through", type = "string" },
     { name = "only", type = "string" },
+    { name = "measure", type = "string" },
+    { name = "of", type = "string" },
+    { name = "whole", type = "string" },
+    { name = "chain", type = "string" },
+    { name = "per", type = "string" },
 ]
+
+# The glimpse of the lens of language: a lens is entered like anything else. A lens says what it is and
+# what it reads; a part says what it asks and how a line is laid out - or which lens it places, and under
+# which heading. A lens a place keeps this way is looked through like any other.
+[[glimpse]]
+entry = "lens"
+says = "A lens, kept as rows: what it says of itself, and the tables of other lenses it reads."
+table = "lenses"
+asks = ["says", "reads", "grew_from"]
+
+[[glimpse]]
+entry = "part"
+says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
+table = "lens_parts"
+asks = ["lens", "part", "title", "query", "lays_out", "through", "only", "measure", "whole", "chain", "per"]
 
 [[focus]]
 title = "a field declared again and again ({count})"

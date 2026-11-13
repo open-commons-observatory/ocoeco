@@ -105,18 +105,19 @@ pub struct Part {
 }
 
 /// Every lens, in the order of their files.
-/// The lenses a place brings: the lens files kept beside its mark, in `lenses/`, read as the program
+/// The lenses a place brings: the lens files kept beside its mark, in `lenses/`, and the lenses it keeps
+/// as rows (its tables lenses and lens_parts) - read as the program
 /// runs - each with its text, so that two bringings of one lens are known to be one.
 pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
-    let Ok(entries) = std::fs::read_dir(dir.join("lenses")) else {
-        return Ok(Vec::new());
-    };
-    let mut files: Vec<PathBuf> = entries
+    // a place may keep lens files, rows, both or neither: no folder of files is not the end of the looking
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir.join("lenses"))
+        .into_iter()
+        .flatten()
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "toml"))
         .collect();
     files.sort();
-    files
+    let mut found: Vec<(String, Lens)> = files
         .into_iter()
         .map(|file| {
             let text =
@@ -125,7 +126,23 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
                 .with_context(|| format!("{} is not a lens", file.display()))?;
             Ok((text, lens))
         })
-        .collect()
+        .collect::<Result<_>>()?;
+    // and the lenses the place keeps as rows: entered like anything else, looked through like any lens
+    if let Some(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|text| crate::mark::Mark::parse(&text).ok())
+    {
+        let (kept, parts) = (
+            crate::join::rows(dir, &mark, "lenses"),
+            crate::join::rows(dir, &mark, "lens_parts"),
+        );
+        found.extend(
+            from_rows(&kept, &parts)
+                .into_iter()
+                .map(|lens| (format!("{lens:?}"), lens)),
+        );
+    }
+    Ok(found)
 }
 
 /// Every lens there is to look through from these places, each with where it is kept: those built into
@@ -188,6 +205,78 @@ pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
     Ok(in_view(dirs)?.into_iter().map(|(_, lens)| lens).collect())
 }
 
+/// The lenses that rows describe: each lens row, with its parts in their order. Rows carry what a lens
+/// says of itself, what it reads, and each part whole - so a lens of lenses, or one that asks of tables
+/// other lenses define, can be kept as rows and is then the lens it describes. A lens's own tables and
+/// entries are not yet carried by rows.
+pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> Vec<Lens> {
+    let raw = |row: &serde_json::Value, key: &str| {
+        row.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    let some = |text: String| Some(text).filter(|t| !t.trim().is_empty());
+    let listed = |text: String| -> Vec<String> {
+        text.split(',')
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect()
+    };
+    lenses
+        .iter()
+        .filter(|row| !raw(row, "id").trim().is_empty() && !raw(row, "says").trim().is_empty())
+        .map(|row| {
+            let id = raw(row, "id").trim().to_string();
+            let mut theirs: Vec<&serde_json::Value> = parts
+                .iter()
+                .filter(|p| raw(p, "lens").trim() == id)
+                .collect();
+            theirs.sort_by_key(|p| {
+                p.get("part")
+                    .and_then(|n| {
+                        n.as_i64()
+                            .or_else(|| n.as_str().and_then(|s| s.trim().parse().ok()))
+                    })
+                    .unwrap_or(0)
+            });
+            Lens {
+                lens: About {
+                    id,
+                    says: raw(row, "says"),
+                    grew_from: some(raw(row, "grew_from")),
+                    reads: listed(raw(row, "reads")),
+                },
+                tables: toml::Table::new(),
+                relation: Vec::new(),
+                glimpse: Vec::new(),
+                focus: theirs
+                    .into_iter()
+                    .map(|p| Part {
+                        title: some(raw(p, "title")),
+                        always: p
+                            .get("always")
+                            .and_then(|a| {
+                                a.as_bool()
+                                    .or_else(|| a.as_str().map(|s| s.trim() == "true"))
+                            })
+                            .unwrap_or(false),
+                        sql: raw(p, "query"),
+                        line: raw(p, "lays_out"),
+                        through: some(raw(p, "through")),
+                        only: some(raw(p, "only")),
+                        measure: some(raw(p, "measure")),
+                        of: raw(p, "of").trim().parse().ok(),
+                        whole: some(raw(p, "whole")),
+                        chain: Some(listed(raw(p, "chain"))).filter(|c| !c.is_empty()),
+                        per: some(raw(p, "per")),
+                    })
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
 /// The tables that hold the lenses themselves as rows. No place keeps them: they are the language, read
 /// as data - so that it can be looked at through a lens like everything it describes.
 pub const OF_THE_LANGUAGE: [&str; 5] = [
@@ -221,7 +310,7 @@ pub fn as_rows(
         let id = &lens.lens.id;
         add(
             "lenses",
-            json!({"id": id, "says": lens.lens.says, "star": star}),
+            json!({"id": id, "says": lens.lens.says, "grew_from": lens.lens.grew_from.clone().unwrap_or_default(), "reads": lens.lens.reads.join(", "), "star": star}),
         );
         for (table, declared) in &lens.tables {
             add(
@@ -263,7 +352,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "star": star}),
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "star": star}),
             );
         }
     }
@@ -517,6 +606,77 @@ mod of_the_language {
                 .iter()
                 .any(|r| r["id"] == "work/backlog/status"),
             "each thing of the language has an id it can be pointed at by"
+        );
+    }
+}
+
+#[cfg(test)]
+mod kept_as_rows {
+    use super::*;
+
+    #[test]
+    fn a_lens_turned_into_rows_and_back_is_the_lens_it_was() {
+        let rows = as_rows(&[]).unwrap();
+        let of = |table: &str| -> Vec<serde_json::Value> {
+            rows[table]
+                .iter()
+                .cloned()
+                .map(serde_json::Value::Object)
+                .collect()
+        };
+        let (back, was) = (from_rows(&of("lenses"), &of("lens_parts")), lenses());
+        assert_eq!(back.len(), was.len(), "every lens is there");
+        for (b, w) in back.iter().zip(&was) {
+            assert_eq!(
+                format!("{:?}", b.lens),
+                format!("{:?}", w.lens),
+                "what a lens says of itself, grew from and reads"
+            );
+            assert_eq!(b.focus.len(), w.focus.len(), "{}: every part", w.lens.id);
+            for (at, (bp, wp)) in b.focus.iter().zip(&w.focus).enumerate() {
+                assert_eq!(
+                    format!("{bp:?}"),
+                    format!("{wp:?}"),
+                    "part {} of the lens {} is carried whole by its row",
+                    at + 1,
+                    w.lens.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_place_brings_the_lenses_it_keeps_as_rows() {
+        let d = std::env::temp_dir().join(format!("ocoeco-kept-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("oco")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nlenses = \"oco/lenses.json\"\nlens_parts = \"oco/lens_parts.json\"\n").unwrap();
+        std::fs::write(
+            d.join("oco/lenses.json"),
+            "{\"id\":\"sheet\",\"says\":\"What goes together, and nothing else.\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("oco/lens_parts.json"), "{\"id\":\"sheet/2\",\"lens\":\"sheet\",\"part\":2,\"through\":\"signs\",\"only\":\"showing\"}\n{\"id\":\"sheet/1\",\"lens\":\"sheet\",\"part\":1,\"through\":\"work\"}\n").unwrap();
+        let all = with(std::slice::from_ref(&d)).unwrap();
+        let sheet = all
+            .iter()
+            .find(|l| l.lens.id == "sheet")
+            .expect("the lens kept as rows is in view");
+        let placed: Vec<(Option<&str>, Option<&str>)> = sheet
+            .focus
+            .iter()
+            .map(|p| (p.through.as_deref(), p.only.as_deref()))
+            .collect();
+        assert_eq!(
+            placed,
+            [(Some("work"), None), (Some("signs"), Some("showing"))],
+            "its parts in their order, as the rows say"
+        );
+        assert!(
+            as_rows(std::slice::from_ref(&d)).unwrap()["lenses"]
+                .iter()
+                .any(|r| r["id"] == "sheet" && r["star"] == "r"),
+            "and the lens of language sees it, kept by that place"
         );
     }
 }
