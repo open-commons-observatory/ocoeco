@@ -5,8 +5,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const KINDS: [&str; 8] = [
+pub const KINDS: [&str; 9] = [
     "observatory",
+    "constellation",
     "lens",
     "canon",
     "picture",
