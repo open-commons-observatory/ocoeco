@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.8.0...ocoeco-v0.9.0) (2026-11-13)
+
+
+### Features
+
+* shapes across lenses: a lens asks of a shape another names ([#139](https://github.com/open-commons-observatory/ocoeco/issues/139)) ([7867a0c](https://github.com/open-commons-observatory/ocoeco/commit/7867a0c4198a92def043cce14c76970ebb95d8ef))
+
 ## [0.8.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.7.0...ocoeco-v0.8.0) (2026-11-13)
 
 
