@@ -423,6 +423,9 @@ impl Dome for Json {
     }
 }
 
+/// The surfaces a projection can be laid out on, by name - besides the terminal, which is a place to stand.
+pub const SURFACES: [&str; 5] = ["text", "screen", "markdown", "html", "json"];
+
 /// The surface of that name; `width` is the screen's volume, in columns.
 pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
     Ok(match name {
@@ -431,7 +434,11 @@ pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
         "html" => Box::new(Html),
         "json" => Box::new(Json),
         "screen" => Box::new(Screen { width }),
-        other => bail!("no surface is called {other}: there are text, screen, markdown, html and json (and the terminal: ocoeco fulldome)"),
+        other => bail!(
+            "no surface is called {other}: there are {} and {} (and the terminal: ocoeco fulldome)",
+            SURFACES[..SURFACES.len() - 1].join(", "),
+            SURFACES[SURFACES.len() - 1]
+        ),
     })
 }
 

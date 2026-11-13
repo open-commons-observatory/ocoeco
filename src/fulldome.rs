@@ -18,8 +18,9 @@ pub struct InTerminal {
     pub lenses: Vec<(String, String, bool)>,
     pub at: usize,
     pub scroll: u16,
-    /// Showing what can be glimpsed through the lens, rather than what it brings into focus.
-    pub glimpse: bool,
+    /// How the chosen lens is looked at: what it brings into focus, what can be glimpsed through it, or
+    /// its beam - how light travels through it.
+    pub looking: Looking,
     pub text: String,
     /// What is in view: this place, or every place under a root.
     pub scale: String,
@@ -29,6 +30,15 @@ pub struct InTerminal {
     pub form: Option<Form>,
     /// The last thing said back: what was written, or why not.
     pub note: String,
+}
+
+/// How a lens is looked at: what it brings into focus; what can be glimpsed through it (entered); or its
+/// beam - how light travels through it, from what enters to where it goes on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Looking {
+    InFocus,
+    Glimpse,
+    Beam,
 }
 
 /// What a key asks of whoever holds the dome.
@@ -207,7 +217,7 @@ impl InTerminal {
             lenses,
             at,
             scroll: 0,
-            glimpse: false,
+            looking: Looking::InFocus,
             text: String::new(),
             scale,
             can_enter: false,
@@ -238,7 +248,7 @@ impl InTerminal {
         let choose = |dome: &mut InTerminal, at: usize| {
             dome.at = at;
             dome.scroll = 0;
-            dome.glimpse = false;
+            dome.looking = Looking::InFocus;
             Asked::Load
         };
         match code {
@@ -265,8 +275,18 @@ impl InTerminal {
                 self.scroll = 0;
                 Asked::Nothing
             }
-            KeyCode::Char('g') => {
-                self.glimpse = !self.glimpse;
+            // a key for each way of looking; the same key again goes back to what it brings into focus
+            KeyCode::Char(key @ ('g' | 'b')) => {
+                let asked = if key == 'g' {
+                    Looking::Glimpse
+                } else {
+                    Looking::Beam
+                };
+                self.looking = if self.looking == asked {
+                    Looking::InFocus
+                } else {
+                    asked
+                };
                 self.scroll = 0;
                 Asked::Load
             }
@@ -310,9 +330,13 @@ impl InTerminal {
         let (title, text, keys) = match &self.form {
             Some(form) => (format!("{id}: to enter"), form.text(), " tab, up/down: field   left/right: choose   enter: next, and write at the last   F2: write it   esc: leave it".to_string()),
             None => (
-                if self.glimpse { format!("{id}: what can be glimpsed") } else { format!("{id}: in focus - {}", self.scale) },
+                match self.looking {
+                    Looking::Glimpse => format!("{id}: what can be glimpsed"),
+                    Looking::Beam => format!("{id}: its beam - how light travels through it - {}", self.scale),
+                    Looking::InFocus => format!("{id}: in focus - {}", self.scale),
+                },
                 format!("{says}\n\n{}", self.text),
-                if self.note.is_empty() { " up/down: lens   space, PgUp: scroll   g: glimpse   e: enter   r: again   q: leave   (· no focus yet)".to_string() } else { format!(" {}", self.note) },
+                if self.note.is_empty() { " up/down: lens   space, PgUp: scroll   g: glimpse   b: beam   e: enter   r: again   q: leave   (· no focus yet)".to_string() } else { format!(" {}", self.note) },
             ),
         };
         frame.render_widget(
@@ -326,20 +350,20 @@ impl InTerminal {
     }
 }
 
-/// Opens the dome in the terminal. `load` brings a lens into focus (false) or says what can be glimpsed
-/// through it (true). `write` makes an entry, as ocoeco glimpse would, and says what it wrote - or why
+/// Opens the dome in the terminal. `load` brings a lens into focus, says what can be glimpsed
+/// through it, or shows its beam, as `Looking` says. `write` makes an entry, as ocoeco glimpse would, and says what it wrote - or why
 /// it did not, which is then shown in the form with nothing lost. `can_enter` is whether one place is
 /// stood in, so that an entry has somewhere to go.
 pub fn open(
     scale: String,
     can_enter: bool,
     all: Vec<crate::lenses::Lens>,
-    mut load: impl FnMut(&str, bool) -> String,
+    mut load: impl FnMut(&str, Looking) -> String,
     mut write: impl FnMut(&str, &[String]) -> anyhow::Result<String>,
 ) -> anyhow::Result<()> {
     let mut dome = InTerminal::of(scale, all);
     dome.can_enter = can_enter;
-    dome.text = load(dome.lens(), false);
+    dome.text = load(dome.lens(), Looking::InFocus);
     let mut terminal = ratatui::init();
     let ended = (|| -> anyhow::Result<()> {
         loop {
@@ -353,14 +377,14 @@ pub fn open(
             match dome.key(key.code) {
                 Asked::Leave => return Ok(()),
                 Asked::Load => {
-                    let text = load(dome.lens(), dome.glimpse);
+                    let text = load(dome.lens(), dome.looking);
                     dome.text = text;
                 }
                 Asked::Write(entry, args) => match write(&entry, &args) {
                     Ok(written) => {
                         dome.form = None;
                         dome.note = written;
-                        let text = load(dome.lens(), dome.glimpse);
+                        let text = load(dome.lens(), dome.looking);
                         dome.text = text;
                     }
                     Err(why) => {
@@ -522,14 +546,25 @@ mod tests {
         );
         assert_eq!((dome.key(KeyCode::Up), dome.lens()), (Asked::Load, "signs"));
         assert_eq!(
-            (dome.key(KeyCode::Char('g')), dome.glimpse),
-            (Asked::Load, true)
+            (dome.key(KeyCode::Char('g')), dome.looking),
+            (Asked::Load, Looking::Glimpse)
         );
         dome.text = "  working - How something works".into();
         assert!(seen(&dome).contains("signs: what can be glimpsed"));
+        // another key, another way of looking at the same lens; the same key again goes back
         assert_eq!(
-            (dome.key(KeyCode::Up), dome.glimpse),
-            (Asked::Load, false),
+            (dome.key(KeyCode::Char('b')), dome.looking),
+            (Asked::Load, Looking::Beam)
+        );
+        assert!(seen(&dome).contains("signs: its beam - how light travels through it"));
+        assert_eq!(
+            (dome.key(KeyCode::Char('b')), dome.looking),
+            (Asked::Load, Looking::InFocus)
+        );
+        dome.key(KeyCode::Char('g'));
+        assert_eq!(
+            (dome.key(KeyCode::Up), dome.looking),
+            (Asked::Load, Looking::InFocus),
             "another lens is first seen in focus"
         );
         assert_eq!(
