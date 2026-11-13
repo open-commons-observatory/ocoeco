@@ -118,19 +118,39 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
         .collect()
 }
 
-/// Every lens there is to look through from these places: those built into ocoeco, and those the places
-/// bring. A brought lens is held to what the build holds the built-in ones to, said when it is looked
-/// through: no id used twice, no table defined by two lenses. One lens brought by several places is one
-/// lens. A lens a place keeps under the id of a built-in one is that built-in lens's own text: the one
-/// built in is looked through (whether the two still agree is the check's to say - `differing`).
-pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
-    let mut all = lenses();
+/// Every lens there is to look through from these places, each with where it is kept: those built into
+/// ocoeco, and those the places bring. A brought lens is held to what the build holds the built-in ones
+/// to, said when it is looked through: no id used twice, no table defined by two lenses. One lens brought
+/// by several places is one lens. A lens a place keeps under the id of a built-in one is that built-in
+/// lens's own text: the one built in is looked through (whether the two still agree is the check's to
+/// say - `differing`).
+pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
+    let mut all: Vec<(String, Lens)> = lenses()
+        .into_iter()
+        .map(|lens| ("ocoeco".to_string(), lens))
+        .collect();
     let built_in = all.len();
     let mut brought: Vec<(String, String)> = Vec::new();
     for dir in dirs {
+        let kept_by = std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|text| crate::mark::Mark::parse(&text).ok())
+            .map(|mark| {
+                mark.project
+                    .id
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or_default()
+                    .to_string()
+            })
+            .unwrap_or_else(|| {
+                dir.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            });
         for (text, lens) in brought_by(dir)? {
             let id = lens.lens.id.clone();
-            if all[..built_in].iter().any(|l| l.lens.id == id)
+            if all[..built_in].iter().any(|(_, l)| l.lens.id == id)
                 || brought.iter().any(|(i, t)| *i == id && *t == text)
             {
                 continue;
@@ -142,15 +162,102 @@ pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
                 );
             }
             for table in lens.tables.keys() {
-                if let Some(other) = all.iter().find(|l| l.tables.contains_key(table)) {
+                if let Some((_, other)) = all.iter().find(|(_, l)| l.tables.contains_key(table)) {
                     bail!("the table {table} is defined by two lenses, {} and {id} (brought by {}): one lens defines a piece of data, others read it", other.lens.id, dir.display());
                 }
             }
             brought.push((id, text));
-            all.push(lens);
+            all.push((kept_by.clone(), lens));
         }
     }
     Ok(all)
+}
+
+/// Every lens there is to look through from these places.
+pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
+    Ok(in_view(dirs)?.into_iter().map(|(_, lens)| lens).collect())
+}
+
+/// The tables that hold the lenses themselves as rows. No place keeps them: they are the language, read
+/// as data - so that it can be looked at through a lens like everything it describes.
+pub const OF_THE_LANGUAGE: [&str; 5] = [
+    "lenses",
+    "lens_tables",
+    "lens_fields",
+    "lens_entries",
+    "lens_parts",
+];
+
+/// The lenses in view, as rows: each lens, each table it defines, each field of each table, each entry it
+/// takes, each part it brings into focus - every row saying where its lens is kept.
+pub fn as_rows(
+    dirs: &[PathBuf],
+) -> Result<std::collections::BTreeMap<&'static str, Vec<serde_json::Map<String, serde_json::Value>>>>
+{
+    use serde_json::json;
+    let mut rows: std::collections::BTreeMap<
+        &'static str,
+        Vec<serde_json::Map<String, serde_json::Value>>,
+    > = OF_THE_LANGUAGE
+        .iter()
+        .map(|table| (*table, Vec::new()))
+        .collect();
+    let mut add = |table: &'static str, row: serde_json::Value| {
+        if let (Some(into), serde_json::Value::Object(row)) = (rows.get_mut(table), row) {
+            into.push(row);
+        }
+    };
+    for (star, lens) in in_view(dirs)? {
+        let id = &lens.lens.id;
+        add(
+            "lenses",
+            json!({"id": id, "says": lens.lens.says, "star": star}),
+        );
+        for (table, declared) in &lens.tables {
+            add(
+                "lens_tables",
+                json!({"id": format!("{id}/{table}"), "lens": id, "name": table, "star": star}),
+            );
+            for field in declared
+                .get("fields")
+                .and_then(|f| f.as_array())
+                .into_iter()
+                .flatten()
+            {
+                let said = |key: &str| {
+                    field
+                        .get(key)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string()
+                };
+                let allowed: Vec<&str> = field
+                    .get("enum")
+                    .and_then(|e| e.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|v| v.as_str())
+                    .collect();
+                add(
+                    "lens_fields",
+                    json!({"id": format!("{id}/{table}/{}", said("name")), "lens": id, "of_table": table, "name": said("name"), "kind": said("type"), "needed": field.get("required").and_then(|r| r.as_bool()).unwrap_or(false), "allowed": allowed.join(", "), "star": star}),
+                );
+            }
+        }
+        for entry in &lens.glimpse {
+            add(
+                "lens_entries",
+                json!({"id": format!("{id}/{}", entry.entry), "lens": id, "entry": entry.entry, "fills": entry.table, "asks": entry.asks.join(", "), "star": star}),
+            );
+        }
+        for (at, part) in lens.focus.iter().enumerate() {
+            add(
+                "lens_parts",
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "query": part.sql, "lays_out": part.line, "star": star}),
+            );
+        }
+    }
+    Ok(rows)
 }
 
 /// The lenses a place keeps under the id of a built-in one whose text is no longer the built-in one's:
@@ -240,6 +347,7 @@ mod tests {
             [
                 "insight",
                 "knowledge",
+                "language",
                 "looking-back",
                 "problems",
                 "purpose",
@@ -327,5 +435,66 @@ mod brought {
         let changed_text = format!("{text}\n# changed\n");
         let changed = place("changed", &[(*name, changed_text.as_str())]);
         assert_eq!(differing(&changed), ["work"]);
+    }
+}
+
+#[cfg(test)]
+mod of_the_language {
+    use super::*;
+
+    #[test]
+    fn the_lenses_are_rows_and_the_lens_of_language_declares_exactly_what_they_carry() {
+        let rows = as_rows(&[]).unwrap();
+        let language = lenses()
+            .into_iter()
+            .find(|l| l.lens.id == "language")
+            .expect("the lens of language");
+        assert_eq!(rows.keys().copied().collect::<Vec<_>>(), {
+            let mut t = OF_THE_LANGUAGE.to_vec();
+            t.sort();
+            t
+        });
+        for (table, found) in &rows {
+            assert!(
+                !found.is_empty(),
+                "{table} has rows: the language says something of itself"
+            );
+            let declared: Vec<String> = language.tables[*table]["fields"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|f| f["name"].as_str().unwrap().to_string())
+                .collect();
+            for row in found {
+                let mut carried: Vec<&str> = row
+                    .keys()
+                    .map(String::as_str)
+                    .filter(|k| *k != "star")
+                    .collect();
+                carried.sort();
+                let mut said: Vec<&str> = declared.iter().map(String::as_str).collect();
+                said.sort();
+                assert_eq!(carried, said, "{table}: what a row carries is what the lens declares - and where its lens is kept");
+            }
+        }
+        // it counts itself: every lens there is, the lens of language among them
+        assert_eq!(rows["lenses"].len(), lenses().len());
+        assert!(rows["lens_tables"]
+            .iter()
+            .any(|r| r["lens"] == "language" && r["name"] == "lens_fields"));
+        assert!(
+            rows["lens_fields"]
+                .iter()
+                .filter(|r| r["name"] == "id")
+                .count()
+                > 5,
+            "id is declared in many tables"
+        );
+        assert!(
+            rows["lens_fields"]
+                .iter()
+                .any(|r| r["id"] == "work/backlog/status"),
+            "each thing of the language has an id it can be pointed at by"
+        );
     }
 }

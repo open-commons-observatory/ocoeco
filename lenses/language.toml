@@ -1,0 +1,113 @@
+# The lens of language: the lenses themselves, as rows. Every other lens looks at what places keep; this
+# one looks at the lenses in view - those built into ocoeco and those places bring - so that the language
+# which makes everything else intelligible is intelligible to itself. Its tables are kept by no place:
+# ocoeco fills them from the lenses as they are (src/lenses.rs, as_rows), and a test holds the two equal.
+# Each thing of the language has an id - work/backlog/status is a field, work/3 a part - so it can be
+# pointed at like any row. It shows; whoever sees merges - nothing here changes a lens.
+[lens]
+id = "language"
+says = "What the lenses themselves say, as rows - the language looking at itself: what is declared again and again, what is asked more than once, what nothing brings into focus."
+
+[tables.lenses]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "says", type = "string", required = true },
+]
+
+[tables.lens_tables]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "name", type = "string", required = true },
+]
+
+[tables.lens_fields]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "of_table", type = "string", required = true },
+    { name = "name", type = "string", required = true },
+    { name = "kind", type = "string" },
+    { name = "needed", type = "boolean" },
+    { name = "allowed", type = "string" },
+]
+
+[tables.lens_entries]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "entry", type = "string", required = true },
+    { name = "fills", type = "string", required = true },
+    { name = "asks", type = "string" },
+]
+
+[tables.lens_parts]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "part", type = "integer", required = true },
+    { name = "title", type = "string" },
+    { name = "query", type = "string", required = true },
+    { name = "lays_out", type = "string" },
+]
+
+[[focus]]
+title = "a field declared again and again ({count})"
+sql = """
+SELECT name, count(*) AS times, string_agg(DISTINCT of_table, ', ' ORDER BY of_table) AS tables
+FROM lens_fields GROUP BY name HAVING count(*) > 2 ORDER BY times DESC, name
+"""
+line = "{name} - declared in {times} tables: {tables}"
+
+[[focus]]
+title = "the same line of a query, written more than once ({count})"
+sql = """
+WITH written AS (
+  SELECT p.lens, trim(t.words) AS words FROM lens_parts p, unnest(string_split(p.query, chr(10))) AS t(words)
+)
+SELECT words, count(*) AS times, string_agg(DISTINCT lens, ', ' ORDER BY lens) AS lenses
+FROM written WHERE length(words) > 60 GROUP BY words HAVING count(*) > 1 ORDER BY times DESC, words LIMIT 12
+"""
+line = "{times} times, in {lenses}: {words}"
+
+[[focus]]
+title = "a table nothing brings into focus ({count})"
+sql = """
+SELECT t.name, t.lens FROM lens_tables t
+WHERE NOT EXISTS (
+  SELECT 1 FROM lens_parts p WHERE regexp_matches(p.query, '(^|[^a-z_])' || t.name || '([^a-z_]|$)'))
+ORDER BY t.lens, t.name
+"""
+line = "{name} - defined by {lens}"
+
+[[focus]]
+title = "a lens that takes nothing, or brings nothing into focus ({count})"
+sql = """
+SELECT l.id,
+       CASE WHEN NOT EXISTS (SELECT 1 FROM lens_parts p WHERE p.lens = l.id) THEN 'brings nothing into focus'
+            ELSE 'takes no entry' END AS lacks
+FROM lenses l
+WHERE NOT EXISTS (SELECT 1 FROM lens_parts p WHERE p.lens = l.id)
+   OR NOT EXISTS (SELECT 1 FROM lens_entries e WHERE e.lens = l.id)
+ORDER BY 2, l.id
+"""
+line = "{id} - {lacks}"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT count(*) FROM lenses) AS lenses, (SELECT count(*) FROM lens_tables) AS tables,
+       (SELECT count(*) FROM lens_fields) AS fields, (SELECT count(*) FROM lens_entries) AS entries,
+       (SELECT count(*) FROM lens_parts) AS parts
+"""
+line = "{lenses} lenses in view: {tables} tables, {fields} fields, {entries} entries, {parts} parts in focus"
