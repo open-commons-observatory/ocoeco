@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.2.1...ocoeco-v0.3.0) (2026-11-13)
+
+
+### Features
+
+* the lens of signs: shown until a connection leads to what was seen ([#116](https://github.com/open-commons-observatory/ocoeco/issues/116)) ([452748a](https://github.com/open-commons-observatory/ocoeco/commit/452748aa4b803eea21ad0e7d88be818d6eb426e0))
+
 ## [0.2.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.2.0...ocoeco-v0.2.1) (2026-11-13)
 
 
