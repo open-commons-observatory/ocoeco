@@ -11,7 +11,8 @@ version="$("$binary" --version | awk '{print $2}')"
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || date +%s)}"; export SOURCE_DATE_EPOCH
 rm -rf dist && mkdir -p dist
 cargo deb --no-build -p ocoeco --target "$target" --output dist/
-cargo generate-rpm -p ocoeco --target "$target" --output dist/
+# ocoeco is the package at the root: the rpm tool takes -p as a folder to look in, so none is given
+cargo generate-rpm --target "$target" --output dist/
 name="ocoeco-v$version-$target"; stage="$(mktemp -d)"; mkdir -p "$stage/$name"
 cp "$binary" "$stage/$name/ocoeco"; cp README.md "$stage/$name/"; [ -f LICENSE ] && cp LICENSE "$stage/$name/"
 tar --sort=name --owner=0 --group=0 --numeric-owner --mtime="@$SOURCE_DATE_EPOCH" -C "$stage" -czf "dist/$name.tar.gz" "$name"
