@@ -7,6 +7,7 @@
 [lens]
 id = "language"
 says = "What the lenses themselves say, as rows - the language looking at itself: what is declared again and again, what is asked more than once, what nothing brings into focus."
+reads = ["vocabulary"]
 
 [tables.lenses]
 key = ["id"]
@@ -89,6 +90,23 @@ WHERE NOT EXISTS (
 ORDER BY t.lens, t.name
 """
 line = "{name} - defined by {lens}"
+
+# The names of the language are words. A lens says what it is; a table and a field are named and say
+# nothing - unless the vocabulary gives the word a meaning. This part shows which names have one.
+[[focus]]
+title = "the names of the language, and which have a meaning said ({count})"
+sql = """
+WITH names AS (
+  SELECT DISTINCT name, 'a field' AS what FROM lens_fields
+  UNION SELECT DISTINCT name, 'a table' FROM lens_tables
+  UNION SELECT DISTINCT id, 'a lens' FROM lenses
+), said AS (SELECT DISTINCT lower(term) AS term FROM vocabulary)
+SELECT what, count(*) AS names,
+       count(*) FILTER (WHERE name IN (SELECT term FROM said)) AS with_meaning,
+       coalesce(string_agg(name, ', ' ORDER BY name) FILTER (WHERE name IN (SELECT term FROM said)), 'none') AS which
+FROM names GROUP BY what ORDER BY what
+"""
+line = "{what}: {names} names, {with_meaning} given a meaning as a word - {which}"
 
 [[focus]]
 title = "a lens that takes nothing, or brings nothing into focus ({count})"
