@@ -76,9 +76,12 @@ pub struct Part {
     /// show in its own way - a meter on a page, a bar in a terminal.
     #[serde(default)]
     pub measure: Option<String>,
-    /// The whole the measure is of.
+    /// The whole the measure is of, when it is the same for every line.
     #[serde(default)]
     pub of: Option<f64>,
+    /// The answer's column that is the whole, when each line has its own: so much, of so much.
+    #[serde(default)]
+    pub whole: Option<String>,
     /// This part is a chain: the two columns a line goes from and to (the second may name several,
     /// separated by spaces or commas). What it means, not how it looks.
     #[serde(default)]
