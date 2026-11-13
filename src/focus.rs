@@ -35,12 +35,17 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
         let (table, declared) = (&table, &declared);
         let (mut text, mut seq) = (String::new(), 0u64);
         // the lenses themselves, as rows: kept by no place - they are the language, read as data
-        let own = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
+        // and every link between everything in view: the graph, kept by no place either
+        let language = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
+        let graph = crate::relations::OF_THE_GRAPH.contains(&table.as_str());
+        let own = language || graph;
         if own {
-            for row in crate::lenses::as_rows(dirs)?
-                .remove(table.as_str())
-                .unwrap_or_default()
-            {
+            let mut made = if language {
+                crate::lenses::as_rows(dirs)?
+            } else {
+                crate::relations::as_graph(dirs)?
+            };
+            for row in made.remove(table.as_str()).unwrap_or_default() {
                 seq += 1;
                 let mut row = row;
                 row.insert("seq".into(), seq.into());
