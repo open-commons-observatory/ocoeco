@@ -22,7 +22,24 @@ pub struct Mark {
     pub project: Project,
     #[serde(default)]
     pub exports: BTreeMap<String, String>,
+    /// What place this is beyond a star, and what it gathers; a mark without it is a star's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place: Option<Place>,
 }
+
+/// A place that gathers: a constellation keeps what holds between its stars; an observatory gathers
+/// whatever its keeper looks at. `gathers` names stars as owner/repository, or every star of an owner
+/// as owner/* - so a star may be gathered by many places, and a place may gather a star that lives
+/// elsewhere. What a star is for (its kind) is another question, answered apart.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct Place {
+    pub is: String,
+    #[serde(default)]
+    pub gathers: Vec<String>,
+}
+
+/// The places that gather.
+pub const PLACES: [&str; 2] = ["constellation", "observatory"];
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Project {
@@ -56,7 +73,69 @@ impl Mark {
         if parts.len() != 2 || parts.iter().any(|p| p.is_empty()) {
             bail!("id {:?} is not owner/repo", m.project.id);
         }
+        if let Some(place) = &m.place {
+            if !PLACES.contains(&place.is.as_str()) {
+                bail!("a place is {:?}, which is not one of {} (a mark that says nothing of it is a star's)", place.is, PLACES.join(", "));
+            }
+            for gathered in &place.gathers {
+                let parts: Vec<&str> = gathered.split('/').collect();
+                if parts.len() != 2 || parts.iter().any(|p| p.is_empty()) || parts[0] == "*" {
+                    bail!("it gathers {gathered:?}, which is neither owner/repository nor owner/*");
+                }
+            }
+        }
         Ok(m)
+    }
+
+    /// Whether this place gathers the star `id` (owner/repository): named itself, or by its owner.
+    pub fn gathers(&self, id: &str) -> bool {
+        let owner = id.split('/').next().unwrap_or_default();
+        self.place.as_ref().is_some_and(|place| {
+            place
+                .gathers
+                .iter()
+                .any(|g| g == id || g.strip_suffix("/*") == Some(owner))
+        })
+    }
+
+    /// Where this mark and an older lens.toml beside it disagree on what is gathered: that file's family
+    /// (every star of its owners, and the projects it names) is the same truth, kept in agreement while
+    /// the file lives.
+    pub fn against_family(&self, lens_toml: &str) -> Vec<String> {
+        let Ok(old) = toml::from_str::<toml::Value>(lens_toml) else {
+            return vec!["lens.toml does not read".into()];
+        };
+        let names = |key: &str, each: fn(&str) -> String| -> Vec<String> {
+            old.get("family")
+                .and_then(|f| f.get(key))
+                .and_then(|v| v.as_array())
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(each)
+                .collect()
+        };
+        let mut family: Vec<String> = names("owners", |o| format!("{o}/*"));
+        family.extend(names("projects", |p| p.to_string()));
+        family.sort();
+        let Some(place) = &self.place else {
+            return if family.is_empty() {
+                Vec::new()
+            } else {
+                vec![format!("lens.toml names a family ({}) but the mark does not say what place this is: add [place] is = \"constellation\" and what it gathers", family.join(", "))]
+            };
+        };
+        let mut gathers = place.gathers.clone();
+        gathers.sort();
+        if gathers == family {
+            Vec::new()
+        } else {
+            vec![format!(
+                "the mark gathers {} but lens.toml's family is {}",
+                gathers.join(", "),
+                family.join(", ")
+            )]
+        }
     }
 }
 
@@ -71,6 +150,45 @@ mod tests {
         let m = Mark::parse(DOCS).unwrap();
         assert_eq!(m.project.kind, "picture");
         assert_eq!(m.exports["backlog"], "data/backlog.json");
+    }
+
+    #[test]
+    fn a_place_says_what_it_gathers_and_a_star_says_nothing() {
+        let star = "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n";
+        assert!(
+            Mark::parse(star).unwrap().place.is_none()
+                && !Mark::parse(star).unwrap().gathers("o/r")
+        );
+        let place = Mark::parse(&format!(
+            "{star}[place]\nis = \"constellation\"\ngathers = [\"phones/*\", \"elsewhere/one\"]\n"
+        ))
+        .unwrap();
+        assert!(
+            place.gathers("phones/docs")
+                && place.gathers("phones/lab")
+                && place.gathers("elsewhere/one")
+        );
+        assert!(!place.gathers("elsewhere/two") && !place.gathers("phonesque/docs"));
+        assert!(Mark::parse(&format!("{star}[place]\nis = \"galaxy\"\n"))
+            .unwrap_err()
+            .to_string()
+            .contains("not one of constellation, observatory"));
+        assert!(Mark::parse(&format!(
+            "{star}[place]\nis = \"constellation\"\ngathers = [\"everything\"]\n"
+        ))
+        .unwrap_err()
+        .to_string()
+        .contains("neither owner/repository nor owner/*"));
+        // an older lens.toml beside the mark holds the same truth: kept in agreement
+        let old = "[family]\nowners = [\"phones\"]\nprojects = [\"elsewhere/one\"]\n";
+        assert!(place.against_family(old).is_empty());
+        assert!(
+            place.against_family("[family]\nowners = [\"phones\"]\n")[0].contains(
+                "the mark gathers elsewhere/one, phones/* but lens.toml's family is phones/*"
+            )
+        );
+        assert!(Mark::parse(star).unwrap().against_family(old)[0]
+            .contains("the mark does not say what place this is"));
     }
 
     #[test]
