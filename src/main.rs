@@ -193,12 +193,16 @@ enum Cmd {
         /// The width of the screen surface, in columns
         #[arg(long, default_value_t = 80)]
         width: usize,
-        /// The surface to lay it out on: text, screen, markdown or html
+        /// The surface to lay it out on: text, screen, markdown, html or json
         #[arg(long, default_value = "text")]
         surface: String,
         /// What was observed: a folder ocoeco observe wrote, every row naming its project
         #[arg(long)]
         observed: Option<std::path::PathBuf>,
+        /// Show the lens's beam instead: how light travels through it - what enters, what each part lets
+        /// pass, and where it goes on to
+        #[arg(long)]
+        beam: bool,
         /// Say only what is new in view since the focus kept in FILE, and keep this one there
         #[arg(long)]
         since: Option<std::path::PathBuf>,
@@ -488,13 +492,24 @@ fn run() -> Result<()> {
                 scale,
                 single,
                 ocoeco::lenses::with(&places)?,
-                |lens, glimpse| {
+                |lens, looking| {
                     let found = ocoeco::lenses::with(&places)
                         .unwrap_or_default()
                         .into_iter()
                         .find(|l| l.lens.id == lens);
-                    match (glimpse, found) {
-                        (true, Some(found)) => ocoeco::entries::of(&found),
+                    match (looking, found) {
+                        (ocoeco::fulldome::Looking::Glimpse, Some(found)) => {
+                            ocoeco::entries::of(&found)
+                        }
+                        (ocoeco::fulldome::Looking::Beam, _) => {
+                            ocoeco::focus::beam(lens, &places, &today, &engine)
+                                .map(|parts| {
+                                    ocoeco::dome::surface("text", 80)
+                                        .map(|s| s.lay_out(&parts))
+                                        .unwrap_or_default()
+                                })
+                                .unwrap_or_else(|e| format!("{e:#}"))
+                        }
                         _ => ocoeco::focus::focus(lens, &places, &today, &engine)
                             .unwrap_or_else(|e| format!("{e:#}")),
                     }
@@ -520,6 +535,7 @@ fn run() -> Result<()> {
             width,
             observed,
             since,
+            beam,
         } => {
             let places = match (observed, root) {
                 (Some(observed), _) => vec![observed],
@@ -533,7 +549,12 @@ fn run() -> Result<()> {
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
-            let parts = ocoeco::focus::brought(&lens, &places, &today, &tad::sql::DuckDb::find()?)?;
+            let engine = tad::sql::DuckDb::find()?;
+            let parts = if beam {
+                ocoeco::focus::beam(&lens, &places, &today, &engine)?
+            } else {
+                ocoeco::focus::brought(&lens, &places, &today, &engine)?
+            };
             match since {
                 // only what is new in view since last time
                 Some(kept) => {

@@ -419,6 +419,169 @@ pub fn unsound(parts: &[Brought]) -> Vec<String> {
     doubts
 }
 
+/// Whether a query names a table: the name standing as a word of its own.
+fn names_table(sql: &str, table: &str) -> bool {
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+    sql.match_indices(table).any(|(at, _)| {
+        !word(sql[..at].chars().next_back()) && !word(sql[at + table.len()..].chars().next())
+    })
+}
+
+/// The beam of a lens: not what it brings into focus, but how light travels through it. What enters -
+/// each table it gathers, how many rows, from how many places; what each part does with it - what it asks
+/// of, how many rows enter and how many answers pass, or which lens it places and how much of that comes
+/// through; and where it goes on to - the lenses that place it, and the surfaces it can be laid out on.
+/// It is a projection like any other, so any surface lays it out.
+pub fn beam(
+    lens: &str,
+    dirs: &[PathBuf],
+    today: &str,
+    engine: &dyn SqlEngine,
+) -> Result<Vec<Brought>> {
+    let all = crate::lenses::with(dirs)?;
+    let Some(found) = all.iter().find(|l| l.lens.id == lens) else {
+        bail!(
+            "no lens is called {lens}: there are {}",
+            all.iter()
+                .map(|l| l.lens.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+    };
+    let scratch = std::env::temp_dir().join(format!("ocoeco-beam-{}-{lens}", std::process::id()));
+    let traced = (|| -> Result<Vec<Brought>> {
+        let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
+        // light in: what the lens gathers, as it gathered it
+        let mut tables: Vec<(String, usize, usize)> = Vec::new();
+        for table in found.tables.keys().chain(found.lens.reads.iter()) {
+            let text =
+                std::fs::read_to_string(scratch.join(format!("{table}.json"))).unwrap_or_default();
+            let rows: Vec<Value> = text
+                .lines()
+                .filter_map(|l| serde_json::from_str(l).ok())
+                .collect();
+            let places: std::collections::BTreeSet<&str> = rows
+                .iter()
+                .filter_map(|r| r.get("star").and_then(Value::as_str))
+                .collect();
+            tables.push((table.clone(), rows.len(), places.len()));
+        }
+        let light_in = if tables.is_empty() {
+            Brought {
+                title: Some("light in (0)".into()),
+                lines: vec!["nothing of its own: it only places what other lenses bring".into()],
+                keys: vec!["-".into()],
+                ..Default::default()
+            }
+        } else {
+            Brought {
+                title: Some(format!("light in ({})", tables.len())),
+                lines: tables
+                    .iter()
+                    .map(|(t, rows, places)| format!("{t} - {rows} rows, from {places} place(s)"))
+                    .collect(),
+                keys: tables.iter().map(|(t, _, _)| t.clone()).collect(),
+                ..Default::default()
+            }
+        };
+        // through the focus: what each part lets pass
+        let mut through = Brought {
+            title: Some(format!("through the focus ({})", found.focus.len())),
+            ..Default::default()
+        };
+        for (at, part) in found.focus.iter().enumerate() {
+            let heading = part
+                .title
+                .as_deref()
+                .map(named)
+                .unwrap_or("a part with no heading");
+            let (line, measure) = match &part.through {
+                Some(other) => {
+                    let came: usize = if all.iter().any(|l| l.lens.id == *other) {
+                        brought(other, dirs, today, engine)?
+                            .iter()
+                            .filter(|p| {
+                                !p.title.as_deref().is_some_and(|t| t.starts_with(NOT_SOUND))
+                            })
+                            .filter(|p| {
+                                part.only.as_deref().is_none_or(|only| {
+                                    p.title.as_deref().is_some_and(|t| named(t) == only)
+                                })
+                            })
+                            .map(|p| p.lines.len())
+                            .sum()
+                    } else {
+                        0
+                    };
+                    let which = part
+                        .only
+                        .as_deref()
+                        .map(|only| format!(" - only {only:?}"))
+                        .unwrap_or_default();
+                    (
+                        format!(
+                            "{}. placed from {other}{which}: {came} line(s) come through",
+                            at + 1
+                        ),
+                        None,
+                    )
+                }
+                None => {
+                    let asked: Vec<&(String, usize, usize)> = tables
+                        .iter()
+                        .filter(|(t, _, _)| names_table(&part.sql, t))
+                        .collect();
+                    let entering: usize = asked.iter().map(|(_, rows, _)| rows).sum();
+                    let passing =
+                        answers(engine, &load, &part.sql.replace("{today}", today))?.len();
+                    let of = asked
+                        .iter()
+                        .map(|(t, _, _)| t.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    (
+                        format!(
+                            "{}. {heading} - asks of {of}: {entering} rows in, {passing} through",
+                            at + 1
+                        ),
+                        Some((passing as f64, entering.max(passing).max(1) as f64)),
+                    )
+                }
+            };
+            through.lines.push(line);
+            through.measures.push(measure);
+            through.keys.push(format!("{lens}/{}", at + 1));
+        }
+        if through.measures.iter().all(Option::is_none) {
+            through.measures.clear();
+        }
+        // on, from here: the lenses that place this one, and the surfaces it is laid out on
+        let placed_in: Vec<&str> = all
+            .iter()
+            .filter(|l| l.focus.iter().any(|p| p.through.as_deref() == Some(lens)))
+            .map(|l| l.lens.id.as_str())
+            .collect();
+        let mut on = Brought {
+            title: None,
+            ..Default::default()
+        };
+        if !placed_in.is_empty() {
+            on.lines
+                .push(format!("placed in: {}", placed_in.join(", ")));
+            on.keys.push("placed in".into());
+        }
+        on.lines.push(format!(
+            "laid out on: {} - and in the terminal (ocoeco fulldome)",
+            crate::dome::SURFACES.join(", ")
+        ));
+        on.keys.push("laid out on".into());
+        on.title = Some(format!("on, from here ({})", on.lines.len()));
+        Ok(vec![light_in, through, on])
+    })();
+    let _ = std::fs::remove_dir_all(&scratch);
+    traced
+}
+
 /// A heading without its count: "in progress (2)" is "in progress".
 fn named(title: &str) -> &str {
     title.rsplit_once(" (").map_or(title, |(name, _)| name)
@@ -854,6 +1017,73 @@ mod tests {
             ]
         );
         assert!(parts[0].chain.is_some(), "and each is still a chain");
+    }
+
+    #[test]
+    fn a_beam_shows_how_light_travels_through_a_lens() {
+        /// An engine that answers the one part that asks, with two answers.
+        struct Two;
+        impl SqlEngine for Two {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                Ok(if script.contains("-- kept") {
+                    r#"[{"n":"one"},{"n":"two"}]"#.into()
+                } else {
+                    "[]".into()
+                })
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-beam-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"x\"}\n{\"id\":\"b\",\"n\":\"y\"}\n{\"id\":\"c\",\"n\":\"z\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("lenses/inner.toml"), "[lens]\nid = \"inner\"\nsays = \"Asks one thing of the notes.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n[[focus]]\ntitle = \"kept ({count})\"\nsql = \"SELECT n FROM notes -- kept\"\nline = \"{n}\"\n").unwrap();
+        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"Places the inner lens, and asks nothing.\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        let places = [d.clone()];
+        let inner = beam("inner", &places, "2026-11-13", &Two).unwrap();
+        let titles: Vec<&str> = inner
+            .iter()
+            .map(|p| p.title.as_deref().unwrap_or_default())
+            .collect();
+        assert_eq!(
+            titles,
+            ["light in (1)", "through the focus (1)", "on, from here (2)"]
+        );
+        assert_eq!(
+            inner[0].lines,
+            ["notes - 3 rows, from 1 place(s)"],
+            "what enters, and from where"
+        );
+        assert_eq!(
+            inner[1].lines,
+            ["1. kept - asks of notes: 3 rows in, 2 through"],
+            "what the focus lets pass"
+        );
+        assert_eq!(
+            inner[1].measures,
+            [Some((2.0, 3.0))],
+            "and how much of the light that is"
+        );
+        assert_eq!(inner[2].lines[0], "placed in: sheet", "where it goes on to");
+        assert!(
+            unsound(&inner).is_empty(),
+            "a beam is a sound projection: {:?}",
+            unsound(&inner)
+        );
+        let sheet = beam("sheet", &places, "2026-11-13", &Two).unwrap();
+        assert_eq!(
+            sheet[0].lines,
+            ["nothing of its own: it only places what other lenses bring"]
+        );
+        assert_eq!(
+            sheet[1].lines,
+            ["1. placed from inner - only \"kept\": 2 line(s) come through"]
+        );
     }
 
     #[test]
