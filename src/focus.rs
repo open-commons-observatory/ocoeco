@@ -34,7 +34,21 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
     {
         let (table, declared) = (&table, &declared);
         let (mut text, mut seq) = (String::new(), 0u64);
-        for dir in dirs {
+        // the lenses themselves, as rows: kept by no place - they are the language, read as data
+        let own = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
+        if own {
+            for row in crate::lenses::as_rows(dirs)?
+                .remove(table.as_str())
+                .unwrap_or_default()
+            {
+                seq += 1;
+                let mut row = row;
+                row.insert("seq".into(), seq.into());
+                text.push_str(&serde_json::to_string(&row)?);
+                text.push('\n');
+            }
+        }
+        for dir in dirs.iter().filter(|_| !own) {
             // what was observed is a place too: a folder of tables whose every row names its project
             if !dir.join("oco.toml").is_file() && dir.join("projects.json").is_file() {
                 for mut fields in crate::harvest::read_rows(&dir.join(format!("{table}.json"))) {
