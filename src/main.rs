@@ -380,17 +380,18 @@ fn run() -> Result<()> {
             surface,
             width,
         } => {
-            let scale = match (&observed, &root) {
-                (Some(_), _) => "every place observed".to_string(),
-                (None, Some(root)) => format!("every place under {root}"),
-                (None, None) => "this place".to_string(),
-            };
-            let places = match (observed, root) {
-                (Some(observed), _) => vec![observed],
-                (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
-                    root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
-                )),
-                (None, None) => vec![dir],
+            let (places, scale) = match (observed, root) {
+                (Some(observed), _) => (vec![observed], "every place observed".to_string()),
+                (None, Some(root)) => (
+                    ocoeco::board::projects(&std::path::PathBuf::from(root.replacen(
+                        '~',
+                        &std::env::var("HOME").unwrap_or_default(),
+                        1,
+                    ))),
+                    format!("every place under {root}"),
+                ),
+                // the same at every scale: a star shows itself, a place that gathers shows what it gathers
+                (None, None) => ocoeco::board::in_view(&dir),
             };
             let today = std::process::Command::new("date")
                 .arg("+%F")
@@ -441,7 +442,7 @@ fn run() -> Result<()> {
                 (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
                     root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
                 )),
-                (None, None) => vec![dir],
+                (None, None) => ocoeco::board::in_view(&dir).0,
             };
             let today = std::process::Command::new("date")
                 .arg("+%F")
@@ -479,6 +480,15 @@ fn run() -> Result<()> {
         }
         Cmd::Check { dir, root } => {
             let (well, mut problems) = join::check(&dir)?;
+            // a place's mark and an older lens.toml beside it say the same of what is gathered
+            if let (Ok(mark), Ok(old)) = (
+                std::fs::read_to_string(dir.join("oco.toml"))
+                    .map_err(anyhow::Error::from)
+                    .and_then(|t| ocoeco::mark::Mark::parse(&t)),
+                std::fs::read_to_string(dir.join("lens.toml")),
+            ) {
+                problems.extend(mark.against_family(&old));
+            }
             // the links: every one must lead somewhere - within this star, and with --root into others
             let mut others = std::collections::BTreeMap::new();
             if let Some(root) = root {
