@@ -151,6 +151,14 @@ pub struct Brought {
     /// a count): its star and id when the answer names them, otherwise the line itself.
     #[serde(default)]
     pub keys: Vec<String>,
+    /// Each line's answer as its named values - kept, not glued into the line - so a surface or a
+    /// program can read what a line is made of.
+    #[serde(default)]
+    pub values: Vec<Map<String, Value>>,
+    /// The shape of this part, when it is a chain: the names of the values a line goes from and to
+    /// (the second may hold several). A lens says a part is a chain; each surface walks it its own way.
+    #[serde(default)]
+    pub chain: Option<(String, String)>,
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
@@ -204,6 +212,11 @@ pub fn brought(
                 }
             }
             parts.push(Brought {
+                values: rows.clone(),
+                chain: part
+                    .chain
+                    .as_ref()
+                    .and_then(|c| Some((c.first()?.clone(), c.get(1)?.clone()))),
                 title: part
                     .title
                     .as_ref()
@@ -250,6 +263,7 @@ pub fn brought(
             lines: doubts.clone(),
             keys: doubts,
             measures: Vec::new(),
+            ..Default::default()
         });
     }
     Ok(parts)
@@ -439,6 +453,19 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
                     "{heading}: its measure is {measure}, which its query does not give"
                 ));
             }
+            if let Some(chain) = &part.chain {
+                if chain.len() != 2 {
+                    doubts.push(format!(
+                        "{heading}: a chain names two columns - from and to - not {}",
+                        chain.len()
+                    ));
+                }
+                for column in chain.iter().filter(|c| !columns.contains(&c.as_str())) {
+                    doubts.push(format!(
+                        "{heading}: its chain runs through {column}, which its query does not give"
+                    ));
+                }
+            }
             if part.measure.is_some() && part.of.is_none_or(|of| of <= 0.0) {
                 doubts.push(format!(
                     "{heading}: it has a measure but not the whole it is of"
@@ -521,12 +548,14 @@ mod tests {
             lines: rows.iter().map(|(_, l)| l.to_string()).collect(),
             keys: rows.iter().map(|(k, _)| k.to_string()).collect(),
             measures: vec![],
+            ..Default::default()
         };
         let total = |line: &str| Brought {
             title: None,
             lines: vec![line.into()],
             keys: vec![line.into()],
             measures: vec![],
+            ..Default::default()
         };
         let before = [
             part("in progress (1)", &[("r/a", "ann: r/a - A, 1 day(s)")]),
@@ -569,6 +598,7 @@ mod tests {
                 lines: rows.iter().map(|(_, l)| l.to_string()).collect(),
                 keys: rows.iter().map(|(k, _)| k.to_string()).collect(),
                 measures,
+                ..Default::default()
             };
         let sound = [
             part(

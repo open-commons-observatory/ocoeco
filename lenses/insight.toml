@@ -49,7 +49,9 @@ SELECT coalesce(nullif(thread, ''), 'no thread') AS thread, how, says, known,
        regexp_replace(regexp_replace("to", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g'), '(^|[ ,])[a-z_]+:', '\\1', 'g') AS that
 FROM connections ORDER BY 1, seq
 """
-line = "{thread}: {this} - {how} - {that}: {says} ({known})"
+line = "{this} - {how} - {that}: {says} ({known})"
+# what this part is: a chain, from this to that - each surface walks it from where it begins
+chain = ["this", "that"]
 
 [[focus]]
 always = true

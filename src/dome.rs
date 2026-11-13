@@ -37,6 +37,71 @@ pub fn bar(so_much: f64, of: f64) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(10 - filled))
 }
 
+/// The order a part's lines are laid out in, and how far along each is. A list is as it was written.
+/// A chain is walked from where it begins: a line, then the lines that go on from where it arrives -
+/// so what followed from what is seen, whatever order the lines were kept in. Every surface walks a
+/// part this one way; how far along looks is each surface's own.
+#[allow(clippy::needless_range_loop)]
+pub fn walked(part: &Brought) -> Vec<(usize, usize)> {
+    let Some((from, to)) = &part.chain else {
+        return (0..part.lines.len()).map(|at| (at, 0)).collect();
+    };
+    let value = |at: usize, name: &str| {
+        part.values
+            .get(at)
+            .and_then(|v| v.get(name))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    let starts: Vec<String> = (0..part.lines.len()).map(|at| value(at, from)).collect();
+    let ends: Vec<Vec<String>> = (0..part.lines.len())
+        .map(|at| {
+            value(at, to)
+                .split(|c: char| c == ',' || c.is_whitespace())
+                .filter(|t| !t.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .collect();
+    fn follow(
+        node: &str,
+        along: usize,
+        starts: &[String],
+        ends: &[Vec<String>],
+        done: &mut [bool],
+        order: &mut Vec<(usize, usize)>,
+    ) {
+        for at in 0..starts.len() {
+            if !done[at] && starts[at] == node {
+                done[at] = true;
+                order.push((at, along));
+                for end in &ends[at] {
+                    follow(end, along + 1, starts, ends, done, order);
+                }
+            }
+        }
+    }
+    let arrived: std::collections::BTreeSet<&String> = ends.iter().flatten().collect();
+    let (mut done, mut order) = (vec![false; starts.len()], Vec::new());
+    // from what nothing leads to; then whatever is left, which only a ring can leave
+    for begins in [true, false] {
+        for at in 0..starts.len() {
+            if !done[at] && (!begins || !arrived.contains(&starts[at])) {
+                follow(
+                    &starts[at].clone(),
+                    0,
+                    &starts,
+                    &ends,
+                    &mut done,
+                    &mut order,
+                );
+            }
+        }
+    }
+    order
+}
+
 /// The plain-text surface: a heading on its own line, its lines beneath it, set in by two spaces.
 pub struct Text;
 
@@ -49,8 +114,10 @@ impl Dome for Text {
                 text.push_str(title);
                 text.push('\n');
             }
-            for (at, line) in part.lines.iter().enumerate() {
+            for (at, along) in walked(part) {
+                let (line, along) = (&part.lines[at], "  ".repeat(along));
                 text.push_str(inset);
+                text.push_str(&along);
                 if let Some((so_much, of)) = part.measures.get(at).copied().flatten() {
                     text.push_str(&bar(so_much, of));
                     text.push(' ');
@@ -89,12 +156,13 @@ impl Dome for Markdown {
             match &part.title {
                 Some(title) => {
                     text.push_str(&format!("### {title}\n\n"));
-                    for (at, line) in part.lines.iter().enumerate() {
+                    for (at, along) in walked(part) {
+                        let (line, along) = (&part.lines[at], "  ".repeat(along));
                         match part.measures.get(at).copied().flatten() {
                             Some((so_much, of)) => {
                                 text.push_str(&format!("- `{}` {line}\n", bar(so_much, of)))
                             }
-                            None => text.push_str(&format!("- {line}\n")),
+                            None => text.push_str(&format!("{along}- {line}\n")),
                         }
                     }
                     if part.lines.is_empty() {
@@ -150,10 +218,12 @@ impl Dome for Html {
                         text.push_str("<p class=\"none\">Nothing.</p>\n");
                     } else {
                         text.push_str("<ul>\n");
-                        for (at, line) in part.lines.iter().enumerate() {
+                        for (at, along) in walked(part) {
+                            let (line, along) = (&part.lines[at], "  ".repeat(along));
                             match part.measures.get(at).copied().flatten() {
                                 Some((so_much, of)) => text.push_str(&format!("<li><meter value=\"{so_much}\" max=\"{of}\">{so_much} of {of}</meter> {}</li>\n", escaped(line))),
-                                None => text.push_str(&format!("<li>{}</li>\n", escaped(line))),
+                                None if along.is_empty() => text.push_str(&format!("<li>{}</li>\n", escaped(line))),
+                                None => text.push_str(&format!("<li style=\"margin-left:{}rem\">{}</li>\n", along.len() as f64 * 0.75, escaped(line))),
                             }
                         }
                         text.push_str("</ul>\n");
@@ -269,12 +339,13 @@ impl Screen {
             if let Some(title) = &part.title {
                 self.put(out, "", title);
             }
-            for (at, line) in part.lines.iter().enumerate() {
+            for (at, along) in walked(part) {
+                let (line, along) = (&part.lines[at], "  ".repeat(along));
                 match part.measures.get(at).copied().flatten() {
                     Some((so_much, of)) => {
                         self.put(out, &format!("{inset}{} ", bar(so_much, of)), line)
                     }
-                    None => self.put(out, inset, line),
+                    None => self.put(out, &format!("{inset}{along}"), line),
                 }
             }
         }
@@ -375,18 +446,21 @@ mod tests {
                 lines: vec!["claude: r/a - A <b> & co".into()],
                 measures: vec![],
                 keys: vec![],
+                ..Default::default()
             },
             Brought {
                 title: Some("waiting (0)".into()),
                 lines: vec![],
                 measures: vec![],
                 keys: vec![],
+                ..Default::default()
             },
             Brought {
                 title: None,
                 lines: vec!["open 2, across 1 stars".into()],
                 measures: vec![],
                 keys: vec![],
+                ..Default::default()
             },
         ]
     }
@@ -453,6 +527,7 @@ mod tests {
             lines: vec!["r - Published: 8 of 9".into(), "r - Begun".into()],
             measures: vec![Some((8.0, 9.0)), None],
             keys: vec![],
+            ..Default::default()
         }];
         assert_eq!(bar(8.0, 9.0), "█████████░");
         assert_eq!(
@@ -509,12 +584,14 @@ mod tests {
                 ],
                 measures: vec![Some((8.0, 9.0)), None],
                 keys: vec![],
+                ..Default::default()
             },
             Brought {
                 title: None,
                 lines: vec!["95 milestones in 15 stars".into()],
                 measures: vec![],
                 keys: vec![],
+                ..Default::default()
             },
         ];
         let screen = Screen { width: 40 };
@@ -560,6 +637,7 @@ mod tests {
             lines: vec!["r/a - A".into()],
             measures: vec![],
             keys: vec!["r/a".into()],
+            ..Default::default()
         }];
         let read: Vec<Brought> = serde_json::from_str(&Json.lay_out(&parts)).unwrap();
         assert_eq!(
@@ -588,6 +666,78 @@ mod tests {
                 whole["lenses"][1]["nothing_because"].as_str()
             ),
             (Some("r/a"), Some("nothing yet"))
+        );
+    }
+
+    #[test]
+    fn a_chain_is_walked_from_where_it_begins_whatever_order_it_was_kept_in() {
+        let row = |from: &str, to: &str| -> serde_json::Map<String, serde_json::Value> {
+            serde_json::from_value(serde_json::json!({"this": from, "that": to})).unwrap()
+        };
+        // kept out of order, as a table sorted by name keeps them; g follows from y and from z
+        let kept = [
+            ("y", "g"),
+            ("x", "y z"),
+            ("q", "x"),
+            ("z", "g"),
+            ("g", "h"),
+            ("lone", "end"),
+        ];
+        let chain = Brought {
+            title: Some("a red line".into()),
+            lines: kept
+                .iter()
+                .map(|(a, b)| format!("{a} led to {b}"))
+                .collect(),
+            keys: kept.iter().map(|(a, b)| format!("{a}>{b}")).collect(),
+            values: kept.iter().map(|(a, b)| row(a, b)).collect(),
+            chain: Some(("this".into(), "that".into())),
+            ..Default::default()
+        };
+        let order: Vec<(&str, usize)> = walked(&chain)
+            .into_iter()
+            .map(|(at, along)| (chain.lines[at].as_str(), along))
+            .collect();
+        assert_eq!(
+            order,
+            [
+                ("q led to x", 0),
+                ("x led to y z", 1),
+                ("y led to g", 2),
+                ("g led to h", 3),
+                ("z led to g", 2),
+                ("lone led to end", 0)
+            ],
+            "each line once, and what follows it beneath it"
+        );
+        assert_eq!(Text.lay_out(std::slice::from_ref(&chain)), "a red line\n  q led to x\n    x led to y z\n      y led to g\n        g led to h\n      z led to g\n  lone led to end\n");
+        assert!(Markdown
+            .lay_out(std::slice::from_ref(&chain))
+            .contains("- q led to x\n  - x led to y z\n    - y led to g\n"));
+        assert!(Html
+            .lay_out(std::slice::from_ref(&chain))
+            .contains("<li>q led to x</li>\n<li style=\"margin-left:1.5rem\">x led to y z</li>"));
+        assert!(Screen { width: 20 }
+            .lay_out(std::slice::from_ref(&chain))
+            .lines()
+            .all(|l| wide(l) <= 20));
+        // a ring has no beginning: it is still shown whole, once
+        let ring = Brought {
+            lines: vec!["a to b".into(), "b to a".into()],
+            keys: vec!["1".into(), "2".into()],
+            values: vec![row("a", "b"), row("b", "a")],
+            chain: Some(("this".into(), "that".into())),
+            ..Default::default()
+        };
+        assert_eq!(walked(&ring), [(0, 0), (1, 1)]);
+        // a list is as it was written
+        assert_eq!(
+            walked(&Brought {
+                lines: vec!["one".into(), "two".into()],
+                keys: vec!["one".into(), "two".into()],
+                ..Default::default()
+            }),
+            [(0, 0), (1, 0)]
         );
     }
 
