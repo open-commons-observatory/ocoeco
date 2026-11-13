@@ -67,3 +67,4 @@
 {"id":"g-20261113-180218","at":"2026-11-13T18:02:18Z","by":"claude","kind":"docs","summary":"the release waits on an owner's setting; left showing, not switched off","advances":"backlog:ocoeco-released-as-files"}
 {"id":"g-20261113-183000","at":"2026-11-13T18:30:00Z","by":"claude","kind":"fix","summary":"the rpm is packed from the root: -p is a folder to that tool","advances":"backlog:ocoeco-released-as-files"}
 {"id":"g-20261113-184037","at":"2026-11-13T18:40:37Z","by":"claude","kind":"docs","summary":"ocoeco is released: taken from its release elsewhere, and looked through","advances":"backlog:ocoeco-released-as-files"}
+{"id":"g-20261113-185832","at":"2026-11-13T18:58:32Z","by":"claude","kind":"feat","summary":"the lens of signs: shown until a connection leads to what was seen","advances":"backlog:read-off-the-act"}
