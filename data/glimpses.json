@@ -72,3 +72,4 @@
 {"id":"g-20261113-190851","at":"2026-11-13T19:08:51Z","by":"claude","kind":"fix","summary":"a run that was replaced did not fail","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-191432","at":"2026-11-13T19:14:32Z","by":"claude","kind":"fix","summary":"the lab does not cry wolf: a run replaced is not said to fail","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-195914","at":"2026-11-13T19:59:14Z","by":"claude","kind":"feat","summary":"the names of the language are words: which have a meaning said","advances":"backlog:read-off-the-act"}
+{"id":"g-20261113-204352","at":"2026-11-13T20:43:52Z","by":"claude","kind":"feat","summary":"a lens of lenses: a part placed from another lens","advances":"backlog:read-off-the-act"}

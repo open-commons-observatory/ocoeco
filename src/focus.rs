@@ -205,6 +205,28 @@ pub fn brought(
         let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
         let (mut parts, mut doubts) = (Vec::new(), Vec::new());
         for part in &found.focus {
+            // a part may be what another lens brings into focus, placed here - all of it, or the part
+            // under one heading. The other lens gathers, shapes and lays out; this one only places.
+            if let Some(other) = &part.through {
+                thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
+                if DEEP.get() > 8 {
+                    bail!("the lens {lens} looks through {other}, which comes back to it: lenses placed in a ring");
+                }
+                DEEP.set(DEEP.get() + 1);
+                let theirs = brought(other, dirs, today, engine);
+                DEEP.set(DEEP.get() - 1);
+                parts.extend(
+                    theirs?
+                        .into_iter()
+                        .filter(|p| !p.title.as_deref().is_some_and(|t| t.starts_with(NOT_SOUND)))
+                        .filter(|p| {
+                            part.only.as_deref().is_none_or(|only| {
+                                p.title.as_deref().is_some_and(|t| named(t) == only)
+                            })
+                        }),
+                );
+                continue;
+            }
             let all = answers(engine, &load, &part.sql.replace("{today}", today))?;
             // a part may be laid out once for each value of one of its columns - a red line, a driver,
             // a star - in the order the values first appear; otherwise it is laid out once
@@ -467,6 +489,29 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
         let load = tad::sql::load_script(&scratch, &gather(lens, &[], &scratch)?);
         let mut doubts = Vec::new();
         for part in &lens.focus {
+            // a part placed from another lens asks nothing here: what must hold is that the lens, and the
+            // heading if one is named, are there - told for the lenses built in; one a place brings is
+            // met when it is looked through
+            if let Some(other) = &part.through {
+                if let Some(theirs) = crate::lenses::lenses().iter().find(|l| l.lens.id == *other) {
+                    if let Some(only) = part.only.as_deref().filter(|only| {
+                        !theirs
+                            .focus
+                            .iter()
+                            .any(|p| p.title.as_deref().map(named) == Some(only))
+                    }) {
+                        doubts.push(format!("it places the part {only:?} of the lens {other}, which has no part under that heading"));
+                    }
+                }
+                continue;
+            }
+            if part.sql.trim().is_empty() {
+                doubts.push(
+                    "a part asks nothing: it has neither a query nor a lens to look through"
+                        .to_string(),
+                );
+                continue;
+            }
             let heading = part
                 .title
                 .as_deref()
@@ -800,6 +845,61 @@ mod tests {
             ]
         );
         assert!(parts[0].chain.is_some(), "and each is still a chain");
+    }
+
+    #[test]
+    fn a_lens_of_lenses_places_what_other_lenses_bring_and_asks_nothing_itself() {
+        /// An engine that answers each query by a word written in it.
+        struct ByWord;
+        impl SqlEngine for ByWord {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                Ok(if script.contains("-- kept") {
+                    r#"[{"n":"one"}]"#.into()
+                } else if script.contains("-- other") {
+                    r#"[{"n":"two"}]"#.into()
+                } else {
+                    "[]".into()
+                })
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-sheet-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n").unwrap();
+        let part = |title: &str, word: &str| {
+            format!("[[focus]]\ntitle = \"{title} ({{count}})\"\nsql = \"SELECT 1 AS n -- {word}\"\nline = \"{{n}}\"\n")
+        };
+        std::fs::write(
+            d.join("lenses/inner.toml"),
+            format!(
+                "[lens]\nid = \"inner\"\nsays = \"Asks two things of the data.\"\n{}{}",
+                part("kept", "kept"),
+                part("other", "other")
+            ),
+        )
+        .unwrap();
+        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"A sheet: places what the inner lens brings, and asks nothing.\"\n[[focus]]\nthrough = \"inner\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        let places = [d.clone()];
+        let sheet = brought("sheet", &places, "2026-11-13", &ByWord).unwrap();
+        let laid: Vec<(&str, &str)> = sheet
+            .iter()
+            .map(|p| (p.title.as_deref().unwrap_or_default(), p.lines[0].as_str()))
+            .collect();
+        assert_eq!(
+            laid,
+            [
+                ("kept (1)", "one"),
+                ("other (1)", "two"),
+                ("kept (1)", "one")
+            ],
+            "all of the inner lens, then only its part under one heading"
+        );
+        // lenses placed in a ring are said, not followed for ever
+        std::fs::write(d.join("lenses/ring.toml"), "[lens]\nid = \"ring\"\nsays = \"Looks through itself, which cannot be.\"\n[[focus]]\nthrough = \"ring\"\n").unwrap();
+        assert!(brought("ring", &places, "2026-11-13", &ByWord)
+            .unwrap_err()
+            .to_string()
+            .contains("placed in a ring"));
     }
 
     #[test]
