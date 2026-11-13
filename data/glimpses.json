@@ -70,3 +70,4 @@
 {"id":"g-20261113-185832","at":"2026-11-13T18:58:32Z","by":"claude","kind":"feat","summary":"the lens of signs: shown until a connection leads to what was seen","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-190156","at":"2026-11-13T19:01:56Z","by":"claude","kind":"docs","summary":"two signs, said the new way","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-190851","at":"2026-11-13T19:08:51Z","by":"claude","kind":"fix","summary":"a run that was replaced did not fail","advances":"backlog:read-off-the-act"}
+{"id":"g-20261113-191432","at":"2026-11-13T19:14:32Z","by":"claude","kind":"fix","summary":"the lab does not cry wolf: a run replaced is not said to fail","advances":"backlog:read-off-the-act"}
