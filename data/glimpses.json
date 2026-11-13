@@ -56,3 +56,4 @@
 {"id":"g-20261113-081822","at":"2026-11-13T08:18:22Z","by":"claude","kind":"feat","summary":"the work lens reads what is being worked on off the work itself","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-084354","at":"2026-11-13T08:43:54Z","by":"claude","kind":"feat","summary":"a part laid out once per value: each red line under its own name","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-090509","at":"2026-11-13T09:05:09Z","by":"claude","kind":"docs","summary":"ocoeco on argenv waits on argenv: tried, where before it was read","advances":"backlog:ocoeco-on-argenv"}
+{"id":"g-20261113-105915","at":"2026-11-13T10:59:15Z","by":"claude","kind":"docs","summary":"the trial: an entry read by argenv's reader as it is","advances":"backlog:ocoeco-on-argenv"}
