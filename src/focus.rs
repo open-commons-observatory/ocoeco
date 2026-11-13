@@ -208,6 +208,15 @@ pub fn brought(
             // a part may be what another lens brings into focus, placed here - all of it, or the part
             // under one heading. The other lens gathers, shapes and lays out; this one only places.
             if let Some(other) = &part.through {
+                // a lens that is not in view from here cannot be placed: said, and the rest is shown -
+                // what is in view depends on where one looks from, and that is not a fault of the lens
+                if !all.iter().any(|l| l.lens.id == *other) {
+                    parts.push(Brought {
+                        title: Some(format!("{other}: not in view from here")),
+                        ..Default::default()
+                    });
+                    continue;
+                }
                 thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
                 if DEEP.get() > 8 {
                     bail!("the lens {lens} looks through {other}, which comes back to it: lenses placed in a ring");
@@ -495,10 +504,12 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
             if let Some(other) = &part.through {
                 if let Some(theirs) = crate::lenses::lenses().iter().find(|l| l.lens.id == *other) {
                     if let Some(only) = part.only.as_deref().filter(|only| {
-                        !theirs
-                            .focus
-                            .iter()
-                            .any(|p| p.title.as_deref().map(named) == Some(only))
+                        !theirs.focus.iter().any(|p| {
+                            // a heading laid out for each value is known only when data passes
+                            p.title
+                                .as_deref()
+                                .is_some_and(|t| named(t) == *only || named(t).contains('{'))
+                        })
                     }) {
                         doubts.push(format!("it places the part {only:?} of the lens {other}, which has no part under that heading"));
                     }
@@ -891,6 +902,15 @@ mod tests {
                 ("kept (1)", "one")
             ],
             "all of the inner lens, then only its part under one heading"
+        );
+        // a lens that is not in view from here is said to be so, and the rest is shown
+        std::fs::write(d.join("lenses/far.toml"), "[lens]\nid = \"far\"\nsays = \"Places a lens that only another place brings.\"\n[[focus]]\nthrough = \"brought-elsewhere\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        let far = brought("far", &places, "2026-11-13", &ByWord).unwrap();
+        assert_eq!(
+            far.iter()
+                .map(|p| p.title.as_deref().unwrap_or_default())
+                .collect::<Vec<_>>(),
+            ["brought-elsewhere: not in view from here", "kept (1)"]
         );
         // lenses placed in a ring are said, not followed for ever
         std::fs::write(d.join("lenses/ring.toml"), "[lens]\nid = \"ring\"\nsays = \"Looks through itself, which cannot be.\"\n[[focus]]\nthrough = \"ring\"\n").unwrap();
