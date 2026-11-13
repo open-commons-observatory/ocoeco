@@ -2,6 +2,7 @@
 [lens]
 id = "purpose"
 says = "Why a star exists and what it must reach: its idea, and its milestones with what makes each reached."
+reads = ["backlog"]
 
 [tables.idea]
 key = ["id"]
@@ -58,25 +59,50 @@ FROM idea WHERE kind = 'lead' ORDER BY star, seq
 """
 line = "{star} - {says}"
 
+# A milestone is reached when what it rests on is done - read off the work, never typed. Its criteria
+# name items of the backlog (backlog:id); other criteria are conditions told by tests (a feature at a
+# level), which this lens does not judge and says so. readiness is not how ready a milestone is: it is
+# its rung on the path, earned in order - shown as the rung it is.
 [[focus]]
-title = "being reached, the nearest first ({count})"
+title = "being reached - how much of what each rests on is done ({count})"
 sql = """
-SELECT star, title, try_cast(readiness AS INTEGER) AS readiness FROM milestones
-WHERE horizon = 'working' AND try_cast(readiness AS INTEGER) < 9
-ORDER BY 3 DESC, star, seq LIMIT 20
+WITH rests AS (
+  SELECT star, id, title, try_cast(readiness AS INTEGER) AS rung, horizon, seq,
+         unnest(string_split(trim(criteria), ' ')) AS criterion
+  FROM milestones WHERE coalesce(criteria, '') <> ''
+), judged AS (
+  SELECT rests.*, criterion LIKE 'backlog:%' AS an_item,
+         EXISTS (SELECT 1 FROM backlog b WHERE b.star = rests.star AND b.id = substr(criterion, 9) AND b.status = 'done') AS is_done
+  FROM rests WHERE criterion <> ''
+), each AS (
+  SELECT star, id, title, rung, horizon, min(seq) AS seq,
+         count(*) FILTER (WHERE an_item) AS items, count(*) FILTER (WHERE an_item AND is_done) AS done,
+         count(*) FILTER (WHERE NOT an_item) AS conditions
+  FROM judged GROUP BY star, id, title, rung, horizon
+)
+SELECT star, title, rung, done, items,
+       CASE WHEN conditions > 0 THEN ', and ' || conditions || ' told by tests' ELSE '' END AS told
+FROM each WHERE horizon = 'working' AND items > 0 AND done < items
+ORDER BY (items - done), rung, star, seq LIMIT 20
 """
-line = "{star} - {title}: {readiness} of 9"
-# what the line means: readiness is a measure of a whole - each surface shows it in its own way
-measure = "readiness"
-of = 9
+line = "{star} - {title} (rung {rung}): {done} of {items} done{told}"
+# what the line means: so much of what it rests on is done - a measure whose whole is the line's own
+measure = "done"
+whole = "items"
 
 [[focus]]
 always = true
 sql = """
-SELECT count(*) AS milestones, count(DISTINCT star) AS stars,
-       count(*) FILTER (WHERE horizon = 'working') AS working,
-       count(*) FILTER (WHERE horizon = 'perfection') AS perfection,
-       count(*) FILTER (WHERE horizon = 'ongoing') AS ongoing,
-       count(*) FILTER (WHERE try_cast(readiness AS INTEGER) = 9) AS full FROM milestones
+WITH rests AS (
+  SELECT star, id, unnest(string_split(trim(criteria), ' ')) AS criterion FROM milestones WHERE coalesce(criteria, '') <> ''
+), each AS (
+  SELECT rests.star, rests.id, count(*) FILTER (WHERE criterion LIKE 'backlog:%') AS items,
+         count(*) FILTER (WHERE criterion LIKE 'backlog:%' AND EXISTS (SELECT 1 FROM backlog b WHERE b.star = rests.star AND b.id = substr(criterion, 9) AND b.status = 'done')) AS done,
+         count(*) FILTER (WHERE criterion NOT LIKE 'backlog:%') AS conditions
+  FROM rests WHERE criterion <> '' GROUP BY rests.star, rests.id
+)
+SELECT (SELECT count(*) FROM milestones) AS milestones, (SELECT count(DISTINCT star) FROM milestones) AS stars,
+       count(*) FILTER (WHERE items > 0 AND done = items AND conditions = 0) AS reached,
+       count(*) FILTER (WHERE conditions > 0) AS by_tests FROM each
 """
-line = "{milestones} milestones in {stars} stars: {working} toward working, {perfection} toward perfection, {ongoing} ongoing; {full} at 9 of 9"
+line = "{milestones} milestones in {stars} stars: {reached} reached - every item they rest on is done; {by_tests} rest on what tests tell, not judged here"

@@ -243,7 +243,13 @@ pub fn brought(
                                 Some(Value::String(s)) => s.parse().ok(),
                                 _ => None,
                             };
-                            so_much.map(|v| (v, part.of.unwrap_or(1.0)))
+                            // the whole it is of: the answer's own, when the lens names it; else the part's
+                            let whole = part.whole.as_ref().and_then(|w| match row.get(w) {
+                                Some(Value::Number(n)) => n.as_f64(),
+                                Some(Value::String(s)) => s.parse().ok(),
+                                _ => None,
+                            });
+                            so_much.map(|v| (v, whole.or(part.of).unwrap_or(1.0)))
                         })
                         .collect(),
                     None => Vec::new(),
@@ -466,7 +472,13 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
                     ));
                 }
             }
-            if part.measure.is_some() && part.of.is_none_or(|of| of <= 0.0) {
+            if let Some(whole) = part.whole.as_deref().filter(|w| !columns.contains(w)) {
+                doubts.push(format!(
+                    "{heading}: its whole is {whole}, which its query does not give"
+                ));
+            }
+            if part.measure.is_some() && part.whole.is_none() && part.of.is_none_or(|of| of <= 0.0)
+            {
                 doubts.push(format!(
                     "{heading}: it has a measure but not the whole it is of"
                 ));
