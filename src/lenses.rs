@@ -79,6 +79,10 @@ pub struct Part {
     /// The whole the measure is of.
     #[serde(default)]
     pub of: Option<f64>,
+    /// This part is a chain: the two columns a line goes from and to (the second may name several,
+    /// separated by spaces or commas). What it means, not how it looks.
+    #[serde(default)]
+    pub chain: Option<Vec<String>>,
 }
 
 /// Every lens, in the order of their files.
