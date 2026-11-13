@@ -1,0 +1,62 @@
+# The lens of insight: what is seen by connecting. Knowledge says what is; research says what was found;
+# this says how one thing bears on another - the red lines through the data. A connection is not a
+# relation: a relation is declared once for a whole table (a decision may refine a decision); a
+# connection is discovered, between two particular rows, of any tables, in any stars.
+[lens]
+id = "insight"
+says = "What is seen by connecting: how one thing led to, needed, halted or repeats another - red lines through the data, each saying how it is known."
+
+[tables.connections]
+key = ["id"]
+extra_fields = true
+dated = "date"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "from", type = "string", required = true },
+    { name = "how", type = "string", required = true, enum = ["led to", "needed", "halted", "repeats"] },
+    { name = "to", type = "string", required = true },
+    { name = "says", type = "string", required = true },
+    { name = "known", type = "string", required = true, enum = ["recorded", "measured", "read", "reasoned"] },
+    { name = "thread", type = "string" },
+    { name = "date", type = "string", required = true },
+    { name = "by", type = "string", required = true },
+]
+
+# what a connection runs between: rows of any table, here or in another star
+[[relation]]
+from = "connections.from"
+to = ["*"]
+
+[[relation]]
+from = "connections.to"
+to = ["*"]
+
+# The glimpse of the lens of insight.
+[[glimpse]]
+entry = "connection"
+says = "How one thing bears on another: this led to, needed, halted or repeats that - with why, and how it is known."
+table = "connections"
+asks = ["from", "how", "to", "says", "known", "thread"]
+supplies = [{ field = "date", from = "today", when = "new" }, { field = "by", from = "who", when = "new" }]
+
+# The focus of the lens of insight: each red line, its connections in the order they were drawn. A row
+# in another star is shown as star/id; one of this place, by its id alone.
+[[focus]]
+title = "red lines ({count} connections)"
+sql = """
+SELECT coalesce(nullif(thread, ''), 'no thread') AS thread, how, says, known,
+       regexp_replace(regexp_replace("from", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g'), '(^|[ ,])[a-z_]+:', '\\1', 'g') AS this,
+       regexp_replace(regexp_replace("to", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g'), '(^|[ ,])[a-z_]+:', '\\1', 'g') AS that
+FROM connections ORDER BY 1, seq
+"""
+line = "{thread}: {this} - {how} - {that}: {says} ({known})"
+
+[[focus]]
+always = true
+sql = """
+SELECT count(*) AS connections, count(DISTINCT thread) AS threads,
+       count(*) FILTER (WHERE known = 'reasoned') AS reasoned,
+       count(*) FILTER (WHERE how = 'needed') AS needed, count(*) FILTER (WHERE how = 'halted') AS halted,
+       count(*) FILTER (WHERE how = 'repeats') AS repeats FROM connections
+"""
+line = "{connections} connections on {threads} red lines: {needed} of need, {halted} of halting, {repeats} of repeating; {reasoned} are reasoned, not recorded"

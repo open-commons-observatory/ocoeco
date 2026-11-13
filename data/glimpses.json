@@ -46,3 +46,4 @@
 {"id":"g-20261113-012009","at":"2026-11-13T01:20:09Z","by":"claude","kind":"fix","summary":"a new place can record its work, its reasoning and what is wrong","advances":"backlog:constellations"}
 {"id":"g-20261113-012742","at":"2026-11-13T01:27:42Z","by":"claude","kind":"feat","summary":"rows move between places with every link kept true","advances":"backlog:constellations"}
 {"id":"g-20261113-013005","at":"2026-11-13T01:30:05Z","by":"claude","kind":"docs","summary":"the decisions about the whole are in OCO's place; links follow"}
+{"id":"g-20261113-060823","at":"2026-11-13T06:08:23Z","by":"Claude","kind":"feat","summary":"the lens of insight: connections, red lines through the data"}

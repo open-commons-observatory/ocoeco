@@ -698,6 +698,6 @@ mod tests {
         assert!(focus("no-such-lens", &[], "2026-11-12", &StandIn)
             .unwrap_err()
             .to_string()
-            .contains("there are knowledge, looking-back"));
+            .contains("no lens is called no-such-lens: there are "));
     }
 }
