@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.5.0...ocoeco-v0.6.0) (2026-11-13)
+
+
+### Features
+
+* the graph under the tables: every link as this, how, that ([#132](https://github.com/open-commons-observatory/ocoeco/issues/132)) ([713c1ac](https://github.com/open-commons-observatory/ocoeco/commit/713c1ac578dd44839810d34d0157987a45e08583))
+
 ## [0.5.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.4.0...ocoeco-v0.5.0) (2026-11-13)
 
 
