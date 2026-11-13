@@ -32,7 +32,8 @@ fields = [
 
 # What has run in each place: the latest finished run of each workflow on its default branch, observed -
 # never written by hand. A run that failed is a sign read off the data: shown while true, gone when the
-# next run passes.
+# next run passes. A run that was stopped - most often because a newer one was asked for - did not fail,
+# and is not shown as failing.
 [tables.runs]
 key = ["id"]
 extra_fields = true
@@ -83,7 +84,7 @@ line = "{star}/{id}{of_kind} - {what}{at} (seen by {by}, {days} day(s) ago)"
 title = "failing on main ({count})"
 sql = """
 SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
-WHERE conclusion NOT IN ('success', 'skipped', 'neutral') ORDER BY "at", seq
+WHERE conclusion NOT IN ('success', 'skipped', 'neutral', 'cancelled') ORDER BY "at", seq
 """
 line = "{project} - {workflow}: {conclusion} since {day} - {url}"
 
