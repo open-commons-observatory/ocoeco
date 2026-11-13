@@ -45,9 +45,11 @@ supplies = [
 # Each part is a query over the gathered rows (every row with its star, and seq - its place in the
 # order gathered) and a line laying out one answer; {today} is supplied by the computer.
 # What is being worked on is not a state to set: it is read off the work. Every record of work says
-# which item it advances. An item worked on lately and not said to be done is in progress - by whom,
-# how often, when last; one said to be done is finished lately. Nobody types either, so neither drifts.
-# One question, laid out once for each of the two.
+# What is being worked on is not a state to set: it is read off the work. Every record of work says
+# which item it advances. An item worked on within the last day and not said to be done is in progress
+# - by whom, how often, when last; one said to be done and worked on in the last days is finished
+# lately. Nobody types either, so neither drifts. One question, laid out once for each of the two; an
+# item touched some days ago and not since is neither - it is as it was said to be.
 [[focus]]
 title = "{state} ({count})"
 sql = """
@@ -56,16 +58,21 @@ WITH done AS (
   FROM glimpses g, unnest(string_split(replace(coalesce(g.advances, ''), ',', ' '), ' ')) AS t(token)
   WHERE t.token LIKE 'backlog:%'
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
+), each AS (
+  SELECT CASE WHEN b.status = 'done' THEN 'finished lately' ELSE 'in progress - read off what was done' END AS state,
+         string_agg(DISTINCT d.who, ', ' ORDER BY d.who) AS who, b.star, b.id, b.title,
+         CASE WHEN b.status <> 'done' AND coalesce(b.next, '') <> '' THEN ' - next: ' || b.next ELSE '' END AS next,
+         count(*) AS times, max(left(d.at_, 16)) AS last, max(d.at_) AS last_at
+  FROM done d JOIN backlog b ON b.star = d.star AND b.id = d.id
+  WHERE b.status NOT IN ('dropped', 'parked')
+  GROUP BY b.star, b.id, b.title, b.next, b.status
+  HAVING b.status = 'done' OR max(try_cast(d.at_ AS TIMESTAMPTZ)) >= now() - INTERVAL 24 HOUR
 )
-SELECT CASE WHEN b.status = 'done' THEN 'finished lately' ELSE 'in progress - read off what was done' END AS state,
-       string_agg(DISTINCT d.who, ', ' ORDER BY d.who) AS who, b.star, b.id, b.title,
-       CASE WHEN b.status <> 'done' AND coalesce(b.next, '') <> '' THEN ' - next: ' || b.next ELSE '' END AS next,
-       count(*) AS times, max(left(d.at_, 10)) AS last
-FROM done d JOIN backlog b ON b.star = d.star AND b.id = d.id
-WHERE b.status NOT IN ('dropped', 'parked')
-GROUP BY b.star, b.id, b.title, b.next, b.status ORDER BY 1 DESC, max(d.at_) DESC, b.star, b.id LIMIT 24
+SELECT state, who, star, id, title, next, times, replace(last, 'T', ' ') AS last FROM each
+QUALIFY row_number() OVER (PARTITION BY state ORDER BY last_at DESC) <= 12
+ORDER BY state DESC, last_at DESC, star, id
 """
-line = "{who}: {star}/{id} - {title}{next} ({times} time(s), the last on {last})"
+line = "{who}: {star}/{id} - {title}{next} ({times} time(s), the last at {last})"
 per = "state"
 
 [[focus]]

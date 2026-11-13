@@ -638,7 +638,7 @@ mod tests {
                 "the gathered rows carry their star"
             );
             Ok(if script.contains("AS times") {
-                r#"[{"state":"in progress - read off what was done","who":"claude","star":"r","id":"a","title":"A","next":" - next: x","times":2,"last":"2026-11-01"}]"#.into()
+                r#"[{"state":"in progress - read off what was done","who":"claude","star":"r","id":"a","title":"A","next":" - next: x","times":2,"last":"2026-11-01 10:00"}]"#.into()
             } else if script.contains("count(DISTINCT star)") {
                 r#"[{"open":2,"parked":0,"stars":1}]"#.into()
             } else {
@@ -924,7 +924,7 @@ mod tests {
         let text = focus("work", &[d], "2026-11-12", &StandIn).unwrap();
         assert_eq!(
             text,
-            "in progress - read off what was done (1)\n  claude: r/a - A - next: x (2 time(s), the last on 2026-11-01)\nopen 2 and parked 0, across 1 stars\n"
+            "in progress - read off what was done (1)\n  claude: r/a - A - next: x (2 time(s), the last at 2026-11-01 10:00)\nopen 2 and parked 0, across 1 stars\n"
         );
         assert!(focus("no-such-lens", &[], "2026-11-12", &StandIn)
             .unwrap_err()
