@@ -2,6 +2,7 @@
 [lens]
 id = "work"
 says = "The flow of work: what is open, next, in progress and by whom with its next step, what waits and on what, what is done."
+reads = ["glimpses"]
 
 # The backlog is also the board's flow (the board is a view over it, never a list of its own):
 # open -> next -> in-progress -> waiting / parked -> done or dropped. In progress, an item has a driver
@@ -55,6 +56,37 @@ FROM backlog WHERE status = 'in-progress' ORDER BY 1, seq
 """
 line = "{driver}: {star}/{id} - {title}{next}{age}"
 
+# What is being worked on is not a state to set: it is read off the work. Every record of work says
+# which item it advances, so the items worked on lately - how often, when last, by whom - are a fact,
+# shown beside what each is said to be. Where the two disagree, that is a sign.
+[[focus]]
+title = "worked on lately - read off what was done ({count})"
+sql = """
+WITH done AS (
+  SELECT g.star, substr(t.token, 9) AS id, CAST(g."at" AS VARCHAR) AS at_, lower(g."by") AS who
+  FROM glimpses g, unnest(string_split(replace(coalesce(g.advances, ''), ',', ' '), ' ')) AS t(token)
+  WHERE t.token LIKE 'backlog:%'
+    AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
+)
+SELECT b.star, b.id, b.title, count(*) AS times, max(left(d.at_, 10)) AS last,
+       string_agg(DISTINCT d.who, ', ') AS who, b.status
+FROM done d JOIN backlog b ON b.star = d.star AND b.id = d.id
+GROUP BY b.star, b.id, b.title, b.status ORDER BY max(d.at_) DESC, b.star, b.id LIMIT 15
+"""
+line = "{star}/{id} - {title}: {times} time(s), the last on {last}, by {who} (said to be {status})"
+
+[[focus]]
+title = "said to be in progress, though nothing done lately advances it ({count})"
+sql = """
+SELECT b.star, b.id, b.title FROM backlog b
+WHERE b.status = 'in-progress' AND NOT EXISTS (
+  SELECT 1 FROM glimpses g WHERE g.star = b.star
+    AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 3 DAY
+    AND (' ' || replace(coalesce(g.advances, ''), ',', ' ') || ' ') LIKE '% backlog:' || b.id || ' %')
+ORDER BY b.seq
+"""
+line = "{star}/{id} - {title}"
+
 [[focus]]
 title = "waiting ({count})"
 sql = """
@@ -98,3 +130,12 @@ SELECT count(*) FILTER (WHERE status = 'open') AS open, count(*) FILTER (WHERE s
        count(DISTINCT star) AS stars FROM backlog
 """
 line = "open {open} and parked {parked}, across {stars} stars"
+
+# how much of the work says what it is for: reading off the act is only as true as this
+[[focus]]
+always = true
+sql = """
+SELECT count(*) AS records, count(*) FILTER (WHERE coalesce(advances, '') <> '') AS tied
+FROM glimpses WHERE try_cast(left(CAST("at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
+"""
+line = "of {records} records of work in three days, {tied} say what they advance"

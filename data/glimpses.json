@@ -53,3 +53,4 @@
 {"id":"g-20261113-072245","at":"2026-11-13T07:22:45Z","by":"Claude","kind":"fix","summary":"a milestone is read off what it rests on; the rung shown as a rung"}
 {"id":"g-20261113-074641","at":"2026-11-13T07:46:41Z","by":"Claude","kind":"docs","summary":"ocoeco on argenv: what argenv carries, looked at"}
 {"id":"g-20261113-075054","at":"2026-11-13T07:50:54Z","by":"Claude","kind":"docs","summary":"the board says what is: three set waiting on what they wait on, one taken up"}
+{"id":"g-20261113-081822","at":"2026-11-13T08:18:22Z","by":"claude","kind":"feat","summary":"the work lens reads what is being worked on off the work itself","advances":"backlog:read-off-the-act"}
