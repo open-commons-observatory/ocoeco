@@ -2,7 +2,7 @@
 [lens]
 id = "purpose"
 says = "Why a star exists and what it must reach: its idea, and its milestones with what makes each reached."
-reads = ["backlog"]
+reads = ["backlog", "edges"]
 
 [tables.idea]
 key = ["id"]
@@ -60,30 +60,24 @@ FROM idea WHERE kind = 'lead' ORDER BY star, seq
 line = "{star} - {says}"
 
 # A milestone is reached when what it rests on is done - read off the work, never typed. Its criteria
-# name items of the backlog (backlog:id); other criteria are conditions told by tests (a feature at a
+# name items of the backlog (backlog:id), read off the graph's edges; other criteria are conditions told by tests (a feature at a
 # level), which this lens does not judge and says so. readiness is not how ready a milestone is: it is
 # its rung on the path, earned in order - shown as the rung it is.
 [[focus]]
 title = "being reached - how much of what each rests on is done ({count})"
 sql = """
-WITH rests AS (
-  SELECT star, id, title, try_cast(readiness AS INTEGER) AS rung, horizon, seq,
-         unnest(string_split(trim(criteria), ' ')) AS criterion
-  FROM milestones WHERE coalesce(criteria, '') <> ''
-), judged AS (
-  SELECT rests.*, criterion LIKE 'backlog:%' AS an_item,
-         EXISTS (SELECT 1 FROM backlog b WHERE b.star = rests.star AND b.id = substr(criterion, 9) AND b.status = 'done') AS is_done
-  FROM rests WHERE criterion <> ''
-), each AS (
-  SELECT star, id, title, rung, horizon, min(seq) AS seq,
-         count(*) FILTER (WHERE an_item) AS items, count(*) FILTER (WHERE an_item AND is_done) AS done,
-         count(*) FILTER (WHERE NOT an_item) AS conditions
-  FROM judged GROUP BY star, id, title, rung, horizon
+WITH items AS (
+  SELECT e.from_star AS star, e.from_id AS id, count(*) AS items, count(*) FILTER (WHERE b.status = 'done') AS done
+  FROM edges e LEFT JOIN backlog b ON b.star = e.to_star AND b.id = e.to_id
+  WHERE e.how = 'criteria' AND e.from_table = 'milestones' AND e.to_table = 'backlog'
+  GROUP BY 1, 2
 )
-SELECT star, title, rung, done, items,
-       CASE WHEN conditions > 0 THEN ', and ' || conditions || ' told by tests' ELSE '' END AS told
-FROM each WHERE horizon = 'working' AND items > 0 AND done < items
-ORDER BY (items - done), rung, star, seq LIMIT 20
+SELECT m.star, m.title, try_cast(m.readiness AS INTEGER) AS rung, i.done, i.items,
+       CASE WHEN length(m.criteria) > length(replace(m.criteria, '@', ''))
+            THEN ', and ' || (length(m.criteria) - length(replace(m.criteria, '@', ''))) || ' told by tests' ELSE '' END AS told
+FROM milestones m JOIN items i ON i.star = m.star AND i.id = m.id
+WHERE m.horizon = 'working' AND i.done < i.items
+ORDER BY (i.items - i.done), rung, m.star, m.seq LIMIT 20
 """
 line = "{star} - {title} (rung {rung}): {done} of {items} done{told}"
 # what the line means: so much of what it rests on is done - a measure whose whole is the line's own
@@ -93,13 +87,16 @@ whole = "items"
 [[focus]]
 always = true
 sql = """
-WITH rests AS (
-  SELECT star, id, unnest(string_split(trim(criteria), ' ')) AS criterion FROM milestones WHERE coalesce(criteria, '') <> ''
+WITH items AS (
+  SELECT e.from_star AS star, e.from_id AS id, count(*) AS items, count(*) FILTER (WHERE b.status = 'done') AS done
+  FROM edges e LEFT JOIN backlog b ON b.star = e.to_star AND b.id = e.to_id
+  WHERE e.how = 'criteria' AND e.from_table = 'milestones' AND e.to_table = 'backlog'
+  GROUP BY 1, 2
 ), each AS (
-  SELECT rests.star, rests.id, count(*) FILTER (WHERE criterion LIKE 'backlog:%') AS items,
-         count(*) FILTER (WHERE criterion LIKE 'backlog:%' AND EXISTS (SELECT 1 FROM backlog b WHERE b.star = rests.star AND b.id = substr(criterion, 9) AND b.status = 'done')) AS done,
-         count(*) FILTER (WHERE criterion NOT LIKE 'backlog:%') AS conditions
-  FROM rests WHERE criterion <> '' GROUP BY rests.star, rests.id
+  SELECT m.star, m.id, coalesce(i.items, 0) AS items, coalesce(i.done, 0) AS done,
+         length(m.criteria) - length(replace(m.criteria, '@', '')) AS conditions
+  FROM milestones m LEFT JOIN items i ON i.star = m.star AND i.id = m.id
+  WHERE coalesce(m.criteria, '') <> ''
 )
 SELECT (SELECT count(*) FROM milestones) AS milestones, (SELECT count(DISTINCT star) FROM milestones) AS stars,
        count(*) FILTER (WHERE items > 0 AND done = items AND conditions = 0) AS reached,

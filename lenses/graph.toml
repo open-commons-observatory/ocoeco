@@ -26,6 +26,16 @@ fields = [
     { name = "to", type = "string", required = true },
     { name = "holds", type = "boolean" },
     { name = "via", type = "string" },
+    { name = "from_place", type = "string" },
+    { name = "from_star", type = "string" },
+    { name = "from_table", type = "string" },
+    { name = "from_id", type = "string" },
+    { name = "to_place", type = "string" },
+    { name = "to_star", type = "string" },
+    { name = "to_table", type = "string" },
+    { name = "to_id", type = "string" },
+    { name = "via_star", type = "string" },
+    { name = "via_id", type = "string" },
 ]
 
 [[focus]]
