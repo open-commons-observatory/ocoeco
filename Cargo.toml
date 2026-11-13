@@ -2,7 +2,7 @@
 name = "ocoeco"
 version = "0.1.0"
 edition = "2021"
-description = "The observatory's information ecosystem: the mark, discovery, the harvest"
+description = "The Open Commons Observatory's ecosystem: places that say what they are, and lenses that bring them into focus"
 license = "MIT OR Apache-2.0"
 
 [build-dependencies]
@@ -20,3 +20,12 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 ureq = "2"
+
+# How the released files are packed (packaging/build-packages.sh, called by the package conveyor).
+[package.metadata.deb]
+maintainer = "open-commons-observatory <agent@creation-guidelines>"
+extended-description = "ocoeco reads what places keep as text - their decisions, work, connections - through lenses, and brings it into focus on a surface: a terminal, a page, plain text, or structure for a program. A place says what it is with a mark; a lens says what it brings into focus."
+assets = [["target/release/ocoeco", "usr/bin/", "755"]]
+
+[package.metadata.generate-rpm]
+assets = [{ source = "target/release/ocoeco", dest = "/usr/bin/ocoeco", mode = "755" }]

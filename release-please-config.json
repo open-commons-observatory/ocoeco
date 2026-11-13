@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "3ad44a83470dbb5c3d5597bb96a9306d9a748c9f",
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "package-name": "ocoeco",
+      "component": "ocoeco",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

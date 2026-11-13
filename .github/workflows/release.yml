@@ -1,0 +1,36 @@
+# ocoeco's releases, automated - the way tad's are: release-please keeps a release pull request open
+# from the conventional commits (the version in Cargo.toml and the changelog); merging it (land merges
+# release pull requests) tags ocoeco-vX.Y.Z, and the package conveyor builds the binaries with signed
+# provenance in this same run - a tag made with GitHub's own token cannot start another workflow.
+name: release
+on:
+  push:
+    branches: [main]
+permissions: {}
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      created: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+  binaries:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: linux-package-distribution-oco/conveyor/.github/workflows/binaries.yml@v1
+    with:
+      tag: ${{ needs.release-please.outputs.tag }}
+      declaration: packaging/conveyor.toml
