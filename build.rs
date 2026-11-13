@@ -18,6 +18,8 @@ fn main() {
         Default::default();
     let mut entries: BTreeMap<String, String> = BTreeMap::new();
     let mut reads: Vec<(String, String)> = Vec::new();
+    // the shapes lenses name: one lens names a shape, others may read it, as with tables
+    let mut shapes: BTreeMap<String, String> = BTreeMap::new();
     let mut out = String::from("/// Every lens built into this ocoeco: its file's name and its text.\npub const LENSES: &[(&str, &str)] = &[\n");
     for file in &files {
         let name = file
@@ -70,6 +72,17 @@ fn main() {
                 panic!("{name}: the entry {called} fills the table {table:?}, which this lens does not define");
             }
         }
+        for shape in lens
+            .get("focus")
+            .and_then(|f| f.as_array())
+            .into_iter()
+            .flatten()
+            .filter_map(|p| p.get("named").and_then(|n| n.as_str()))
+        {
+            if let Some(other) = shapes.insert(shape.to_string(), name.clone()) {
+                panic!("two lenses name the shape {shape}: {other} and {name}");
+            }
+        }
         for read in lens
             .get("lens")
             .and_then(|l| l.get("reads"))
@@ -82,9 +95,14 @@ fn main() {
         }
         out.push_str(&format!("    ({name:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/lenses/{name}\"))),\n"));
     }
+    for (shape, lens) in &shapes {
+        if let Some(other) = tables.get(shape) {
+            panic!("{lens} names a shape {shape}, which is the name of a table {other} defines");
+        }
+    }
     for (lens, table) in &reads {
-        if !tables.contains_key(table) {
-            panic!("{lens} reads the table {table}, which no lens defines");
+        if !tables.contains_key(table) && !shapes.contains_key(table) {
+            panic!("{lens} reads {table}, which no lens defines as a table nor names as a shape");
         }
     }
     out.push_str("];\n");

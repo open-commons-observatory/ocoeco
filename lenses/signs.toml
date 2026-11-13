@@ -13,7 +13,7 @@
 id = "signs"
 grew_from = "problems"
 says = "What does not fit, said by whoever sees it and shown while nothing has come of it: a sign of something stale, overlapping, lacking or unclear - and what fails or has not moved, read off the work."
-reads = ["backlog", "connections", "edges"]
+reads = ["backlog", "connections", "edges", "nowhere"]
 
 [tables.problems]
 key = ["id"]
@@ -86,6 +86,17 @@ SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
 WHERE conclusion NOT IN ('success', 'skipped', 'neutral', 'cancelled') ORDER BY "at", seq
 """
 line = "{project} - {workflow}: {conclusion} since {day} - {url}"
+
+# A link that points nowhere is a sign read off the graph - something lacking - shown while it is true and
+# ended by nobody: it goes when the link is set right or what it points at is there. The lens of the graph
+# names what points nowhere; this lens only asks of it.
+[[focus]]
+title = "a link pointing nowhere ({count})"
+sql = """
+SELECT from_star || '/' || from_table || ':' || from_id AS this, how, to_star || '/' || to_table || ':' || to_id AS that
+FROM nowhere ORDER BY 1, how LIMIT 20
+"""
+line = "{this} - {how} - {that}"
 
 [[focus]]
 title = "not moved in the work ({count})"
