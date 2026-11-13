@@ -69,34 +69,44 @@ pub fn records(entry: &str, fields: &[(String, bool, Vec<String>)]) -> Vec<Recor
     model
 }
 
-/// A typed line read against what may be given: what was given for each key - or everything the reader
-/// could not take, each as argenv found it.
-pub fn read(model: &[Record], words: &[String]) -> Result<BTreeMap<String, String>, Vec<Finding>> {
+/// What the reader could not take of a typed line, in its own words - and whether a word was one it does
+/// not know, so that whoever asked can say what it does know.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotTaken {
+    pub said: Vec<String>,
+    pub unknown: bool,
+}
+
+/// A typed line read against what may be given: what was given for each key - or what the reader could
+/// not take. The reader says each thing itself; nothing here restates it.
+pub fn read(model: &[Record], words: &[String]) -> Result<BTreeMap<String, String>, NotTaken> {
     let read = Invocation {
         args: words,
         env: &Nothing,
     }
     .resolve(model);
-    let mut findings = lint(model, &read);
-    // a word that is neither a field nor a field's value is left over: it is not understood either -
-    // unless a field was not known, for then what is left over is most likely what was given for it
-    if !findings
+    let findings = lint(model, &read);
+    let unknown = findings
         .iter()
-        .any(|f| matches!(f, Finding::UnknownArg { .. }))
-    {
-        findings.extend(read.positionals().iter().map(|word| Finding::UnknownArg {
-            arg: word.clone(),
-            did_you_mean: None,
-        }));
+        .any(|f| matches!(f, Finding::UnknownArg { .. }));
+    let mut said: Vec<String> = findings.iter().map(|finding| finding.to_string()).collect();
+    // a word left over is neither a field nor what was given for one - the reader has no word for that;
+    // unless a field was not known, for then what is left over is most likely what was given for it
+    if !unknown {
+        said.extend(
+            read.positionals().iter().map(|word| {
+                format!("{word:?} is not understood: a value is given as --FIELD VALUE")
+            }),
+        );
     }
-    if findings.is_empty() {
+    if said.is_empty() {
         Ok(read
             .values()
             .iter()
             .map(|(key, value)| (key.clone(), value.raw.clone()))
             .collect())
     } else {
-        Err(findings)
+        Err(NotTaken { said, unknown })
     }
 }
 
@@ -153,30 +163,36 @@ mod tests {
     }
 
     #[test]
-    fn what_cannot_be_taken_is_said_as_the_reader_found_it() {
-        let found = |words: &[&str]| read(&item(), &line(words)).unwrap_err();
-        let misspelt = found(&["--id", "a", "--staus", "next"]);
+    fn what_cannot_be_taken_is_said_by_the_reader_itself() {
+        let not = |words: &[&str]| read(&item(), &line(words)).unwrap_err();
+        // a word with a letter missing is answered with what was meant; what was given for it is not a second thing
+        assert_eq!(
+            not(&["--id", "a", "--staus", "next"]),
+            NotTaken {
+                said: vec!["--staus is not a declared flag; did you mean --status?".into()],
+                unknown: true
+            }
+        );
         assert!(
-            matches!(&misspelt[0], Finding::UnknownArg { arg, did_you_mean: Some(meant) } if arg == "--staus" && meant == "--status"),
-            "a word with a letter missing is answered with what was meant"
+            not(&["--id", "a", "--status", "nxt"]).said[0]
+                .contains("which is invalid: accepted: open, next"),
+            "a value outside the set is refused with the set"
         );
         assert_eq!(
-            misspelt.len(),
-            1,
-            "and what was given for it is not said to be a second thing not understood"
+            not(&["--title", "A"]).said,
+            ["id is required; supply it with --id"]
         );
-        assert!(found(&["--id", "a", "--status", "nxt"]).iter().any(|f| matches!(f, Finding::InvalidValue { key, reason, .. } if key == "status" && reason.contains("open, next"))), "a value outside the set is refused with the set");
-        assert!(found(&["--title", "A"])
-            .iter()
-            .any(|f| matches!(f, Finding::MissingRequired { key, .. } if key == "id")));
-        assert!(found(&["--id", "a", "--title"])
-            .iter()
-            .any(|f| matches!(f, Finding::MissingValue { arg } if arg == "--title")));
-        assert!(
-            found(&["--id", "a", "stray"])
-                .iter()
-                .any(|f| matches!(f, Finding::UnknownArg { arg, .. } if arg == "stray")),
-            "a word left over is not understood"
+        assert_eq!(
+            not(&["--id", "a", "--title"]).said,
+            ["--title needs a value"]
+        );
+        // the one thing said here: a word left over, for which the reader has no word
+        assert_eq!(
+            not(&["--id", "a", "stray"]),
+            NotTaken {
+                said: vec!["\"stray\" is not understood: a value is given as --FIELD VALUE".into()],
+                unknown: false
+            }
         );
     }
 }
