@@ -8,7 +8,6 @@ use crate::lenses::{lenses, Entry, Lens};
 use crate::mark::Mark;
 use crate::note::{note, Change};
 use anyhow::{bail, Context, Result};
-use argenv_resolve::Finding;
 use std::path::{Path, PathBuf};
 
 /// When the computer supplies a field.
@@ -184,46 +183,25 @@ pub fn enter(name: &str, args: &[String], today: &str, who: &str) -> Result<Stri
         .into_iter()
         .map(|(n, _, _)| n)
         .collect();
-    // what was typed is read back by the typed line's own reader; what it could not take is said in
-    // the entry's words
+    // what was typed is read back by the typed line's own reader, which says itself what it could not
+    // take; the entry adds only what it knows - what it asks
     let all = fields(&lens, &e.table);
-    let given =
-        crate::typed::read(&crate::typed::records(name, &all), args).map_err(|findings| {
-            let also: Vec<String> = declared
+    let given = crate::typed::read(&crate::typed::records(name, &all), args).map_err(|not| {
+        let mut said = not.said.join("\n");
+        if not.unknown {
+            let also: Vec<&str> = declared
                 .iter()
                 .filter(|d| !e.asks.contains(d) && *d != "id")
-                .cloned()
+                .map(String::as_str)
                 .collect();
-            let said: Vec<String> = findings
-                .iter()
-                .map(|finding| match finding {
-                    Finding::UnknownArg { arg, did_you_mean } => match arg.strip_prefix("--") {
-                        Some(field) => format!(
-                            "{name} has no field {}: it asks for {} - and may also carry {}{}",
-                            field.strip_prefix("add-").unwrap_or(field),
-                            e.asks.join(", "),
-                            also.join(", "),
-                            did_you_mean
-                                .as_ref()
-                                .map(|meant| format!(" (did you mean {meant}?)"))
-                                .unwrap_or_default()
-                        ),
-                        None => {
-                            format!("{arg:?} is not understood: an entry is given as --FIELD VALUE")
-                        }
-                    },
-                    Finding::MissingValue { arg } => format!("{arg} needs a value"),
-                    Finding::MissingRequired { key, .. } if key == "id" => {
-                        format!("which {name}? give --id")
-                    }
-                    Finding::InvalidValue {
-                        key, value, reason, ..
-                    } => format!("{key} cannot be {value:?} - {reason}"),
-                    other => format!("{other:?}"),
-                })
-                .collect();
-            anyhow::anyhow!(said.join("\n"))
-        })?;
+            said.push_str(&format!(
+                "\n{name} asks for {} - and may also carry {}",
+                e.asks.join(", "),
+                also.join(", ")
+            ));
+        }
+        anyhow::anyhow!(said)
+    })?;
     let id = given
         .get("id")
         .cloned()
@@ -449,7 +427,7 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(
-            e.contains("item has no field tilte: it asks for title, status, next")
+            e.contains("--tilte is not a declared flag\nitem asks for title, status, next")
                 && !e.contains("is not understood"),
             "{e}"
         );
@@ -457,7 +435,7 @@ mod tests {
             enter("item", &args(&d, &["--title", "A"]), "2026-11-01", "ann")
                 .unwrap_err()
                 .to_string()
-                .contains("which item? give --id")
+                .contains("id is required; supply it with --id")
         );
         // a word with a letter missing is answered with what was meant - the reader's own doing
         let meant = enter(
@@ -469,7 +447,8 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(
-            meant.contains("item has no field staus") && meant.contains("(did you mean --status?)"),
+            meant.contains("--staus is not a declared flag; did you mean --status?")
+                && meant.contains("item asks for title"),
             "{meant}"
         );
         let view = composed();
