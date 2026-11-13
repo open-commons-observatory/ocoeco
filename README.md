@@ -16,6 +16,13 @@ builds, tests, releases, measurements - never kept by hand. Data made by work is
 
 The specification - the principle, the tad format, the mark, the standard tables, propagation, chaining and gatherers - is [SPEC.md](SPEC.md).
 
+## Getting ocoeco
+
+Each release carries ocoeco as ready-made files for Linux (x86_64 and aarch64) - a tarball, a `.deb` and an
+`.rpm`, with `SHA256SUMS` and signed build provenance - on the
+[releases page](https://github.com/open-commons-observatory/ocoeco/releases). To bring a lens into focus
+it asks tad's engine, which `tad engine` installs ([tad](https://github.com/creation-guidelines/tad-engine)).
+
 ## Joining
 
 ```sh
