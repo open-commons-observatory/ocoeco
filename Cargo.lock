@@ -89,6 +89,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "argenv"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10ce4614c65b497ae7eedbb558006fca45a12825d7d493caa3e35c567266770c"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "argenv-resolve"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d33e20d9b0f5d50c6b5c7b13d5dea120a1f1d5c5d8995c16ed0d9da71fd3dbd4"
+dependencies = [
+ "argenv",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -679,6 +700,7 @@ name = "ocoeco"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "argenv-resolve",
  "clap",
  "ratatui",
  "serde",
