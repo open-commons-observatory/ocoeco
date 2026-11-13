@@ -189,7 +189,12 @@ impl Form {
 impl InTerminal {
     /// Every lens, the first with a focus chosen.
     pub fn new(scale: String) -> InTerminal {
-        let lenses: Vec<(String, String, bool)> = lenses()
+        InTerminal::of(scale, lenses())
+    }
+
+    /// Every lens given - those built in, and those the places in view bring.
+    pub fn of(scale: String, all: Vec<crate::lenses::Lens>) -> InTerminal {
+        let lenses: Vec<(String, String, bool)> = all
             .into_iter()
             .map(|l| (l.lens.id, l.lens.says, !l.focus.is_empty()))
             .collect();
@@ -328,10 +333,11 @@ impl InTerminal {
 pub fn open(
     scale: String,
     can_enter: bool,
+    all: Vec<crate::lenses::Lens>,
     mut load: impl FnMut(&str, bool) -> String,
     mut write: impl FnMut(&str, &[String]) -> anyhow::Result<String>,
 ) -> anyhow::Result<()> {
-    let mut dome = InTerminal::new(scale);
+    let mut dome = InTerminal::of(scale, all);
     dome.can_enter = can_enter;
     dome.text = load(dome.lens(), false);
     let mut terminal = ratatui::init();

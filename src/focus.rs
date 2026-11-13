@@ -6,7 +6,7 @@
 
 use crate::dome::Dome;
 use crate::join::rows;
-use crate::lenses::{lenses, Lens};
+use crate::lenses::Lens;
 use crate::mark::Mark;
 use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
@@ -168,7 +168,7 @@ pub fn brought(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
-    let all = lenses();
+    let all = crate::lenses::with(dirs)?;
     let Some(found) = all.iter().find(|l| l.lens.id == lens) else {
         bail!(
             "no lens is called {lens}: there are {}",
@@ -523,8 +523,15 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
 /// Every lens with a focus: whether its shape is sound, and whether it comes into focus over the place
 /// at `dir` - what does not, and why.
 pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
-    let mut problems = Vec::new();
-    for lens in lenses().iter().filter(|l| !l.focus.is_empty()) {
+    let mut problems: Vec<String> = crate::lenses::differing(dir)
+        .into_iter()
+        .map(|id| format!("the lens {id} kept here is no longer the one built into this ocoeco: what is looked through is not what is kept"))
+        .collect();
+    let all = match crate::lenses::with(&[dir.to_path_buf()]) {
+        Ok(all) => all,
+        Err(e) => return vec![format!("{e:#}")],
+    };
+    for lens in all.iter().filter(|l| !l.focus.is_empty()) {
         match shape(lens, engine) {
             Err(e) => problems.push(format!(
                 "the shape of the lens {} cannot be told: {}",

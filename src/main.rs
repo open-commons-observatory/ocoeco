@@ -468,7 +468,7 @@ fn run() -> Result<()> {
             let engine = tad::sql::DuckDb::find()?;
             if let Some(surface) = surface {
                 // the whole fulldome, laid out on a surface: every lens, and what each brought into focus
-                let lenses: Vec<ocoeco::dome::InDome> = ocoeco::lenses::lenses()
+                let lenses: Vec<ocoeco::dome::InDome> = ocoeco::lenses::with(&places)?
                     .into_iter()
                     .map(|l| ocoeco::dome::InDome {
                         brought: ocoeco::focus::brought(&l.lens.id, &places, &today, &engine)
@@ -487,8 +487,10 @@ fn run() -> Result<()> {
             ocoeco::fulldome::open(
                 scale,
                 single,
+                ocoeco::lenses::with(&places)?,
                 |lens, glimpse| {
-                    let found = ocoeco::lenses::lenses()
+                    let found = ocoeco::lenses::with(&places)
+                        .unwrap_or_default()
                         .into_iter()
                         .find(|l| l.lens.id == lens);
                     match (glimpse, found) {

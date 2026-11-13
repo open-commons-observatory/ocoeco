@@ -4,6 +4,8 @@
 //! Regrouped, not rewritten: a test holds them to the language as it stood.
 
 use crate::relations::Relation;
+use anyhow::{bail, Context, Result};
+use std::path::{Path, PathBuf};
 
 include!(concat!(env!("OUT_DIR"), "/lenses.rs"));
 
@@ -93,6 +95,80 @@ pub struct Part {
 }
 
 /// Every lens, in the order of their files.
+/// The lenses a place brings: the lens files kept beside its mark, in `lenses/`, read as the program
+/// runs - each with its text, so that two bringings of one lens are known to be one.
+pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
+    let Ok(entries) = std::fs::read_dir(dir.join("lenses")) else {
+        return Ok(Vec::new());
+    };
+    let mut files: Vec<PathBuf> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "toml"))
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .map(|file| {
+            let text =
+                std::fs::read_to_string(&file).with_context(|| format!("{}", file.display()))?;
+            let lens: Lens = toml::from_str(&text)
+                .with_context(|| format!("{} is not a lens", file.display()))?;
+            Ok((text, lens))
+        })
+        .collect()
+}
+
+/// Every lens there is to look through from these places: those built into ocoeco, and those the places
+/// bring. A brought lens is held to what the build holds the built-in ones to, said when it is looked
+/// through: no id used twice, no table defined by two lenses. One lens brought by several places is one
+/// lens. A lens a place keeps under the id of a built-in one is that built-in lens's own text: the one
+/// built in is looked through (whether the two still agree is the check's to say - `differing`).
+pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
+    let mut all = lenses();
+    let built_in = all.len();
+    let mut brought: Vec<(String, String)> = Vec::new();
+    for dir in dirs {
+        for (text, lens) in brought_by(dir)? {
+            let id = lens.lens.id.clone();
+            if all[..built_in].iter().any(|l| l.lens.id == id)
+                || brought.iter().any(|(i, t)| *i == id && *t == text)
+            {
+                continue;
+            }
+            if brought.iter().any(|(i, _)| *i == id) {
+                bail!(
+                    "two lenses are called {id}: a second, differing, is brought by {}",
+                    dir.display()
+                );
+            }
+            for table in lens.tables.keys() {
+                if let Some(other) = all.iter().find(|l| l.tables.contains_key(table)) {
+                    bail!("the table {table} is defined by two lenses, {} and {id} (brought by {}): one lens defines a piece of data, others read it", other.lens.id, dir.display());
+                }
+            }
+            brought.push((id, text));
+            all.push(lens);
+        }
+    }
+    Ok(all)
+}
+
+/// The lenses a place keeps under the id of a built-in one whose text is no longer the built-in one's:
+/// what is looked through is not what is kept there.
+pub fn differing(dir: &Path) -> Vec<String> {
+    brought_by(dir)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(text, lens)| {
+            LENSES.iter().any(|(_, built)| {
+                toml::from_str::<Lens>(built).is_ok_and(|b| b.lens.id == lens.lens.id)
+                    && *built != text.as_str()
+            })
+        })
+        .map(|(_, lens)| lens.lens.id)
+        .collect()
+}
+
 pub fn lenses() -> Vec<Lens> {
     LENSES
         .iter()
@@ -184,5 +260,72 @@ mod tests {
             tables().len(),
             "no table is defined twice"
         );
+    }
+}
+
+#[cfg(test)]
+mod brought {
+    use super::*;
+
+    fn place(name: &str, files: &[(&str, &str)]) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("ocoeco-brought-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        for (file, text) in files {
+            std::fs::write(d.join("lenses").join(file), text).unwrap();
+        }
+        d
+    }
+
+    const NOW: &str = "[lens]\nid = \"now\"\nsays = \"What is happening.\"\n[tables.journal]\nkey = [\"place\"]\nfields = [{ name = \"place\", type = \"integer\", required = true }]\n";
+
+    #[test]
+    fn a_place_brings_its_lens_and_it_is_held_to_what_the_build_holds_lenses_to() {
+        let built_in = lenses().len();
+        let (lab, other) = (
+            place("lab", &[("now.toml", NOW)]),
+            place("other", &[("now.toml", NOW)]),
+        );
+        // brought, and one lens though two places bring it
+        let all = with(&[lab.clone(), other]).unwrap();
+        assert_eq!(
+            (all.len(), all.last().unwrap().lens.id.as_str()),
+            (built_in + 1, "now")
+        );
+        assert_eq!(
+            with(&[]).unwrap().len(),
+            built_in,
+            "no place, no more lenses"
+        );
+        // a second lens of that name, differing: said
+        let other_words = NOW.replace("What is happening.", "Something else.");
+        let differs = place("differs", &[("now.toml", other_words.as_str())]);
+        assert!(with(&[lab.clone(), differs])
+            .unwrap_err()
+            .to_string()
+            .contains("two lenses are called now"));
+        // a table a built-in lens defines: said, with both
+        let twice = place("twice", &[("mine.toml", "[lens]\nid = \"mine\"\nsays = \"Mine.\"\n[tables.backlog]\nkey = [\"id\"]\nfields = []\n")]);
+        let said = with(&[twice]).unwrap_err().to_string();
+        assert!(
+            said.contains("the table backlog is defined by two lenses, work and mine"),
+            "{said}"
+        );
+        // a place keeping a built-in lens's own text: the built-in one is looked through; a change to it is told
+        let (name, text) = LENSES
+            .iter()
+            .find(|(_, t)| t.contains("id = \"work\""))
+            .unwrap();
+        let own = place("own", &[(*name, *text)]);
+        assert_eq!(
+            (
+                with(std::slice::from_ref(&own)).unwrap().len(),
+                differing(&own)
+            ),
+            (built_in, vec![])
+        );
+        let changed_text = format!("{text}\n# changed\n");
+        let changed = place("changed", &[(*name, changed_text.as_str())]);
+        assert_eq!(differing(&changed), ["work"]);
     }
 }
