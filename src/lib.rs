@@ -17,3 +17,4 @@ pub mod moving;
 pub mod note;
 pub mod pick;
 pub mod relations;
+pub mod typed;

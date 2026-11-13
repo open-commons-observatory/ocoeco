@@ -8,6 +8,7 @@ use crate::lenses::{lenses, Entry, Lens};
 use crate::mark::Mark;
 use crate::note::{note, Change};
 use anyhow::{bail, Context, Result};
+use argenv_resolve::Finding;
 use std::path::{Path, PathBuf};
 
 /// When the computer supplies a field.
@@ -183,42 +184,73 @@ pub fn enter(name: &str, args: &[String], today: &str, who: &str) -> Result<Stri
         .into_iter()
         .map(|(n, _, _)| n)
         .collect();
-    let (mut id, mut dir, mut changes) = (None, PathBuf::from("."), Vec::<Change>::new());
-    let mut rest = args.iter();
-    while let Some(flag) = rest.next() {
-        let Some(key) = flag.strip_prefix("--") else {
-            bail!("{flag:?} is not understood: an entry is given as --FIELD VALUE")
-        };
-        let value = rest
-            .next()
-            .with_context(|| format!("--{key} needs a value"))?
-            .clone();
-        match key {
-            "id" => id = Some(value),
-            "dir" => dir = PathBuf::from(value),
-            _ => {
-                let (field, append) = key.strip_prefix("add-").map_or((key, false), |f| (f, true));
-                if !declared.iter().any(|d| d == field) {
-                    bail!(
-                        "{name} has no field {field}: it asks for {} - and may also carry {}",
-                        e.asks.join(", "),
-                        declared
-                            .iter()
-                            .filter(|d| !e.asks.contains(d) && *d != "id")
-                            .cloned()
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    );
-                }
+    // what was typed is read back by the typed line's own reader; what it could not take is said in
+    // the entry's words
+    let all = fields(&lens, &e.table);
+    let given =
+        crate::typed::read(&crate::typed::records(name, &all), args).map_err(|findings| {
+            let also: Vec<String> = declared
+                .iter()
+                .filter(|d| !e.asks.contains(d) && *d != "id")
+                .cloned()
+                .collect();
+            let said: Vec<String> = findings
+                .iter()
+                .map(|finding| match finding {
+                    Finding::UnknownArg { arg, did_you_mean } => match arg.strip_prefix("--") {
+                        Some(field) => format!(
+                            "{name} has no field {}: it asks for {} - and may also carry {}{}",
+                            field.strip_prefix("add-").unwrap_or(field),
+                            e.asks.join(", "),
+                            also.join(", "),
+                            did_you_mean
+                                .as_ref()
+                                .map(|meant| format!(" (did you mean {meant}?)"))
+                                .unwrap_or_default()
+                        ),
+                        None => {
+                            format!("{arg:?} is not understood: an entry is given as --FIELD VALUE")
+                        }
+                    },
+                    Finding::MissingValue { arg } => format!("{arg} needs a value"),
+                    Finding::MissingRequired { key, .. } if key == "id" => {
+                        format!("which {name}? give --id")
+                    }
+                    Finding::InvalidValue {
+                        key, value, reason, ..
+                    } => format!("{key} cannot be {value:?} - {reason}"),
+                    other => format!("{other:?}"),
+                })
+                .collect();
+            anyhow::anyhow!(said.join("\n"))
+        })?;
+    let id = given
+        .get("id")
+        .cloned()
+        .with_context(|| format!("which {name}? give --id"))?;
+    let dir = given
+        .get("dir")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."));
+    // what is set, then what is added to it - whichever way round they were typed
+    let mut changes: Vec<Change> = Vec::new();
+    for append in [false, true] {
+        for (key, value) in given
+            .iter()
+            .filter(|(key, _)| *key != "id" && *key != "dir")
+        {
+            let (field, adds) = key
+                .strip_prefix("add-")
+                .map_or((key.as_str(), false), |f| (f, true));
+            if adds == append {
                 changes.push(Change {
                     field: field.to_string(),
-                    value,
+                    value: value.clone(),
                     append,
                 });
             }
         }
     }
-    let id = id.with_context(|| format!("which {name}? give --id"))?;
     let was = existing(&dir, &e.table, &id)?;
     for supply in &e.supplies {
         if changes.iter().any(|c| c.field == supply.field) {
@@ -417,7 +449,8 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(
-            e.contains("item has no field tilte: it asks for title, status, next"),
+            e.contains("item has no field tilte: it asks for title, status, next")
+                && !e.contains("is not understood"),
             "{e}"
         );
         assert!(
@@ -425,6 +458,19 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("which item? give --id")
+        );
+        // a word with a letter missing is answered with what was meant - the reader's own doing
+        let meant = enter(
+            "item",
+            &args(&d, &["--id", "a", "--staus", "next"]),
+            "2026-11-01",
+            "ann",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            meant.contains("item has no field staus") && meant.contains("(did you mean --status?)"),
+            "{meant}"
         );
         let view = composed();
         assert!(view.contains("  item - A piece of work") && view.contains("the computer supplies: since (today, when status changes); driver (who, when status becomes in-progress)"), "{view}");

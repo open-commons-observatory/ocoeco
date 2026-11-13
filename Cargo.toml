@@ -10,6 +10,8 @@ toml = "0.8"
 
 [dependencies]
 anyhow = "1"
+# the reader of a typed line: what an entry may be given is handed to it as records
+argenv-resolve = "0.3"
 tad = { git = "https://github.com/creation-guidelines/tad-engine", tag = "tad-v0.5.0" }
 clap = { version = "4", features = ["derive"] }
 ratatui = "0.29"
