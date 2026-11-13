@@ -71,9 +71,19 @@ pub struct Part {
     /// Shown even when there are no answers.
     #[serde(default)]
     pub always: bool,
+    #[serde(default)]
     pub sql: String,
     /// One answer, laid out: each {name} is that answer's value.
+    #[serde(default)]
     pub line: String,
+    /// This part is what another lens brings into focus, placed here: that lens's id. It asks nothing
+    /// itself. A lens made of such parts is a lens of lenses: it says only what to place together, and
+    /// knows nothing of where the data comes from or how it is shaped.
+    #[serde(default)]
+    pub through: Option<String>,
+    /// Of what that lens brings into focus, only the part under this heading.
+    #[serde(default)]
+    pub only: Option<String>,
     /// The answer's column that is a measure of a whole, if its lines are such: meaning a surface may
     /// show in its own way - a meter on a page, a bar in a terminal.
     #[serde(default)]
@@ -253,7 +263,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "query": part.sql, "lays_out": part.line, "star": star}),
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "star": star}),
             );
         }
     }

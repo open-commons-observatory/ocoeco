@@ -60,6 +60,8 @@ fields = [
     { name = "title", type = "string" },
     { name = "query", type = "string", required = true },
     { name = "lays_out", type = "string" },
+    { name = "through", type = "string" },
+    { name = "only", type = "string" },
 ]
 
 [[focus]]
@@ -107,6 +109,14 @@ SELECT what, count(*) AS names,
 FROM names GROUP BY what ORDER BY what
 """
 line = "{what}: {names} names, {with_meaning} given a meaning as a word - {which}"
+
+[[focus]]
+title = "a part placed from another lens ({count})"
+sql = """
+SELECT lens, through, CASE WHEN coalesce("only", '') <> '' THEN ' - only ' || "only" ELSE ' - all of it' END AS which
+FROM lens_parts WHERE coalesce(through, '') <> '' ORDER BY lens, part
+"""
+line = "{lens} places what {through} brings into focus{which}"
 
 [[focus]]
 title = "a lens that takes nothing, or brings nothing into focus ({count})"
