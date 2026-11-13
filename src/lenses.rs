@@ -86,6 +86,10 @@ pub struct Part {
     /// separated by spaces or commas). What it means, not how it looks.
     #[serde(default)]
     pub chain: Option<Vec<String>>,
+    /// Lay this part out once for each value of this column, in the order the values first appear -
+    /// a red line, a driver, a star; its heading may name the value, as {column}.
+    #[serde(default)]
+    pub per: Option<String>,
 }
 
 /// Every lens, in the order of their files.

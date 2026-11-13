@@ -39,10 +39,10 @@ table = "connections"
 asks = ["from", "how", "to", "says", "known", "thread"]
 supplies = [{ field = "date", from = "today", when = "new" }, { field = "by", from = "who", when = "new" }]
 
-# The focus of the lens of insight: each red line, its connections in the order they were drawn. A row
+# The focus of the lens of insight: each red line under its own name, walked from where it begins. A row
 # in another star is shown as star/id; one of this place, by its id alone.
 [[focus]]
-title = "red lines ({count} connections)"
+title = "{thread} ({count})"
 sql = """
 SELECT coalesce(nullif(thread, ''), 'no thread') AS thread, how, says, known,
        regexp_replace(regexp_replace("from", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g'), '(^|[ ,])[a-z_]+:', '\\1', 'g') AS this,
@@ -52,6 +52,8 @@ FROM connections ORDER BY 1, seq
 line = "{this} - {how} - {that}: {says} ({known})"
 # what this part is: a chain, from this to that - each surface walks it from where it begins
 chain = ["this", "that"]
+# and it is laid out once for each red line, under the line's own name
+per = "thread"
 
 [[focus]]
 always = true

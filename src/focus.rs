@@ -191,70 +191,95 @@ pub fn brought(
         let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
         let (mut parts, mut doubts) = (Vec::new(), Vec::new());
         for part in &found.focus {
-            let rows = answers(engine, &load, &part.sql.replace("{today}", today))?;
-            if rows.is_empty() && !part.always {
-                continue;
-            }
-            // a line that names what its answers do not hold would be laid out with a hole in it
-            if let Some(first) = rows.first() {
-                let heading = part
-                    .title
-                    .as_deref()
-                    .map(named)
-                    .unwrap_or("a part with no heading");
-                for name in asked(&part.line)
-                    .into_iter()
-                    .filter(|name| !first.contains_key(*name))
-                {
-                    doubts.push(format!(
-                        "{heading}: its line names {{{name}}}, which its answers do not hold"
-                    ));
-                }
-            }
-            parts.push(Brought {
-                values: rows.clone(),
-                chain: part
-                    .chain
-                    .as_ref()
-                    .and_then(|c| Some((c.first()?.clone(), c.get(1)?.clone()))),
-                title: part
-                    .title
-                    .as_ref()
-                    .map(|t| t.replace("{count}", &rows.len().to_string())),
-                lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
-                keys: rows
-                    .iter()
-                    .map(|row| {
-                        match (
-                            row.get("star").and_then(Value::as_str),
-                            row.get("id").and_then(Value::as_str),
-                        ) {
-                            (Some(star), Some(id)) => format!("{star}/{id}"),
-                            _ => laid_out(&part.line, row),
+            let all = answers(engine, &load, &part.sql.replace("{today}", today))?;
+            // a part may be laid out once for each value of one of its columns - a red line, a driver,
+            // a star - in the order the values first appear; otherwise it is laid out once
+            let mut each: Vec<Vec<Map<String, Value>>> = Vec::new();
+            match &part.per {
+                Some(per) if !all.is_empty() => {
+                    let mut seen: Vec<String> = Vec::new();
+                    for row in all {
+                        let value = row
+                            .get(per)
+                            .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_string))
+                            .unwrap_or_default();
+                        match seen.iter().position(|s| *s == value) {
+                            Some(at) => each[at].push(row),
+                            None => {
+                                seen.push(value);
+                                each.push(vec![row]);
+                            }
                         }
-                    })
-                    .collect(),
-                measures: match &part.measure {
-                    Some(column) => rows
+                    }
+                }
+                _ => each.push(all),
+            }
+            for rows in each {
+                if rows.is_empty() && !part.always {
+                    continue;
+                }
+                // a line that names what its answers do not hold would be laid out with a hole in it
+                if let Some(first) = rows.first() {
+                    let heading = part
+                        .title
+                        .as_deref()
+                        .map(named)
+                        .unwrap_or("a part with no heading");
+                    for name in asked(&part.line)
+                        .into_iter()
+                        .filter(|name| !first.contains_key(*name))
+                    {
+                        doubts.push(format!(
+                            "{heading}: its line names {{{name}}}, which its answers do not hold"
+                        ));
+                    }
+                }
+                parts.push(Brought {
+                    values: rows.clone(),
+                    chain: part
+                        .chain
+                        .as_ref()
+                        .and_then(|c| Some((c.first()?.clone(), c.get(1)?.clone()))),
+                    title: part.title.as_ref().map(|t| {
+                        rows.first()
+                            .map_or_else(|| t.clone(), |row| laid_out(t, row))
+                            .replace("{count}", &rows.len().to_string())
+                    }),
+                    lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
+                    keys: rows
                         .iter()
                         .map(|row| {
-                            let so_much = match row.get(column) {
-                                Some(Value::Number(n)) => n.as_f64(),
-                                Some(Value::String(s)) => s.parse().ok(),
-                                _ => None,
-                            };
-                            // the whole it is of: the answer's own, when the lens names it; else the part's
-                            let whole = part.whole.as_ref().and_then(|w| match row.get(w) {
-                                Some(Value::Number(n)) => n.as_f64(),
-                                Some(Value::String(s)) => s.parse().ok(),
-                                _ => None,
-                            });
-                            so_much.map(|v| (v, whole.or(part.of).unwrap_or(1.0)))
+                            match (
+                                row.get("star").and_then(Value::as_str),
+                                row.get("id").and_then(Value::as_str),
+                            ) {
+                                (Some(star), Some(id)) => format!("{star}/{id}"),
+                                _ => laid_out(&part.line, row),
+                            }
                         })
                         .collect(),
-                    None => Vec::new(),
-                },
-            });
+                    measures: match &part.measure {
+                        Some(column) => rows
+                            .iter()
+                            .map(|row| {
+                                let so_much = match row.get(column) {
+                                    Some(Value::Number(n)) => n.as_f64(),
+                                    Some(Value::String(s)) => s.parse().ok(),
+                                    _ => None,
+                                };
+                                // the whole it is of: the answer's own, when the lens names it; else the part's
+                                let whole = part.whole.as_ref().and_then(|w| match row.get(w) {
+                                    Some(Value::Number(n)) => n.as_f64(),
+                                    Some(Value::String(s)) => s.parse().ok(),
+                                    _ => None,
+                                });
+                                so_much.map(|v| (v, whole.or(part.of).unwrap_or(1.0)))
+                            })
+                            .collect(),
+                        None => Vec::new(),
+                    },
+                });
+            }
         }
         Ok((parts, doubts))
     })();
@@ -457,6 +482,11 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
             if let Some(measure) = part.measure.as_deref().filter(|m| !columns.contains(m)) {
                 doubts.push(format!(
                     "{heading}: its measure is {measure}, which its query does not give"
+                ));
+            }
+            if let Some(per) = part.per.as_deref().filter(|p| !columns.contains(p)) {
+                doubts.push(format!(
+                    "{heading}: it is laid out per {per}, which its query does not give"
                 ));
             }
             if let Some(chain) = &part.chain {
@@ -709,6 +739,46 @@ mod tests {
                 "things: it has a measure but not the whole it is of"
             ]
         );
+    }
+
+    #[test]
+    fn a_part_is_laid_out_once_for_each_red_line_under_its_own_name() {
+        /// An engine that answers the lens of insight with three connections on two red lines.
+        struct Lines;
+        impl SqlEngine for Lines {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                Ok(if script.contains("FROM connections ORDER BY 1, seq") {
+                    r#"[{"thread":"route","this":"a","how":"led to","that":"b","says":"first","known":"read"},
+                        {"thread":"signs","this":"x","how":"repeats","that":"y","says":"same","known":"reasoned"},
+                        {"thread":"route","this":"b","how":"needed","that":"c","says":"then","known":"recorded"}]"#.into()
+                } else {
+                    "[]".into()
+                })
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-per-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nconnections = \"data/connections.json\"\n").unwrap();
+        std::fs::write(d.join("data/connections.json"), "").unwrap();
+        let parts = brought("insight", &[d], "2026-11-13", &Lines).unwrap();
+        let headed: Vec<(&str, usize)> = parts
+            .iter()
+            .filter_map(|p| Some((p.title.as_deref()?, p.lines.len())))
+            .collect();
+        assert_eq!(
+            headed,
+            [("route (2)", 2), ("signs (1)", 1)],
+            "each red line under its own name, in the order first met"
+        );
+        assert_eq!(
+            parts[0].lines,
+            [
+                "a - led to - b: first (read)",
+                "b - needed - c: then (recorded)"
+            ]
+        );
+        assert!(parts[0].chain.is_some(), "and each is still a chain");
     }
 
     #[test]

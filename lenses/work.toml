@@ -69,7 +69,7 @@ WITH done AS (
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
 )
 SELECT b.star, b.id, b.title, count(*) AS times, max(left(d.at_, 10)) AS last,
-       string_agg(DISTINCT d.who, ', ') AS who, b.status
+       string_agg(DISTINCT d.who, ', ' ORDER BY d.who) AS who, b.status
 FROM done d JOIN backlog b ON b.star = d.star AND b.id = d.id
 GROUP BY b.star, b.id, b.title, b.status ORDER BY max(d.at_) DESC, b.star, b.id LIMIT 15
 """
