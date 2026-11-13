@@ -13,6 +13,7 @@ pub mod join;
 pub mod lenses;
 pub mod manual;
 pub mod mark;
+pub mod moving;
 pub mod note;
 pub mod pick;
 pub mod relations;

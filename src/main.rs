@@ -145,6 +145,24 @@ enum Cmd {
         dir: std::path::PathBuf,
     },
     /// Bring a lens into focus: what it shows of this place, or of every place under ROOT
+    /// Move rows of a table from this place to another, every link kept true: links to them - here,
+    /// there, and in every place under ROOT - are rewritten to where they now are
+    Move {
+        /// The table: decisions, research, ...
+        table: String,
+        /// The ids of the rows to move
+        #[arg(required = true)]
+        ids: Vec<String>,
+        /// The place they move to
+        #[arg(long)]
+        to: std::path::PathBuf,
+        /// Rewrite links in every place under ROOT too (two levels down: owner/repository)
+        #[arg(long)]
+        root: Option<String>,
+        /// The place they move from
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     /// The fulldome, in the terminal: every lens, and what each brings into focus - to move through
     Fulldome {
         /// Every place under ROOT together (two levels down: owner/repository)
@@ -392,6 +410,34 @@ fn run() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
+        Cmd::Move {
+            table,
+            ids,
+            to,
+            root,
+            dir,
+        } => {
+            let mut others = std::collections::BTreeMap::new();
+            if let Some(root) = root {
+                for place in ocoeco::board::projects(&std::path::PathBuf::from(root.replacen(
+                    '~',
+                    &std::env::var("HOME").unwrap_or_default(),
+                    1,
+                ))) {
+                    if let Ok(mark) = std::fs::read_to_string(place.join("oco.toml"))
+                        .map_err(anyhow::Error::from)
+                        .and_then(|t| ocoeco::mark::Mark::parse(&t))
+                    {
+                        others.insert(mark.project.id, place);
+                    }
+                }
+            }
+            let moved = ocoeco::moving::move_rows(&dir, &to, &table, &ids, &others)?;
+            println!("moved {} row(s) of {table} to {}", moved.rows, to.display());
+            for (place, links) in &moved.rewritten {
+                println!("  {links} link(s) rewritten in {place}");
+            }
+        }
         Cmd::Fulldome {
             root,
             dir,
