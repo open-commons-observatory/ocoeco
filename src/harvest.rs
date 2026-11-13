@@ -136,11 +136,13 @@ pub fn observe_runs(candidates: &[Candidate], runs: &dyn Runs, h: &mut Harvest) 
     }
 }
 
-/// Whether a run's conclusion is a failure of some kind.
+/// Whether a run's conclusion is a failure of some kind. A run that was stopped - most often because a
+/// newer one was asked for - did not fail. (The lens of signs says the same in its own query: one
+/// meaning kept in two places, recorded as a sign until it is one.)
 fn fails(row: &Map<String, Value>) -> bool {
     !matches!(
         row.get("conclusion").and_then(Value::as_str),
-        Some("success" | "skipped" | "neutral")
+        Some("success" | "skipped" | "neutral" | "cancelled")
     )
 }
 
@@ -277,6 +279,8 @@ mod tests {
             row("pages", "failure"),
             row("new", "failure"),
             row("fresh", "success"),
+            // stopped because a newer one was asked for: it did not fail, and nothing is said of it
+            row("replaced", "cancelled"),
         ];
         assert_eq!(
             changes(&before, &after),
