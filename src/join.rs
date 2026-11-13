@@ -49,6 +49,9 @@ parent = "{}"
 backlog = "oco/backlog.json"
 milestones = "oco/milestones.json"
 session_log = "oco/session_log.json"
+glimpses = "oco/glimpses.json"
+decisions = "oco/decisions.json"
+problems = "oco/problems.json"
 activity = "oco/gathered/activity.json@oco-data"
 releases = "oco/gathered/releases.json@oco-data"
 ci = "oco/gathered/ci.json@oco-data"
@@ -73,6 +76,11 @@ pub fn init(dir: &Path, j: &Join, today: &str) -> Result<Vec<String>> {
         ("oco/backlog.json", ""),
         ("oco/milestones.json", ""),
         ("oco/session_log.json", first.as_str()),
+        // from its first day a place can record its work, its reasoning and what is wrong: the lenses
+        // of results, of reasoning and of problems have somewhere to catch them
+        ("oco/glimpses.json", ""),
+        ("oco/decisions.json", ""),
+        ("oco/problems.json", ""),
     ];
     let mut written = Vec::new();
     for (path, text) in files {
@@ -311,7 +319,10 @@ mod tests {
                 ".github/workflows/gather.yml",
                 "oco/backlog.json",
                 "oco/milestones.json",
-                "oco/session_log.json"
+                "oco/session_log.json",
+                "oco/glimpses.json",
+                "oco/decisions.json",
+                "oco/problems.json"
             ]
         );
         let (well, problems) = check(&d).unwrap();
@@ -436,10 +447,10 @@ mod tests {
             unexported(&d).unwrap().is_empty(),
             "a fresh repository exports what it keeps"
         );
-        std::fs::write(d.join("oco/decisions.json"), "").unwrap();
+        std::fs::write(d.join("oco/concepts.json"), "").unwrap();
         assert_eq!(
             unexported(&d).unwrap(),
-            vec!["oco/decisions.json".to_string()]
+            vec!["oco/concepts.json".to_string()]
         );
     }
 }
