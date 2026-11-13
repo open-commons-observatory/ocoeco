@@ -137,6 +137,147 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
     Ok(problems)
 }
 
+/// The tables that hold every link between everything in view as rows. No place keeps them: ocoeco fills
+/// them from the links the places hold, as it fills the language's own from the lenses.
+pub const OF_THE_GRAPH: [&str; 2] = ["things", "edges"];
+
+/// A place in view: where it is, its mark, and the ids each of its tables holds.
+type Held = (PathBuf, Mark, BTreeMap<String, BTreeSet<String>>);
+
+/// Every row of every place in view as a thing, and every link between them as an edge: this, how, that.
+/// A link a row holds in a declared relation is an edge named by its field (serves, refines, advances); a
+/// connection is an edge named by how it bears (led to, needed, halted, repeats), through the connection
+/// that says so. Whether an edge holds is said when the place it points into is in view, and left unsaid
+/// when it is not. A thing is named by where it is held, its table and its id.
+pub fn as_graph(
+    dirs: &[PathBuf],
+) -> Result<BTreeMap<&'static str, Vec<serde_json::Map<String, serde_json::Value>>>> {
+    use serde_json::json;
+    let mut places: BTreeMap<String, Held> = BTreeMap::new();
+    for dir in dirs {
+        let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+            .map_err(anyhow::Error::from)
+            .and_then(|t| Mark::parse(&t))
+        else {
+            continue;
+        };
+        let own = ids(dir, &mark);
+        places.insert(mark.project.id.clone(), (dir.clone(), mark, own));
+    }
+    let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
+    // where a link points, from the place that holds it, and whether that is there
+    let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
+        let has = |place: &str, table: &str| {
+            places
+                .get(place)
+                .map(|(_, _, own)| own.get(table).is_some_and(|ids| ids.contains(&link.id)))
+        };
+        match (&link.star, &link.table) {
+            (Some(star), Some(table)) => (format!("{star}/{table}:{}", link.id), has(star, table)),
+            (_, Some(table)) => (format!("{here}/{table}:{}", link.id), has(here, table)),
+            (_, None) => {
+                let own = places.get(here).map(|(_, _, own)| own);
+                let any = to.iter().any(|t| t == "*");
+                let found = own.and_then(|own| {
+                    own.iter()
+                        .find(|(table, ids)| (any || to.contains(table)) && ids.contains(&link.id))
+                        .map(|(table, _)| table.clone())
+                });
+                match found {
+                    Some(table) => (format!("{here}/{table}:{}", link.id), Some(true)),
+                    None => (
+                        format!(
+                            "{here}/{}:{}",
+                            to.first().map_or("?", String::as_str),
+                            link.id
+                        ),
+                        Some(false),
+                    ),
+                }
+            }
+        }
+    };
+    let mut things = Vec::new();
+    for (id, (_, _, own)) in &places {
+        for (table, rows) in own {
+            for row in rows {
+                things.push(json!({"id": format!("{id}/{table}:{row}"), "of_table": table, "place": id, "star": short(id)}));
+            }
+        }
+    }
+    let mut edges: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+    let mut edge = |from: String,
+                    how: &str,
+                    (to, holds): (String, Option<bool>),
+                    via: String,
+                    here: &str| {
+        let id = format!("{from} {how} {to}");
+        edges.insert(id.clone(), json!({"id": id, "from": from, "how": how, "to": to, "holds": holds, "via": via, "star": short(here)}));
+    };
+    for (here, (dir, mark, _)) in &places {
+        for relation in relations() {
+            let Some((table, field)) = relation.from.split_once('.') else {
+                continue;
+            };
+            // a connection is not a row pointing at two things: it says how one bears on the other
+            if table == "connections" {
+                continue;
+            }
+            for row in rows(dir, mark, table) {
+                let (Some(value), Some(id)) = (row[field].as_str(), row["id"].as_str()) else {
+                    continue;
+                };
+                for link in links(value).iter().filter(|l| {
+                    !relation
+                        .passes_over
+                        .iter()
+                        .any(|m| l.id.contains(m.as_str()))
+                }) {
+                    edge(
+                        format!("{here}/{table}:{id}"),
+                        field,
+                        resolve(here, link, &relation.to),
+                        String::new(),
+                        here,
+                    );
+                }
+            }
+        }
+        let anywhere = ["*".to_string()];
+        for row in rows(dir, mark, "connections") {
+            let (Some(from), Some(to), Some(how), Some(id)) = (
+                row["from"].as_str(),
+                row["to"].as_str(),
+                row["how"].as_str(),
+                row["id"].as_str(),
+            ) else {
+                continue;
+            };
+            for this in links(from) {
+                for that in links(to) {
+                    edge(
+                        resolve(here, &this, &anywhere).0,
+                        how,
+                        resolve(here, &that, &anywhere),
+                        format!("{here}/connections:{id}"),
+                        here,
+                    );
+                }
+            }
+        }
+    }
+    let rows_of = |values: Vec<serde_json::Value>| {
+        values
+            .into_iter()
+            .filter_map(|v| v.as_object().cloned())
+            .collect::<Vec<_>>()
+    };
+    Ok(BTreeMap::from([
+        ("things", rows_of(things)),
+        ("edges", rows_of(edges.into_values().collect())),
+    ]))
+}
+
 /// Runs `write` on the place at `dir`, refusing what it wrote if it adds a link that points nowhere: the
 /// place's tables are put back as they were, and the new broken links are named. Links already broken
 /// stay as they are - they are the check's to report, not the write's.
@@ -276,5 +417,83 @@ mod tests {
                 "decisions d3: refines -> d9 (in decisions) - points nowhere"
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod the_graph {
+    use super::*;
+
+    fn place(base: &Path, id: &str, tables: &[(&str, &str)]) -> PathBuf {
+        let d = base.join(id.replace('/', "-"));
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        let exports: String = tables
+            .iter()
+            .map(|(t, _)| format!("{t} = \"data/{t}.json\"\n"))
+            .collect();
+        std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"{id}\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n{exports}")).unwrap();
+        for (t, rows) in tables {
+            std::fs::write(d.join(format!("data/{t}.json")), rows).unwrap();
+        }
+        d
+    }
+
+    #[test]
+    fn every_row_is_a_thing_and_every_link_an_edge_this_how_that() {
+        let base = std::env::temp_dir().join(format!("ocoeco-graph-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let a = place(&base, "o/a", &[
+            ("backlog", "{\"id\":\"a1\",\"serves\":\"milestones:m1\"}\n"),
+            ("milestones", "{\"id\":\"m1\"}\n{\"id\":\"m2\"}\n"),
+            ("connections", "{\"id\":\"c1\",\"from\":\"milestones:m1\",\"how\":\"led to\",\"to\":\"o/b/decisions:x\"}\n"),
+        ]);
+        let b = place(&base, "o/b", &[("decisions", "{\"id\":\"x\"}\n")]);
+        let graph = as_graph(&[a.clone(), b]).unwrap();
+        let edge = |from: &str, how: &str| {
+            graph["edges"]
+                .iter()
+                .find(|e| e["from"] == from && e["how"] == how)
+                .cloned()
+        };
+        let served = edge("o/a/backlog:a1", "serves")
+            .expect("a link a row holds is an edge named by its field");
+        assert_eq!(
+            (served["to"].as_str(), served["holds"].as_bool()),
+            (Some("o/a/milestones:m1"), Some(true))
+        );
+        let led = edge("o/a/milestones:m1", "led to")
+            .expect("a connection is an edge named by how it bears");
+        assert_eq!(
+            (
+                led["to"].as_str(),
+                led["holds"].as_bool(),
+                led["via"].as_str()
+            ),
+            (
+                Some("o/b/decisions:x"),
+                Some(true),
+                Some("o/a/connections:c1")
+            )
+        );
+        assert_eq!(
+            graph["things"].len(),
+            5,
+            "every row of every place is a thing"
+        );
+        let pointed: BTreeSet<&str> = graph["edges"]
+            .iter()
+            .filter_map(|e| e["to"].as_str())
+            .collect();
+        assert!(
+            !pointed.contains("o/a/milestones:m2"),
+            "and some are pointed at by nothing"
+        );
+        // from one place alone, a link into another is neither held nor broken: it is not seen
+        let alone = as_graph(&[a]).unwrap();
+        let led = alone["edges"]
+            .iter()
+            .find(|e| e["how"] == "led to")
+            .unwrap();
+        assert!(led["holds"].is_null(), "{led:?}");
     }
 }

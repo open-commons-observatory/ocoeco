@@ -1,0 +1,91 @@
+# The lens of the graph: every row of every place in view as a thing, and every link between them as an
+# edge - this, how, that. A link a row holds is named by its field (serves, refines, advances); a
+# connection is named by how it bears, through the connection that says so. No place keeps these tables:
+# ocoeco fills them from the links the places hold (src/relations.rs, as_graph). It asks what rows alone
+# could not: what points at a thing, what nothing points at, and how far a line of one kind runs.
+[lens]
+id = "graph"
+says = "Every link between everything in view, as one relation - this, how, that: what is pointed at most, what nothing points at, and how far a line of one kind runs."
+
+[tables.things]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "of_table", type = "string", required = true },
+    { name = "place", type = "string", required = true },
+]
+
+[tables.edges]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "from", type = "string", required = true },
+    { name = "how", type = "string", required = true },
+    { name = "to", type = "string", required = true },
+    { name = "holds", type = "boolean" },
+    { name = "via", type = "string" },
+]
+
+[[focus]]
+title = "pointed at most ({count})"
+sql = """
+SELECT regexp_replace("to", '^[^/]+/', '') AS shown, count(*) AS times, string_agg(DISTINCT how, ', ' ORDER BY how) AS hows
+FROM edges WHERE holds GROUP BY "to" ORDER BY times DESC, "to" LIMIT 12
+"""
+line = "{shown} - pointed at {times} time(s): {hows}"
+
+[[focus]]
+title = "what nothing points at, by kind ({count})"
+sql = """
+WITH pointed AS (SELECT DISTINCT "to" AS id FROM edges WHERE holds)
+SELECT t.of_table, count(*) AS kept, count(*) FILTER (WHERE p.id IS NULL) AS alone
+FROM things t LEFT JOIN pointed p ON p.id = t.id
+GROUP BY t.of_table ORDER BY alone DESC, t.of_table
+"""
+line = "{of_table} - {alone} of {kept} have nothing pointing at them"
+measure = "alone"
+whole = "kept"
+
+[[focus]]
+title = "how things point ({count})"
+sql = """
+SELECT how, count(*) AS links, count(DISTINCT "from") AS sources, count(DISTINCT "to") AS ends FROM edges
+GROUP BY how ORDER BY links DESC, how
+"""
+line = "{how} - {links} links, from {sources} things to {ends}"
+
+[[focus]]
+title = "the longest line of one kind ({count})"
+sql = """
+WITH RECURSIVE walk(start, reached, how, depth) AS (
+  SELECT "from", "to", how, 1 FROM edges WHERE holds
+  UNION ALL
+  SELECT w.start, e."to", w.how, w.depth + 1
+  FROM walk w JOIN edges e ON e."from" = w.reached AND e.how = w.how AND e.holds
+  WHERE w.depth < 16
+)
+SELECT how, max(depth) AS depth, regexp_replace(arg_max(start, depth), '^[^/]+/', '') AS began,
+       regexp_replace(arg_max(reached, depth), '^[^/]+/', '') AS ended
+FROM walk GROUP BY how HAVING max(depth) > 1 ORDER BY depth DESC, how
+"""
+line = "{how} - {depth} links long, from {began} to {ended}"
+
+[[focus]]
+title = "pointing nowhere ({count})"
+sql = """
+SELECT regexp_replace("from", '^[^/]+/', '') AS this, how, regexp_replace("to", '^[^/]+/', '') AS that
+FROM edges WHERE holds = false ORDER BY "from", how LIMIT 20
+"""
+line = "{this} - {how} - {that}"
+
+[[focus]]
+always = true
+sql = """
+WITH pointed AS (SELECT DISTINCT "to" AS id FROM edges WHERE holds)
+SELECT (SELECT count(*) FROM things) AS things, (SELECT count(*) FROM edges) AS edges,
+       (SELECT count(*) FROM things t WHERE t.id NOT IN (SELECT id FROM pointed)) AS alone,
+       (SELECT count(*) FROM edges WHERE holds IS NULL) AS unseen
+"""
+line = "{things} things in view, {edges} links between them; {alone} things nothing points at; {unseen} links point where this place cannot see"
