@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.4.0...ocoeco-v0.5.0) (2026-11-13)
+
+
+### Features
+
+* the beam: how light travels through a lens, a key away ([#129](https://github.com/open-commons-observatory/ocoeco/issues/129)) ([1bb9523](https://github.com/open-commons-observatory/ocoeco/commit/1bb9523f9310174a982e1f6efcf1e90177c02e0d))
+
+
+### Bug Fixes
+
+* the beam names a part laid out per value by what it is laid out per ([#131](https://github.com/open-commons-observatory/ocoeco/issues/131)) ([7817fa9](https://github.com/open-commons-observatory/ocoeco/commit/7817fa96f740df053350a4e34a3926e368332bb8))
+
 ## [0.4.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.3.0...ocoeco-v0.4.0) (2026-11-13)
 
 
