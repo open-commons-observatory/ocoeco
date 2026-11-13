@@ -65,3 +65,4 @@
 {"id":"g-20261113-172725","at":"2026-11-13T17:27:25Z","by":"claude","kind":"feat","summary":"the lens of language: the lenses themselves as rows, looked at through a lens","advances":"backlog:read-off-the-act"}
 {"id":"g-20261113-175853","at":"2026-11-13T17:58:53Z","by":"claude","kind":"feat","summary":"ocoeco is released as files, the way tad is","advances":"backlog:ocoeco-released-as-files"}
 {"id":"g-20261113-180218","at":"2026-11-13T18:02:18Z","by":"claude","kind":"docs","summary":"the release waits on an owner's setting; left showing, not switched off","advances":"backlog:ocoeco-released-as-files"}
+{"id":"g-20261113-183000","at":"2026-11-13T18:30:00Z","by":"claude","kind":"fix","summary":"the rpm is packed from the root: -p is a folder to that tool","advances":"backlog:ocoeco-released-as-files"}
