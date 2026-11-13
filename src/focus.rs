@@ -207,9 +207,10 @@ pub fn brought(
         CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     let projected = (|| -> Result<(Vec<Brought>, Vec<String>)> {
+        let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?),
-            found,
+            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch)?),
+            &wide,
             today,
         );
         let (mut parts, mut doubts) = (Vec::new(), Vec::new());
@@ -432,6 +433,69 @@ pub fn unsound(parts: &[Brought]) -> Vec<String> {
     doubts
 }
 
+/// What a lens takes its light from, when it reads a shape another lens names: that lens's tables and what
+/// it reads, and its shapes, made ready before the lens's own - followed as far as shapes lead. The lens
+/// returned gathers and shapes as this one does, with all of that; it is not asked of itself.
+fn widened(lens: &Lens, all: &[Lens]) -> Lens {
+    fn reach(
+        lens: &Lens,
+        all: &[Lens],
+        seen: &mut Vec<String>,
+        reads: &mut Vec<String>,
+        before: &mut Vec<crate::lenses::Part>,
+    ) {
+        for read in &lens.lens.reads {
+            let Some(giver) = all.iter().find(|g| {
+                g.focus
+                    .iter()
+                    .any(|p| p.named.as_deref() == Some(read.as_str()))
+            }) else {
+                continue;
+            };
+            if seen.contains(&giver.lens.id) {
+                continue;
+            }
+            seen.push(giver.lens.id.clone());
+            // what the giver's shapes ask of comes first
+            reach(giver, all, seen, reads, before);
+            reads.extend(
+                giver
+                    .tables
+                    .keys()
+                    .cloned()
+                    .chain(giver.lens.reads.iter().cloned()),
+            );
+            before.extend(
+                giver
+                    .focus
+                    .iter()
+                    .filter(|p| p.named.is_some() && p.through.is_none())
+                    .cloned(),
+            );
+        }
+    }
+    let mut wide = lens.clone();
+    let mut before = Vec::new();
+    reach(
+        lens,
+        all,
+        &mut vec![lens.lens.id.clone()],
+        &mut wide.lens.reads,
+        &mut before,
+    );
+    wide.lens.reads.sort();
+    wide.lens.reads.dedup();
+    before.append(&mut wide.focus);
+    wide.focus = before;
+    wide
+}
+
+/// The lens that names a shape, among these.
+fn giver_of<'a>(shape: &str, all: &'a [Lens]) -> Option<&'a Lens> {
+    all.iter()
+        .find(|g| g.focus.iter().any(|p| p.named.as_deref() == Some(shape)))
+}
+
 /// The shapes a lens names, made ready for its parts to ask of: each named part as a view, in the order
 /// the lens gives them - so a shape may ask of one named before it.
 fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
@@ -481,14 +545,20 @@ pub fn beam(
     };
     let scratch = std::env::temp_dir().join(format!("ocoeco-beam-{}-{lens}", std::process::id()));
     let traced = (|| -> Result<Vec<Brought>> {
+        let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?),
-            found,
+            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch)?),
+            &wide,
             today,
         );
         // light in: what the lens gathers, as it gathered it
         let mut tables: Vec<(String, usize, usize)> = Vec::new();
-        for table in found.tables.keys().chain(found.lens.reads.iter()) {
+        for table in found
+            .tables
+            .keys()
+            .chain(found.lens.reads.iter())
+            .filter(|t| giver_of(t, &all).is_none())
+        {
             let text =
                 std::fs::read_to_string(scratch.join(format!("{table}.json"))).unwrap_or_default();
             let rows: Vec<Value> = text
@@ -527,6 +597,27 @@ pub fn beam(
         // the shapes named so far: what passes through each, so that a part asking of a shape is seen to
         // take its light from it
         let mut shaped: Vec<(String, usize, usize)> = Vec::new();
+        // a shape another lens names, read here, is light coming in from that lens
+        let mut light_in = light_in;
+        for read in &found.lens.reads {
+            if let Some(giver) = giver_of(read, &all) {
+                let rows = answers(engine, &load, &format!("SELECT * FROM \"{read}\""))?.len();
+                if light_in.keys == ["-"] {
+                    light_in.lines.clear();
+                    light_in.keys.clear();
+                }
+                light_in.lines.push(format!(
+                    "{read} - {rows} rows, shaped by the lens {}",
+                    giver.lens.id
+                ));
+                light_in.keys.push(read.clone());
+                shaped.push((read.clone(), rows, 0));
+            }
+        }
+        light_in.title = Some(format!(
+            "light in ({})",
+            light_in.keys.iter().filter(|k| *k != "-").count()
+        ));
         for (at, part) in found.focus.iter().enumerate() {
             // a heading laid out once for each value is named by what it is laid out per
             let heading = match (part.title.as_deref().map(named), &part.per) {
@@ -709,9 +800,10 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
     ));
     let doubts = (|| -> Result<Vec<String>> {
         // the lens's tables, and those it reads, with nothing in them
+        let wide = widened(lens, &crate::lenses::lenses());
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(lens, &[], &scratch)?),
-            lens,
+            &tad::sql::load_script(&scratch, &gather(&wide, &[], &scratch)?),
+            &wide,
             "2026-01-01",
         );
         let mut doubts = Vec::new();
@@ -1079,6 +1171,48 @@ mod tests {
             ]
         );
         assert!(parts[0].chain.is_some(), "and each is still a chain");
+    }
+
+    #[test]
+    fn a_lens_asks_of_a_shape_another_lens_names() {
+        /// An engine that answers the taker's part - and finds the giver's shape made ready before it.
+        struct Taken;
+        impl SqlEngine for Taken {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                if script.trim_end().ends_with("FROM given;") {
+                    let made = script
+                        .find("CREATE OR REPLACE VIEW \"given\" AS SELECT 1 AS n")
+                        .expect("the giver's shape is made ready");
+                    assert!(
+                        made < script.rfind("SELECT n FROM given").unwrap(),
+                        "before the part that asks of it"
+                    );
+                    return Ok(r#"[{"n":"one"}]"#.into());
+                }
+                Ok("[]".into())
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-taken-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n").unwrap();
+        std::fs::write(d.join("lenses/giver.toml"), "[lens]\nid = \"giver\"\nsays = \"Names a shape, and shows nothing of it.\"\n[[focus]]\nnamed = \"given\"\nsql = \"SELECT 1 AS n\"\n").unwrap();
+        std::fs::write(d.join("lenses/taker.toml"), "[lens]\nid = \"taker\"\nsays = \"Asks of a shape another lens names.\"\nreads = [\"given\"]\n[[focus]]\ntitle = \"taken ({count})\"\nsql = \"SELECT n FROM given\"\nline = \"{n}\"\n").unwrap();
+        let places = [d.clone()];
+        let parts = brought("taker", &places, "2026-11-14", &Taken).unwrap();
+        assert_eq!(
+            parts
+                .iter()
+                .map(|p| (p.title.clone().unwrap_or_default(), p.lines.clone()))
+                .collect::<Vec<_>>(),
+            [("taken (1)".to_string(), vec!["one".to_string()])]
+        );
+        let beam = beam("taker", &places, "2026-11-14", &Taken).unwrap();
+        assert_eq!(
+            beam[0].lines,
+            ["given - 0 rows, shaped by the lens giver"],
+            "light in: the shape, said as shaped by the lens that names it"
+        );
     }
 
     #[test]

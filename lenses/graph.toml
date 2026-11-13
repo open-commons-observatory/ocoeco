@@ -5,7 +5,7 @@
 # could not: what points at a thing, what nothing points at, and how far a line of one kind runs.
 [lens]
 id = "graph"
-says = "Every link between everything in view, as one relation - this, how, that: what is pointed at most, what nothing points at, and how far a line of one kind runs."
+says = "Every link between everything in view, as one relation - this, how, that: what is pointed at most, what nothing points at, how far a line of one kind runs; and, for other lenses to ask of, what points nowhere."
 
 [tables.things]
 key = ["id"]
@@ -83,12 +83,12 @@ FROM walk GROUP BY how HAVING max(depth) > 1 ORDER BY depth DESC, how
 line = "{how} - {depth} links long, from {began} to {ended}"
 
 [[focus]]
-title = "pointing nowhere ({count})"
+# What points nowhere is a shape this lens names and does not lay out: whether something fits is the lens
+# of signs' to say, and it asks of this shape - one place, read by whoever needs it.
+named = "nowhere"
 sql = """
-SELECT regexp_replace("from", '^[^/]+/', '') AS this, how, regexp_replace("to", '^[^/]+/', '') AS that
-FROM edges WHERE holds = false ORDER BY "from", how LIMIT 20
+SELECT "from", how, "to", from_star, from_table, from_id, to_star, to_table, to_id FROM edges WHERE holds = false
 """
-line = "{this} - {how} - {that}"
 
 [[focus]]
 always = true
