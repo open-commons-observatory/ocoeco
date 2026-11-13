@@ -102,6 +102,11 @@ pub struct Part {
     /// a red line, a driver, a star; its heading may name the value, as {column}.
     #[serde(default)]
     pub per: Option<String>,
+    /// This part names the shape it makes, and the other parts of the lens ask of it by that name, as
+    /// of a table. With no line of its own it is not laid out: it is only a shape the light passes on
+    /// through.
+    #[serde(default)]
+    pub named: Option<String>,
 }
 
 /// Every lens, in the order of their files.
@@ -270,6 +275,7 @@ pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> V
                         whole: some(raw(p, "whole")),
                         chain: Some(listed(raw(p, "chain"))).filter(|c| !c.is_empty()),
                         per: some(raw(p, "per")),
+                        named: some(raw(p, "named")),
                     })
                     .collect(),
             }
@@ -352,7 +358,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "star": star}),
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "star": star}),
             );
         }
     }

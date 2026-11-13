@@ -207,7 +207,11 @@ pub fn brought(
         CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     let projected = (|| -> Result<(Vec<Brought>, Vec<String>)> {
-        let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
+        let load = with_shapes(
+            &tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?),
+            found,
+            today,
+        );
         let (mut parts, mut doubts) = (Vec::new(), Vec::new());
         for part in &found.focus {
             // a part may be what another lens brings into focus, placed here - all of it, or the part
@@ -239,6 +243,10 @@ pub fn brought(
                             })
                         }),
                 );
+                continue;
+            }
+            // a shape named for the other parts, with no line of its own, is passed on through, not laid out
+            if part.named.is_some() && part.line.trim().is_empty() {
                 continue;
             }
             let all = answers(engine, &load, &part.sql.replace("{today}", today))?;
@@ -424,6 +432,24 @@ pub fn unsound(parts: &[Brought]) -> Vec<String> {
     doubts
 }
 
+/// The shapes a lens names, made ready for its parts to ask of: each named part as a view, in the order
+/// the lens gives them - so a shape may ask of one named before it.
+fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
+    let mut script = load.to_string();
+    for part in lens.focus.iter().filter(|p| p.through.is_none()) {
+        if let Some(name) = &part.named {
+            script.push_str(&format!(
+                "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
+                part.sql
+                    .replace("{today}", today)
+                    .trim()
+                    .trim_end_matches(';')
+            ));
+        }
+    }
+    script
+}
+
 /// Whether a query names a table: the name standing as a word of its own.
 fn names_table(sql: &str, table: &str) -> bool {
     let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
@@ -455,7 +481,11 @@ pub fn beam(
     };
     let scratch = std::env::temp_dir().join(format!("ocoeco-beam-{}-{lens}", std::process::id()));
     let traced = (|| -> Result<Vec<Brought>> {
-        let load = tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?);
+        let load = with_shapes(
+            &tad::sql::load_script(&scratch, &gather(found, dirs, &scratch)?),
+            found,
+            today,
+        );
         // light in: what the lens gathers, as it gathered it
         let mut tables: Vec<(String, usize, usize)> = Vec::new();
         for table in found.tables.keys().chain(found.lens.reads.iter()) {
@@ -494,6 +524,9 @@ pub fn beam(
             title: Some(format!("through the focus ({})", found.focus.len())),
             ..Default::default()
         };
+        // the shapes named so far: what passes through each, so that a part asking of a shape is seen to
+        // take its light from it
+        let mut shaped: Vec<(String, usize, usize)> = Vec::new();
         for (at, part) in found.focus.iter().enumerate() {
             // a heading laid out once for each value is named by what it is laid out per
             let heading = match (part.title.as_deref().map(named), &part.per) {
@@ -537,6 +570,7 @@ pub fn beam(
                 None => {
                     let asked: Vec<&(String, usize, usize)> = tables
                         .iter()
+                        .chain(shaped.iter())
                         .filter(|(t, _, _)| names_table(&part.sql, t))
                         .collect();
                     let entering: usize = asked.iter().map(|(_, rows, _)| rows).sum();
@@ -547,13 +581,22 @@ pub fn beam(
                         .map(|(t, _, _)| t.as_str())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    (
-                        format!(
+                    let shown = match &part.named {
+                        // a named shape: what it makes passes on to the parts that ask of it
+                        Some(name) => format!(
+                            "{}. shapes {name} - asks of {of}: {entering} rows in, {passing} shaped",
+                            at + 1
+                        ),
+                        None => format!(
                             "{}. {heading} - asks of {of}: {entering} rows in, {passing} through",
                             at + 1
                         ),
-                        Some((passing as f64, entering.max(passing).max(1) as f64)),
-                    )
+                    };
+                    let measure = Some((passing as f64, entering.max(passing).max(1) as f64));
+                    if let Some(name) = &part.named {
+                        shaped.push((name.clone(), passing, 0));
+                    }
+                    (shown, measure)
                 }
             };
             through.lines.push(line);
@@ -666,7 +709,11 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
     ));
     let doubts = (|| -> Result<Vec<String>> {
         // the lens's tables, and those it reads, with nothing in them
-        let load = tad::sql::load_script(&scratch, &gather(lens, &[], &scratch)?);
+        let load = with_shapes(
+            &tad::sql::load_script(&scratch, &gather(lens, &[], &scratch)?),
+            lens,
+            "2026-01-01",
+        );
         let mut doubts = Vec::new();
         for part in &lens.focus {
             // a part placed from another lens asks nothing here: what must hold is that the lens, and the
@@ -699,6 +746,13 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
                 .as_deref()
                 .map(named)
                 .unwrap_or("a part with no heading");
+            if let Some(name) = part.named.as_deref().filter(|n| {
+                crate::lenses::tables().contains_key(*n) || lens.tables.contains_key(*n)
+            }) {
+                doubts.push(format!(
+                    "{heading}: it names a shape {name}, which is also the name of a table"
+                ));
+            }
             let described = answers(
                 engine,
                 &load,
@@ -1025,6 +1079,42 @@ mod tests {
             ]
         );
         assert!(parts[0].chain.is_some(), "and each is still a chain");
+    }
+
+    #[test]
+    fn a_part_names_a_shape_that_other_parts_ask_of() {
+        /// An engine that answers a part asking of the shape - and finds the shape made ready before it.
+        struct Shaped;
+        impl SqlEngine for Shaped {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                if script.trim_end().ends_with("FROM rests;") {
+                    let made = script
+                        .find("CREATE OR REPLACE VIEW \"rests\" AS SELECT 1 AS n")
+                        .expect("the shape is made ready");
+                    assert!(
+                        made < script.rfind("SELECT n FROM rests").unwrap(),
+                        "before the part that asks of it"
+                    );
+                    return Ok(r#"[{"n":"one"}]"#.into());
+                }
+                Ok("[]".into())
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-shape-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n").unwrap();
+        std::fs::write(d.join("lenses/shaped.toml"), "[lens]\nid = \"shaped\"\nsays = \"Names a shape, and asks of it.\"\n[[focus]]\nnamed = \"rests\"\nsql = \"SELECT 1 AS n\"\n[[focus]]\ntitle = \"asked ({count})\"\nsql = \"SELECT n FROM rests\"\nline = \"{n}\"\n").unwrap();
+        let parts = brought("shaped", std::slice::from_ref(&d), "2026-11-14", &Shaped).unwrap();
+        let laid: Vec<(&str, &[String])> = parts
+            .iter()
+            .map(|p| (p.title.as_deref().unwrap_or_default(), p.lines.as_slice()))
+            .collect();
+        assert_eq!(
+            laid,
+            [("asked (1)", &["one".to_string()][..])],
+            "the shape is passed on through, not laid out; the part that asks of it is"
+        );
     }
 
     #[test]

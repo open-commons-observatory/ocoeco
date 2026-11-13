@@ -59,12 +59,13 @@ FROM idea WHERE kind = 'lead' ORDER BY star, seq
 """
 line = "{star} - {says}"
 
-# A milestone is reached when what it rests on is done - read off the work, never typed. Its criteria
+# What each milestone rests on is one shape, named rests, that the two parts below ask of. A milestone is
+# reached when what it rests on is done - read off the work, never typed. Its criteria
 # name items of the backlog (backlog:id), read off the graph's edges; other criteria are conditions told by tests (a feature at a
 # level), which this lens does not judge and says so. readiness is not how ready a milestone is: it is
 # its rung on the path, earned in order - shown as the rung it is.
 [[focus]]
-title = "being reached - how much of what each rests on is done ({count})"
+named = "rests"
 sql = """
 WITH items AS (
   SELECT e.from_star AS star, e.from_id AS id, count(*) AS items, count(*) FILTER (WHERE b.status = 'done') AS done
@@ -72,12 +73,20 @@ WITH items AS (
   WHERE e.how = 'criteria' AND e.from_table = 'milestones' AND e.to_table = 'backlog'
   GROUP BY 1, 2
 )
-SELECT m.star, m.title, try_cast(m.readiness AS INTEGER) AS rung, i.done, i.items,
-       CASE WHEN length(m.criteria) > length(replace(m.criteria, '@', ''))
-            THEN ', and ' || (length(m.criteria) - length(replace(m.criteria, '@', ''))) || ' told by tests' ELSE '' END AS told
-FROM milestones m JOIN items i ON i.star = m.star AND i.id = m.id
-WHERE m.horizon = 'working' AND i.done < i.items
-ORDER BY (i.items - i.done), rung, m.star, m.seq LIMIT 20
+SELECT m.star, m.id, m.title, try_cast(m.readiness AS INTEGER) AS rung, m.horizon, m.seq,
+       coalesce(i.items, 0) AS items, coalesce(i.done, 0) AS done,
+       length(m.criteria) - length(replace(m.criteria, '@', '')) AS conditions
+FROM milestones m LEFT JOIN items i ON i.star = m.star AND i.id = m.id
+WHERE coalesce(m.criteria, '') <> ''
+"""
+
+[[focus]]
+title = "being reached - how much of what each rests on is done ({count})"
+sql = """
+SELECT star, title, rung, done, items,
+       CASE WHEN conditions > 0 THEN ', and ' || conditions || ' told by tests' ELSE '' END AS told
+FROM rests WHERE horizon = 'working' AND items > 0 AND done < items
+ORDER BY (items - done), rung, star, seq LIMIT 20
 """
 line = "{star} - {title} (rung {rung}): {done} of {items} done{told}"
 # what the line means: so much of what it rests on is done - a measure whose whole is the line's own
@@ -87,19 +96,8 @@ whole = "items"
 [[focus]]
 always = true
 sql = """
-WITH items AS (
-  SELECT e.from_star AS star, e.from_id AS id, count(*) AS items, count(*) FILTER (WHERE b.status = 'done') AS done
-  FROM edges e LEFT JOIN backlog b ON b.star = e.to_star AND b.id = e.to_id
-  WHERE e.how = 'criteria' AND e.from_table = 'milestones' AND e.to_table = 'backlog'
-  GROUP BY 1, 2
-), each AS (
-  SELECT m.star, m.id, coalesce(i.items, 0) AS items, coalesce(i.done, 0) AS done,
-         length(m.criteria) - length(replace(m.criteria, '@', '')) AS conditions
-  FROM milestones m LEFT JOIN items i ON i.star = m.star AND i.id = m.id
-  WHERE coalesce(m.criteria, '') <> ''
-)
 SELECT (SELECT count(*) FROM milestones) AS milestones, (SELECT count(DISTINCT star) FROM milestones) AS stars,
        count(*) FILTER (WHERE items > 0 AND done = items AND conditions = 0) AS reached,
-       count(*) FILTER (WHERE conditions > 0) AS by_tests FROM each
+       count(*) FILTER (WHERE conditions > 0) AS by_tests FROM rests
 """
 line = "{milestones} milestones in {stars} stars: {reached} reached - every item they rest on is done; {by_tests} rest on what tests tell, not judged here"
