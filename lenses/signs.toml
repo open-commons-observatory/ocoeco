@@ -13,7 +13,7 @@
 id = "signs"
 grew_from = "problems"
 says = "What does not fit, said by whoever sees it and shown while nothing has come of it: a sign of something stale, overlapping, lacking or unclear - and what fails or has not moved, read off the work."
-reads = ["backlog", "connections"]
+reads = ["backlog", "connections", "edges"]
 
 [tables.problems]
 key = ["id"]
@@ -74,8 +74,7 @@ SELECT p.star, p.id, p.what, p."by",
        date_diff('day', try_cast(p.seen AS DATE), DATE '{today}') AS days
 FROM problems p
 WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
-  SELECT 1 FROM connections c WHERE c.how = 'led to'
-    AND ((c.star = p.star AND c."from" = 'problems:' || p.id) OR c."from" LIKE '%/' || p.star || '/problems:' || p.id))
+  SELECT 1 FROM edges e WHERE e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id)
 ORDER BY p.seen, p.seq
 """
 line = "{star}/{id}{of_kind} - {what}{at} (seen by {by}, {days} day(s) ago)"
@@ -102,10 +101,10 @@ line = "{star}/{id} - {title}: {status} for {days} days"
 title = "what came of it, lately ({count})"
 sql = """
 SELECT star, id, what, came FROM (
-  SELECT p.star, p.id, p.what, 'led to ' || regexp_replace(c."to", '[^/ ,]+/([^/ ,]+)/[a-z_]+:', '\\1/', 'g') || ' - ' || c.says AS came,
+  SELECT p.star, p.id, p.what, 'led to ' || e.to_star || '/' || e.to_id || ' - ' || c.says AS came,
          c.date AS came_on, p.seq
-  FROM problems p JOIN connections c ON c.how = 'led to'
-    AND ((c.star = p.star AND c."from" = 'problems:' || p.id) OR c."from" LIKE '%/' || p.star || '/problems:' || p.id)
+  FROM problems p JOIN edges e ON e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id
+  JOIN connections c ON c.star = e.via_star AND c.id = e.via_id
   WHERE date_diff('day', try_cast(c.date AS DATE), DATE '{today}') <= 14
   UNION ALL
   SELECT star, id, what, 'written then: ' || countermeasure, handled, seq FROM problems

@@ -2,7 +2,7 @@
 [lens]
 id = "work"
 says = "The flow of work: what is in progress and by whom - read off what was done - what is next, what waits and on what, what was finished."
-reads = ["glimpses"]
+reads = ["glimpses", "edges"]
 
 # The backlog is also the board's flow (the board is a view over it, never a list of its own):
 # open -> next -> in-progress -> waiting / parked -> done or dropped. In progress, an item has a driver
@@ -54,9 +54,9 @@ supplies = [
 title = "{state} ({count})"
 sql = """
 WITH done AS (
-  SELECT g.star, substr(t.token, 9) AS id, CAST(g."at" AS VARCHAR) AS at_, lower(g."by") AS who
-  FROM glimpses g, unnest(string_split(replace(coalesce(g.advances, ''), ',', ' '), ' ')) AS t(token)
-  WHERE t.token LIKE 'backlog:%'
+  SELECT e.to_star AS star, e.to_id AS id, CAST(g."at" AS VARCHAR) AS at_, lower(g."by") AS who
+  FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
+  WHERE e.how = 'advances' AND e.from_table = 'glimpses' AND e.to_table = 'backlog'
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
 ), each AS (
   SELECT CASE WHEN b.status = 'done' THEN 'finished lately' ELSE 'in progress - read off what was done' END AS state,
@@ -80,9 +80,9 @@ title = "said to be in progress, though nothing done lately advances it ({count}
 sql = """
 SELECT b.star, b.id, b.title FROM backlog b
 WHERE b.status = 'in-progress' AND NOT EXISTS (
-  SELECT 1 FROM glimpses g WHERE g.star = b.star
-    AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 3 DAY
-    AND (' ' || replace(coalesce(g.advances, ''), ',', ' ') || ' ') LIKE '% backlog:' || b.id || ' %')
+  SELECT 1 FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
+  WHERE e.how = 'advances' AND e.from_table = 'glimpses' AND e.to_table = 'backlog' AND e.to_star = b.star AND e.to_id = b.id
+    AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 3 DAY)
 ORDER BY b.seq
 """
 line = "{star}/{id} - {title}"

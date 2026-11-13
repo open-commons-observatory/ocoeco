@@ -212,7 +212,21 @@ pub fn as_graph(
                     via: String,
                     here: &str| {
         let id = format!("{from} {how} {to}");
-        edges.insert(id.clone(), json!({"id": id, "from": from, "how": how, "to": to, "holds": holds, "via": via, "star": short(here)}));
+        // each end said as its parts - where it is held, its table, its id - so that a lens joins on them
+        // and nothing takes a written link apart again
+        let ends = |node: &str| -> (String, String, String) {
+            let (held, id) = node.split_once(':').unwrap_or((node, ""));
+            let (place, table) = held.rsplit_once('/').unwrap_or(("", held));
+            (place.to_string(), table.to_string(), id.to_string())
+        };
+        let ((fp, ft, fi), (tp, tt, ti), (vp, _, vi)) = (ends(&from), ends(&to), ends(&via));
+        edges.insert(
+            id.clone(),
+            json!({"id": id, "from": from, "how": how, "to": to, "holds": holds, "via": via, "star": short(here),
+                   "from_place": fp, "from_star": short(&fp), "from_table": ft, "from_id": fi,
+                   "to_place": tp, "to_star": short(&tp), "to_table": tt, "to_id": ti,
+                   "via_star": short(&vp), "via_id": vi}),
+        );
     };
     for (here, (dir, mark, _)) in &places {
         for relation in relations() {
@@ -495,5 +509,40 @@ mod the_graph {
             .find(|e| e["how"] == "led to")
             .unwrap();
         assert!(led["holds"].is_null(), "{led:?}");
+        // each end is said as its parts, and what an edge carries is what the lens of the graph declares
+        let served = graph["edges"]
+            .iter()
+            .find(|e| e["how"] == "serves")
+            .unwrap();
+        assert_eq!(
+            [
+                &served["from_star"],
+                &served["from_table"],
+                &served["from_id"],
+                &served["to_star"],
+                &served["to_table"],
+                &served["to_id"]
+            ]
+            .map(|v| v.as_str().unwrap_or_default()),
+            ["a", "backlog", "a1", "a", "milestones", "m1"]
+        );
+        let lens = crate::lenses::lenses()
+            .into_iter()
+            .find(|l| l.lens.id == "graph")
+            .unwrap();
+        let declared: BTreeSet<String> = lens.tables["edges"]["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| f["name"].as_str().unwrap().to_string())
+            .chain(["star".to_string()])
+            .collect();
+        for e in &graph["edges"] {
+            assert_eq!(
+                e.keys().cloned().collect::<BTreeSet<_>>(),
+                declared,
+                "an edge carries what the lens declares"
+            );
+        }
     }
 }
