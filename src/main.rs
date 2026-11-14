@@ -207,6 +207,20 @@ enum Cmd {
         #[arg(long)]
         since: Option<std::path::PathBuf>,
     },
+    /// What may come next on a typed line, from a blank: read off the language and the rows that exist.
+    /// The last word is the one being typed (give "" for a blank). With --shell, answers as a shell asks -
+    /// complete -C 'ocoeco fits --shell' ocoeco - from COMP_LINE and COMP_POINT, one word to a line
+    Fits {
+        /// Answer as a shell asks: the typed line from COMP_LINE and COMP_POINT, the words alone
+        #[arg(long)]
+        shell: bool,
+        /// The place stood in, whose rows a link may point at
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+        /// What is typed after ocoeco, the last being the word being typed
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        words: Vec<String>,
+    },
     /// The board: every marked project's backlog under ROOT as one flow - in progress, waiting, next,
     /// and what needs attention
     Board {
@@ -566,6 +580,41 @@ fn run() -> Result<()> {
                     "{}",
                     ocoeco::dome::surface(&surface, width)?.lay_out(&parts)
                 ),
+            }
+        }
+        Cmd::Fits { shell, dir, words } => {
+            use clap::CommandFactory;
+            let commands: Vec<(String, String)> = Cli::command()
+                .get_subcommands()
+                .map(|c| {
+                    (
+                        c.get_name().to_string(),
+                        c.get_about().map(|a| a.to_string()).unwrap_or_default(),
+                    )
+                })
+                .collect();
+            let words = if shell {
+                let line = std::env::var("COMP_LINE").unwrap_or_default();
+                let point = std::env::var("COMP_POINT")
+                    .ok()
+                    .and_then(|p| p.parse().ok())
+                    .unwrap_or(line.chars().count());
+                ocoeco::fits::typed_line(&line, point)
+            } else if words.is_empty() {
+                vec![String::new()]
+            } else {
+                words
+            };
+            // a shell splits a word at a colon: it is answered with what comes after the last one typed
+            let typing = words.last().cloned().unwrap_or_default();
+            let cut = typing.rfind(':').map_or(0, |at| at + 1);
+            for f in ocoeco::fits::after(&words, &dir, &commands) {
+                match (shell, f.is.is_empty()) {
+                    (true, _) if f.word.is_empty() => {}
+                    (true, _) => println!("{}", &f.word[cut.min(f.word.len())..]),
+                    (false, true) => println!("{}", f.word),
+                    (false, false) => println!("{}  - {}", f.word, f.is),
+                }
             }
         }
         Cmd::Board { root } => {

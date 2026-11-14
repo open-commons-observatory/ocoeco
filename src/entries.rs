@@ -33,7 +33,8 @@ pub fn when(text: &str) -> Result<When> {
     })
 }
 
-fn entry(name: &str) -> Option<(Lens, Entry)> {
+/// The entry of that name, and the lens that declares it.
+pub fn entry(name: &str) -> Option<(Lens, Entry)> {
     lenses().into_iter().find_map(|l| {
         l.glimpse
             .iter()
@@ -49,7 +50,7 @@ pub fn is_entry(name: &str) -> bool {
 }
 
 /// The fields a table declares: name, whether it is needed, and the values it allows.
-fn fields(lens: &Lens, table: &str) -> Vec<(String, bool, Vec<String>)> {
+pub fn fields(lens: &Lens, table: &str) -> Vec<(String, bool, Vec<String>)> {
     let declared = lens
         .tables
         .get(table)
