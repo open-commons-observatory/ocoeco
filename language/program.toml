@@ -1,0 +1,73 @@
+# The lens of the program: what is behind the lenses. A lens is seen, and what it shows is how it is known
+# to be right; the program that reads the lenses is the part that cannot yet be looked through - and so
+# has guards written for it. This lens brings both into view: the source a place holds, and its guards.
+# Neither is kept by a place: both are read from the files of its repository, where the place is held -
+# the source whole, each file a row; the guards as a shape found in those files, each one a row that
+# names itself.
+[lens]
+id = "program"
+says = "The program behind the lenses: the source a place holds and the guards written for it - read from the files of its own repository where the place is held, each guard a shape found there."
+
+[tables.source]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "path", type = "string" },
+    { name = "lines", type = "integer" },
+    { name = "bytes", type = "integer" },
+]
+
+[tables.guards]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "name", type = "string" },
+    { name = "path", type = "string" },
+    { name = "line", type = "integer" },
+]
+
+# The source: every file of Rust within the place.
+[[route]]
+table = "source"
+from = "files"
+which = "**/*.rs"
+
+# The guards: within those files, every place a test is declared - the shape names the guard.
+[[route]]
+table = "guards"
+from = "files"
+which = "**/*.rs"
+shape = '#\[test\]\s*(?:#\[[^\]]*\]\s*)*(?:pub\s+)?(?:async\s+)?fn\s+(?P<name>[A-Za-z0-9_]+)'
+
+[[focus]]
+title = "the program a place holds, and the guards written for it ({count})"
+sql = """
+SELECT s.star, count(*) AS files, sum(s.lines) AS lines,
+       (SELECT count(*) FROM guards g WHERE g.star = s.star) AS guards
+FROM source s GROUP BY s.star ORDER BY lines DESC
+"""
+line = "{star} - {lines} lines in {files} file(s); {guards} guard(s)"
+
+[[focus]]
+title = "where the guards are, the most first ({count})"
+sql = """
+SELECT g.star, g.path, count(*) AS guards FROM guards g GROUP BY g.star, g.path ORDER BY guards DESC, g.star, g.path LIMIT 12
+"""
+line = "{star}/{path} - {guards} guard(s)"
+
+[[focus]]
+title = "what a guard says it holds - the longest said ({count})"
+sql = """
+SELECT g.star, g.path, replace(g.name, '_', ' ') AS says FROM guards g ORDER BY length(g.name) DESC, g.star LIMIT 8
+"""
+line = "{star}/{path} - {says}"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT count(*) FROM source) AS files, (SELECT coalesce(sum(lines), 0) FROM source) AS lines,
+       (SELECT count(*) FROM guards) AS guards, (SELECT count(DISTINCT star) FROM source) AS places
+"""
+line = "{lines} lines of program in {files} file(s) across {places} place(s); {guards} guard(s)"

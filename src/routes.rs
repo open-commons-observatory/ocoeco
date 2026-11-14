@@ -305,7 +305,7 @@ pub fn rows_by_route(table: &str, dirs: &[PathBuf]) -> usize {
 /// The kinds of surface a route may read from. Each is a small adapter here that makes rows when asked,
 /// from each place in view that is held where it can be read; nothing is stored. A new kind is a function
 /// here; a new route over a kind that exists is said in the language, by a lens.
-pub const KINDS: [&str; 1] = ["git history"];
+pub const KINDS: [&str; 2] = ["git history", "files"];
 
 /// The rows a route reads, each with the place it is of. What the lenses in view say is kept out is kept
 /// out of them as they are read - named where it stood - for a surface holds whatever was written on it.
@@ -325,6 +325,7 @@ pub fn read(
         };
         let read = match route.from.as_str() {
             "git history" => git_history(dir),
+            "files" => files(dir, route.which.as_deref(), route.shape.as_deref()),
             _ => Vec::new(),
         };
         for mut row in read {
@@ -370,6 +371,132 @@ fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
         .collect()
 }
 
+/// The files of the place itself - those within its folder whose path fits `which` - read as rows. Where
+/// no shape is said, each file is a row: its path, how many lines, how many bytes. Where one is, every
+/// place in a file the shape is found is a row: what the shape names are its fields, with the path and the
+/// line it was found on. A place reads its own files: a path that leaves its folder names nothing.
+fn files(
+    dir: &Path,
+    which: Option<&str>,
+    shape: Option<&str>,
+) -> Vec<serde_json::Map<String, serde_json::Value>> {
+    use serde_json::json;
+    let Some(which) = which.filter(|w| {
+        !w.is_empty()
+            && !w.starts_with('/')
+            && !w.starts_with('~')
+            && !w.split('/').any(|part| part == "..")
+    }) else {
+        return Vec::new();
+    };
+    let (Ok(wanted), Ok(carved)) = (
+        regex::Regex::new(&as_a_shape(which)),
+        shape.map(regex::Regex::new).transpose(),
+    ) else {
+        return Vec::new();
+    };
+    let mut rows = Vec::new();
+    let (mut folders, mut looked_at) = (vec![dir.to_path_buf()], 0usize);
+    while let Some(folder) = folders.pop() {
+        for path in std::fs::read_dir(&folder)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.path())
+        {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_string();
+            if path.is_symlink() {
+                continue;
+            }
+            if path.is_dir() {
+                // not what a place wrote: git's own folder, and what a build leaves
+                if !matches!(name.as_str(), ".git" | "target" | "node_modules") {
+                    folders.push(path);
+                }
+                continue;
+            }
+            looked_at += 1;
+            if looked_at > 50_000 {
+                break;
+            }
+            let Ok(within) = path.strip_prefix(dir) else {
+                continue;
+            };
+            let within = within.to_string_lossy().replace('\\', "/");
+            if !wanted.is_match(&within) {
+                continue;
+            }
+            let Some(text) = std::fs::metadata(&path)
+                .ok()
+                .filter(|m| m.len() <= 2_000_000)
+                .and_then(|_| std::fs::read_to_string(&path).ok())
+            else {
+                continue;
+            };
+            let Some(carved) = &carved else {
+                rows.extend(json!({"id": within, "path": within, "lines": text.lines().count(), "bytes": text.len()}).as_object().cloned());
+                continue;
+            };
+            for found in carved.captures_iter(&text) {
+                let line = text[..found.get(0).map_or(0, |whole| whole.start())]
+                    .matches('\n')
+                    .count()
+                    + 1;
+                let mut row = serde_json::Map::new();
+                for name in carved.capture_names().flatten() {
+                    if let Some(part) = found.name(name) {
+                        row.insert(name.to_string(), part.as_str().into());
+                    }
+                }
+                row.entry("id".to_string())
+                    .or_insert_with(|| format!("{within}:{line}").into());
+                row.insert("path".into(), within.clone().into());
+                row.insert("line".into(), line.into());
+                rows.push(row);
+            }
+        }
+    }
+    let placed = |row: &serde_json::Map<String, serde_json::Value>| {
+        (
+            row.get("path")
+                .and_then(|p| p.as_str())
+                .unwrap_or_default()
+                .to_string(),
+            row.get("line").and_then(|l| l.as_u64()).unwrap_or(0),
+        )
+    };
+    rows.sort_by_key(placed);
+    rows
+}
+
+/// Which paths, as a shape: ** any folders, * any name within one, ? any one letter of a name.
+fn as_a_shape(which: &str) -> String {
+    let mut shape = String::from("^");
+    let mut letters = which.chars().peekable();
+    while let Some(letter) = letters.next() {
+        match letter {
+            '*' if letters.peek() == Some(&'*') => {
+                letters.next();
+                if letters.peek() == Some(&'/') {
+                    letters.next();
+                    shape.push_str("(?:.*/)?");
+                } else {
+                    shape.push_str(".*");
+                }
+            }
+            '*' => shape.push_str("[^/]*"),
+            '?' => shape.push_str("[^/]"),
+            other => shape.push_str(&regex::escape(&other.to_string())),
+        }
+    }
+    shape.push('$');
+    shape
+}
+
 #[cfg(test)]
 mod a_route {
     use super::*;
@@ -385,6 +512,8 @@ mod a_route {
         let route = crate::lenses::Route {
             table: "commits".into(),
             from: "git history".into(),
+            which: None,
+            shape: None,
         };
         assert!(
             read(&route, std::slice::from_ref(&d)).is_empty(),
@@ -424,10 +553,84 @@ mod a_route {
         assert!(read(
             &crate::lenses::Route {
                 table: "x".into(),
-                from: "a kind there is no adapter for".into()
+                from: "a kind there is no adapter for".into(),
+                which: None,
+                shape: None,
             },
             std::slice::from_ref(&d)
         )
         .is_empty());
+    }
+}
+
+#[cfg(test)]
+mod a_shape_carved_from_files {
+    use super::*;
+
+    #[test]
+    fn a_place_s_own_files_are_rows_whole_or_as_a_shape_is_found_in_them() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-carved-{}", std::process::id()))
+            .join("o/held");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("src/deep")).unwrap();
+        std::fs::create_dir_all(d.join("target")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/held\"\nname = \"H: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n").unwrap();
+        std::fs::write(d.join("src/lib.rs"), "fn plain() {}\n\n#[test]\nfn it_holds() {}\n\n    #[test]\n    #[ignore]\n    fn and_this_too() {}\n").unwrap();
+        std::fs::write(d.join("src/deep/more.rs"), "#[test]\nfn deep_down() {}\n").unwrap();
+        std::fs::write(
+            d.join("target/built.rs"),
+            "#[test]\nfn what_a_build_left() {}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("notes.txt"), "not asked for\n").unwrap();
+        let route = |which: &str, shape: Option<&str>| crate::lenses::Route {
+            table: "t".into(),
+            from: "files".into(),
+            which: Some(which.into()),
+            shape: shape.map(str::to_string),
+        };
+        let whole = read(&route("**/*.rs", None), std::slice::from_ref(&d));
+        let paths: Vec<(&str, u64)> = whole
+            .iter()
+            .map(|(_, r)| (r["path"].as_str().unwrap(), r["lines"].as_u64().unwrap()))
+            .collect();
+        assert_eq!(
+            paths,
+            [("src/deep/more.rs", 2), ("src/lib.rs", 8)],
+            "each file a row - in any folder, but not what a build left"
+        );
+        let guards = read(
+            &route(
+                "**/*.rs",
+                Some(r"#\[test\]\s*(?:#\[[^\]]*\]\s*)*fn\s+(?P<name>[a-z0-9_]+)"),
+            ),
+            std::slice::from_ref(&d),
+        );
+        let found: Vec<(&str, &str, u64)> = guards
+            .iter()
+            .map(|(_, r)| {
+                (
+                    r["path"].as_str().unwrap(),
+                    r["name"].as_str().unwrap(),
+                    r["line"].as_u64().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("src/deep/more.rs", "deep_down", 1),
+                ("src/lib.rs", "it_holds", 3),
+                ("src/lib.rs", "and_this_too", 6)
+            ],
+            "every place the shape is found is a row, with what it names"
+        );
+        assert!(
+            read(&route("../**/*.rs", None), std::slice::from_ref(&d)).is_empty()
+                && read(&route("/etc/*", None), std::slice::from_ref(&d)).is_empty(),
+            "a place reads its own files"
+        );
+        assert_eq!(as_a_shape("src/*.rs"), r"^src/[^/]*\.rs$");
     }
 }

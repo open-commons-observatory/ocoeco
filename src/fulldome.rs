@@ -418,7 +418,15 @@ mod tests {
         let mut dome = InTerminal::new("this place".into());
         assert_eq!(dome.lens(), "work", "the flow of work is where one begins");
         dome.text = "in progress (1)\n  claude: r/a - A".into();
-        dome.lenses[0].2 = false; // as if the first lens had no focus yet
+        // as if the lens beside the chosen one had no focus yet: one in view however many lenses there are
+        let beside = dome
+            .lenses
+            .iter()
+            .position(|lens| lens.0 == "work")
+            .expect("the chosen lens")
+            - 1;
+        dome.lenses[beside].2 = false;
+        let unfocused = format!("{} ·", dome.lenses[beside].0);
         let view = seen(&dome);
         for lens in [
             "knowledge",
@@ -438,7 +446,7 @@ mod tests {
             "{view}"
         );
         assert!(
-            view.contains("around ·") && !view.contains("problems ·"),
+            view.contains(&unfocused) && !view.contains("problems ·"),
             "a lens with no focus yet is marked:\n{view}"
         );
     }

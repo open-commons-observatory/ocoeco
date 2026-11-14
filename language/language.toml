@@ -81,6 +81,8 @@ fields = [
     { name = "lens", type = "string", required = true },
     { name = "of_table", type = "string", required = true },
     { name = "from", type = "string", required = true },
+    { name = "which", type = "string" },
+    { name = "shape", type = "string" },
 ]
 
 [tables.lens_parts]
@@ -118,7 +120,7 @@ asks = ["says", "reads", "grew_from"]
 entry = "route"
 says = "A route a lens says: a table whose rows are read from a kind of surface where each place is held, when asked for - not kept by a place."
 table = "lens_routes"
-asks = ["lens", "of_table", "from"]
+asks = ["lens", "of_table", "from", "which", "shape"]
 
 [[glimpse]]
 entry = "part"
@@ -155,9 +157,12 @@ asks = ["lens", "from", "to", "passes_over", "level", "nature"]
 [[focus]]
 title = "a table read from a surface, not kept by a place ({count})"
 sql = """
-SELECT of_table, "from" AS surface, lens FROM lens_routes ORDER BY of_table
+SELECT of_table, "from" AS surface, lens,
+       CASE WHEN coalesce(which, '') = '' THEN '' ELSE ' - which: ' || which END AS of_which,
+       CASE WHEN coalesce(shape, '') = '' THEN '' ELSE ' - the shape taken from each: ' || shape END AS carved
+FROM lens_routes ORDER BY lens, of_table
 """
-line = "{of_table} - read from: {surface} (said by the lens {lens})"
+line = "{of_table} - read from: {surface}{of_which}{carved} (said by the lens {lens})"
 
 [[focus]]
 title = "a name that holds different kinds of value in different tables ({count})"
