@@ -10,7 +10,8 @@ says = "A surface, said by a lens: a plane laid out as plain text - a heading wi
 # What a lens brings into focus, as rows - a plane, in the order it is laid out: a lens placed within it,
 # by its name (of_lens) and what it says of itself, or why it brought nothing; a part's heading; and each
 # line - whether it sits beneath a heading (inset), how far along a chain it is (along), its measure of a
-# whole where it has one (so_much, of_all), and what it is about. Made by the program from the lens stood
+# whole where it has one (so_much, of_all), what it is about, and the thing it is about where its answer
+# names one - so that any surface can offer standing on it. Made by the program from the lens stood
 # on; kept by no place.
 [tables.plane]
 extra_fields = true
@@ -26,6 +27,7 @@ fields = [
   { name = "so_much", type = "number" },
   { name = "of_all", type = "number" },
   { name = "about", type = "string" },
+  { name = "thing", type = "string" },
   { name = "urgent", type = "boolean" },
 ]
 

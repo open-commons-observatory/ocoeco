@@ -13,6 +13,67 @@ use tad::sql::SqlEngine;
 
 /// Gathers the lens's tables from the places at `dirs` into `into`, each row with its star and seq -
 /// its place in the order gathered - and returns the declaration of what was gathered.
+/// The things there are, by name: each by where it is held, its table and its id - and, with the table
+/// left out, by its star and id where that names one thing only.
+#[derive(Default)]
+pub struct Named {
+    whole: std::collections::BTreeSet<String>,
+    by_star_and_id: std::collections::BTreeMap<(String, String), Option<String>>,
+}
+
+impl Named {
+    /// The things of the places in view.
+    pub fn of(dirs: &[PathBuf]) -> Result<Named> {
+        let mut named = Named::default();
+        let mut graph = crate::relations::as_graph(dirs)?;
+        for thing in graph.remove("things").unwrap_or_default() {
+            let said = |key: &str| thing.get(key).and_then(|v| v.as_str());
+            let (Some(id), Some(star), Some(table), Some(place)) =
+                (said("id"), said("star"), said("of_table"), said("place"))
+            else {
+                continue;
+            };
+            let Some(own) = id.strip_prefix(&format!("{place}/{table}:")) else {
+                continue;
+            };
+            let name = format!("{star}/{table}:{own}");
+            named
+                .by_star_and_id
+                .entry((star.to_string(), own.to_string()))
+                .and_modify(|one| *one = None)
+                .or_insert_with(|| Some(name.clone()));
+            named.whole.insert(name);
+        }
+        Ok(named)
+    }
+
+    /// The thing an answer is about: the value it calls `thing`, or else the first of its values that is
+    /// a thing's name - or its star and id, where they are one thing only.
+    pub fn thing(&self, answer: &Map<String, Value>) -> Option<String> {
+        let said = |key: &str| answer.get(key).and_then(|v| v.as_str());
+        said("thing")
+            .filter(|thing| self.whole.contains(*thing))
+            .or_else(|| {
+                answer
+                    .values()
+                    .filter_map(|v| v.as_str())
+                    .find(|value| self.whole.contains(*value))
+            })
+            .map(str::to_string)
+            .or_else(|| {
+                self.by_star_and_id
+                    .get(&(said("star")?.to_string(), said("id")?.to_string()))
+                    .cloned()
+                    .flatten()
+            })
+    }
+}
+
+/// Whether the lens of that name says where one stands: it is looked through from a thing.
+pub fn stands_somewhere(lens: &str, dirs: &[PathBuf]) -> bool {
+    crate::lenses::with(dirs).is_ok_and(|all| all.iter().any(|l| l.lens.id == lens && says_here(l)))
+}
+
 /// The table a surface reads: what another lens brings into focus, as rows.
 pub const OF_A_PLANE: &str = "plane";
 
@@ -25,7 +86,7 @@ pub fn lays_out_a_plane(lens: &Lens) -> bool {
 /// by its name and what it says of itself, or why it brought nothing; a part's heading; and each line,
 /// with how far along it is, its measure of a whole where it has one, and what it is about. A surface
 /// said by a lens reads these, and lays them out its own way.
-pub fn as_plane(parts: &[Brought]) -> Vec<Map<String, Value>> {
+pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
     fn row(kind: &str, says: &str, depth: u64, urgent: bool) -> Map<String, Value> {
         let mut row = Map::new();
         row.insert("kind".into(), kind.into());
@@ -34,7 +95,7 @@ pub fn as_plane(parts: &[Brought]) -> Vec<Map<String, Value>> {
         row.insert("urgent".into(), urgent.into());
         row
     }
-    fn rows(parts: &[Brought], depth: u64, into: &mut Vec<Map<String, Value>>) {
+    fn rows(parts: &[Brought], depth: u64, into: &mut Vec<Map<String, Value>>, named: &Named) {
         for part in parts {
             if let Some(about) = &part.about {
                 let mut placed = row("lens", about, depth, part.urgent);
@@ -45,7 +106,7 @@ pub fn as_plane(parts: &[Brought]) -> Vec<Map<String, Value>> {
                 into.push(placed);
                 match &part.nothing_because {
                     Some(why) => into.push(row("nothing", why, depth, part.urgent)),
-                    None => rows(&part.within, depth + 1, into),
+                    None => rows(&part.within, depth + 1, into, named),
                 }
                 continue;
             }
@@ -63,12 +124,17 @@ pub fn as_plane(parts: &[Brought]) -> Vec<Map<String, Value>> {
                 if let Some(about) = part.keys.get(at) {
                     line.insert("about".into(), about.clone().into());
                 }
+                // the thing a line is about, where its answer names one: so that any surface can offer
+                // standing on it, its own way - and none has to guess it from the words
+                if let Some(thing) = part.values.get(at).and_then(|answer| named.thing(answer)) {
+                    line.insert("thing".into(), thing.into());
+                }
                 into.push(line);
             }
         }
     }
     let mut all = Vec::new();
-    rows(parts, 0, &mut all);
+    rows(parts, 0, &mut all, named);
     for (nth, row) in all.iter_mut().enumerate() {
         row.insert("id".into(), (nth + 1).to_string().into());
     }
@@ -280,7 +346,7 @@ pub struct Brought {
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
 /// Whether a lens says anything of where one stands.
-fn says_here(lens: &Lens) -> bool {
+pub fn says_here(lens: &Lens) -> bool {
     lens.focus.iter().any(|p| {
         p.sql.contains("{here}") || p.title.as_deref().is_some_and(|t| t.contains("{here}"))
     })
@@ -553,7 +619,8 @@ fn brought_anew(
     // It is looked through from that lens - surface@lens - and the plane it reads is that lens's, as rows;
     // looked through from nothing, it has nothing to lay out
     let plane = lays_out_a_plane(found).then(|| match here {
-        Some(of) => brought(of, dirs, today, engine).map(|parts| as_plane(&parts)),
+        Some(of) => brought(of, dirs, today, engine)
+            .and_then(|parts| Ok(as_plane(&parts, &Named::of(dirs)?))),
         None => Ok(Vec::new()),
     });
     let plane = plane.transpose()?;
@@ -2028,5 +2095,77 @@ mod a_surface_said_by_a_lens {
         assert!(on("lines", "as-text").is_empty());
         // and a surface is not a part of the whole: the fulldome places every lens but the surfaces
         assert!(!on("text", "fulldome").contains("as-text:"));
+    }
+}
+
+#[cfg(test)]
+mod what_a_line_is_about {
+    use super::*;
+
+    #[test]
+    fn a_plane_says_the_thing_each_line_is_about_where_its_answer_names_one() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-about-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nproblems = \"data/problems.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/backlog.json"),
+            "{\"id\":\"a\",\"title\":\"A\"}\n{\"id\":\"both\",\"title\":\"B\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("data/problems.json"), "{\"id\":\"s\",\"what\":\"it lacks\"}\n{\"id\":\"both\",\"what\":\"two of one name\"}\n").unwrap();
+        let named = Named::of(std::slice::from_ref(&d)).unwrap();
+        let answer = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), Value::from(*v)))
+                .collect::<Map<String, Value>>()
+        };
+        // the value an answer calls thing; or any value that is a thing's name
+        assert_eq!(
+            named.thing(&answer(&[("thing", "p/backlog:a")])).as_deref(),
+            Some("p/backlog:a")
+        );
+        assert_eq!(
+            named
+                .thing(&answer(&[("root", "p/problems:s"), ("says", "words")]))
+                .as_deref(),
+            Some("p/problems:s")
+        );
+        // or its star and id, where they are one thing only - and not where they could be two
+        assert_eq!(
+            named
+                .thing(&answer(&[("star", "p"), ("id", "s")]))
+                .as_deref(),
+            Some("p/problems:s")
+        );
+        assert_eq!(named.thing(&answer(&[("star", "p"), ("id", "both")])), None);
+        assert_eq!(
+            named.thing(&answer(&[("says", "p/backlog:a is spoken of here")])),
+            None,
+            "words that speak of a thing do not name it"
+        );
+        // and the plane carries it, line by line
+        let part = Brought {
+            title: Some("showing (1)".into()),
+            lines: vec!["p/s - it lacks".into(), "a line about nothing".into()],
+            values: vec![
+                answer(&[("star", "p"), ("id", "s")]),
+                answer(&[("said", "x")]),
+            ],
+            ..Default::default()
+        };
+        let plane = as_plane(&[part], &named);
+        let about: Vec<Option<&str>> = plane
+            .iter()
+            .map(|row| row.get("thing").and_then(|t| t.as_str()))
+            .collect();
+        assert_eq!(
+            about,
+            [None, Some("p/problems:s"), None],
+            "a heading, a line about a thing, a line about none"
+        );
     }
 }
