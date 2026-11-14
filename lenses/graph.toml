@@ -36,6 +36,9 @@ fields = [
     { name = "to_id", type = "string" },
     { name = "via_star", type = "string" },
     { name = "via_id", type = "string" },
+    { name = "written", type = "string" },
+    { name = "from_written", type = "string" },
+    { name = "from_holds", type = "boolean" },
 ]
 
 [[focus]]
@@ -87,7 +90,8 @@ line = "{how} - {depth} links long, from {began} to {ended}"
 # of signs' to say, and it asks of this shape - one place, read by whoever needs it.
 named = "nowhere"
 sql = """
-SELECT "from", how, "to", from_star, from_table, from_id, to_star, to_table, to_id FROM edges WHERE holds = false
+SELECT "from", how, "to", from_star, from_table, from_id, to_star, to_table, to_id FROM edges
+WHERE holds = false OR from_holds = false
 """
 
 [[focus]]
