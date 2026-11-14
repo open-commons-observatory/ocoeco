@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.10.0...ocoeco-v0.11.0) (2026-11-14)
+
+
+### Features
+
+* a name is not the place: a table's other names, and a link's level ([#149](https://github.com/open-commons-observatory/ocoeco/issues/149)) ([d73e97f](https://github.com/open-commons-observatory/ocoeco/commit/d73e97fce62d80e53c52f48cc6dcff2dbf6277eb))
+* what fits here: from a blank, what may come next ([#147](https://github.com/open-commons-observatory/ocoeco/issues/147)) ([584b665](https://github.com/open-commons-observatory/ocoeco/commit/584b665efc015db32add7cdb81b3fc6951af4b73))
+
 ## [0.10.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.9.0...ocoeco-v0.10.0) (2026-11-14)
 
 
