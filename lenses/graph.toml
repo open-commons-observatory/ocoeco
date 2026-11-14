@@ -49,10 +49,16 @@ FROM edges WHERE holds GROUP BY "to" ORDER BY times DESC, "to" LIMIT 12
 """
 line = "{shown} - pointed at {times} time(s): {hows}"
 
+# What is pointed at by a link that holds: one shape, named, that the parts below ask of.
+[[focus]]
+named = "pointed"
+sql = """
+SELECT DISTINCT "to" AS id FROM edges WHERE holds
+"""
+
 [[focus]]
 title = "what nothing points at, by kind ({count})"
 sql = """
-WITH pointed AS (SELECT DISTINCT "to" AS id FROM edges WHERE holds)
 SELECT t.of_table, count(*) AS kept, count(*) FILTER (WHERE p.id IS NULL) AS alone
 FROM things t LEFT JOIN pointed p ON p.id = t.id
 GROUP BY t.of_table ORDER BY alone DESC, t.of_table
@@ -116,7 +122,6 @@ WHERE holds = false OR from_holds = false
 [[focus]]
 always = true
 sql = """
-WITH pointed AS (SELECT DISTINCT "to" AS id FROM edges WHERE holds)
 SELECT (SELECT count(*) FROM things) AS things, (SELECT count(*) FROM edges) AS edges,
        (SELECT count(*) FROM things t WHERE t.id NOT IN (SELECT id FROM pointed)) AS alone,
        (SELECT count(*) FROM edges WHERE holds IS NULL) AS unseen
