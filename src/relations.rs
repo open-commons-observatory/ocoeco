@@ -19,6 +19,11 @@ pub struct Relation {
     /// not part of its id.
     #[serde(default)]
     pub level: Option<String>,
+    /// The nature of this pointing, where its field's name is one word among several for it: what a
+    /// thing rests on, what it is for, what it follows, what it is about. Where none is said, the
+    /// field's own name is its nature.
+    #[serde(default)]
+    pub nature: Option<String>,
 }
 
 /// The relations of the shared language: those every lens declares.
@@ -365,6 +370,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     here: &str,
                     written: String,
                     level: String,
+                    nature: String,
                     (from_written, from_holds): (String, Option<bool>)| {
         let id = if via.is_empty() {
             format!("{from} {how} {to}")
@@ -386,7 +392,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                    "to_place": tp, "to_star": short(&tp), "to_table": tt, "to_id": ti,
                    "via_star": short(&vp), "via_id": vi,
                    "written": written, "from_written": from_written, "from_holds": from_holds,
-                   "level": level}),
+                   "level": level, "nature": nature}),
         );
     };
     for (here, held) in places
@@ -438,6 +444,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         here,
                         written(link),
                         level,
+                        relation.nature.clone().unwrap_or_else(|| field.to_string()),
                         (String::new(), Some(true)),
                     );
                 }
@@ -462,6 +469,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     here,
                     other.clone(),
                     String::new(),
+                    "gathers".to_string(),
                     (String::new(), Some(true)),
                 );
             }
@@ -487,6 +495,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         here,
                         written(&that),
                         String::new(),
+                        how.to_string(),
                         (written(&this), near_holds),
                     );
                 }
@@ -684,6 +693,11 @@ mod the_graph {
         };
         let served = edge("o/a/backlog:a1", "serves")
             .expect("a link a row holds is an edge named by its field");
+        assert_eq!(
+            served["nature"].as_str(),
+            Some("is for"),
+            "and says the nature of its pointing, where its lens says one"
+        );
         assert_eq!(
             (served["to"].as_str(), served["holds"].as_bool()),
             (Some("o/a/milestones:m1"), Some(true))

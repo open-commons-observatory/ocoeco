@@ -38,10 +38,12 @@ fields = [
 [[relation]]
 from = "reflections.touches"
 to = ["*"]
+nature = "is about"
 
 [[relation]]
 from = "reflections.answers"
 to = ["reflections"]
+nature = "follows"
 
 # The glimpse of the lens of looking back.
 [[glimpse]]

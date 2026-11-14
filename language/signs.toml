@@ -50,6 +50,7 @@ fields = [
 [[relation]]
 from = "problems.where"
 to = ["*"]
+nature = "is about"
 
 # The glimpse of the lens of signs.
 [[glimpse]]

@@ -41,6 +41,7 @@ fields = [
     { name = "from_written", type = "string" },
     { name = "from_holds", type = "boolean" },
     { name = "level", type = "string" },
+    { name = "nature", type = "string" },
 ]
 
 [[focus]]
@@ -70,12 +71,14 @@ measure = "alone"
 whole = "kept"
 
 [[focus]]
-title = "how things point ({count})"
+title = "how things point, by the nature of the pointing ({count})"
 sql = """
-SELECT how, count(*) AS links, count(DISTINCT "from") AS sources, count(DISTINCT "to") AS ends FROM edges
-GROUP BY how ORDER BY links DESC, how
+SELECT nature, count(*) AS links,
+       CASE WHEN count(DISTINCT how) > 1 OR min(how) <> nature
+            THEN ', said in ' || count(DISTINCT how) || ' word(s): ' || string_agg(DISTINCT how, ', ' ORDER BY how) ELSE '' END AS said
+FROM edges GROUP BY nature ORDER BY links DESC, nature
 """
-line = "{how} - {links} links, from {sources} things to {ends}"
+line = "{nature} - {links} links{said}"
 
 [[focus]]
 title = "the longest line of one kind ({count})"
