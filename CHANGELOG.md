@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.2...ocoeco-v0.29.0) (2026-11-14)
+
+
+### Features
+
+* a table entered as itself, held to its place's own declaration ([#221](https://github.com/open-commons-observatory/ocoeco/issues/221)) ([e9a2740](https://github.com/open-commons-observatory/ocoeco/commit/e9a2740b68c04751d8f9ac4458c0cfda7bd98768))
+* a table kept on another branch is read where held; a step is an item that serves an item ([#219](https://github.com/open-commons-observatory/ocoeco/issues/219)) ([9f30a72](https://github.com/open-commons-observatory/ocoeco/commit/9f30a728951119498d61c1040447e582df9f62b5))
+
 ## [0.28.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.1...ocoeco-v0.28.2) (2026-11-14)
 
 
