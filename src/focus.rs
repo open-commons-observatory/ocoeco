@@ -5,9 +5,7 @@
 //! of the ways a focus may be laid out.
 
 use crate::dome::Dome;
-use crate::join::rows;
 use crate::lenses::Lens;
-use crate::mark::Mark;
 use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
@@ -53,49 +51,20 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
                 text.push('\n');
             }
         }
-        for dir in dirs.iter().filter(|_| !own) {
-            // what was observed is a place too: a folder of tables whose every row names its project
-            if !dir.join("oco.toml").is_file() && dir.join("projects.json").is_file() {
-                for mut fields in crate::harvest::read_rows(&dir.join(format!("{table}.json"))) {
-                    let project = fields
-                        .get("project")
-                        .and_then(|p| p.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    seq += 1;
-                    fields.insert(
-                        "star".into(),
-                        project.rsplit('/').next().unwrap_or(&project).into(),
-                    );
-                    fields.insert("seq".into(), seq.into());
-                    text.push_str(&serde_json::to_string(&fields)?);
-                    text.push('\n');
-                }
-                continue;
-            }
-            let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
-                .map_err(anyhow::Error::from)
-                .and_then(|t| Mark::parse(&t))
-            else {
-                continue;
-            };
-            let star = mark
-                .project
-                .id
-                .rsplit('/')
-                .next()
-                .unwrap_or(&mark.project.id)
-                .to_string();
-            for mut row in rows(dir, &mark, table) {
-                let Some(fields) = row.as_object_mut() else {
-                    continue;
-                };
-                seq += 1;
-                fields.insert("star".into(), star.clone().into());
-                fields.insert("seq".into(), seq.into());
-                text.push_str(&serde_json::to_string(&row)?);
-                text.push('\n');
-            }
+        // the rows of the table as the places in view have them: each once, with the place it is of -
+        // by whatever route it came (the ways in say how)
+        for (place, mut fields) in crate::routes::rows_by_place(table, dirs)
+            .into_iter()
+            .filter(|_| !own)
+        {
+            seq += 1;
+            fields.insert(
+                "star".into(),
+                place.rsplit('/').next().unwrap_or(&place).into(),
+            );
+            fields.insert("seq".into(), seq.into());
+            text.push_str(&serde_json::to_string(&fields)?);
+            text.push('\n');
         }
         std::fs::write(into.join(format!("{table}.json")), text)?;
         let mut declared = declared.clone();
