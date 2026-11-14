@@ -69,6 +69,7 @@ fields = [
     { name = "to", type = "string", required = true },
     { name = "passes_over", type = "string" },
     { name = "level", type = "string" },
+    { name = "nature", type = "string" },
 ]
 
 [tables.lens_parts]
@@ -130,7 +131,7 @@ asks = ["lens", "entry", "says", "fills", "asks", "supplies"]
 entry = "relation"
 says = "A relation a lens declares: the field whose values are links, the tables they point into, and what is passed over."
 table = "lens_relations"
-asks = ["lens", "from", "to", "passes_over", "level"]
+asks = ["lens", "from", "to", "passes_over", "level", "nature"]
 
 [[focus]]
 title = "a name that holds different kinds of value in different tables ({count})"

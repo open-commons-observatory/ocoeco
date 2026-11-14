@@ -22,19 +22,23 @@ fields = [
 [[relation]]
 from = "decisions.research"
 to = ["research"]
+nature = "rests on"
 
 [[relation]]
 from = "decisions.sources"
 to = ["sources"]
+nature = "rests on"
 
 [[relation]]
 from = "decisions.about"
 to = ["milestones", "concepts", "backlog"]
+nature = "is about"
 
 # one decision refining or replacing another - until 2026-11-12 written as prose
 [[relation]]
 from = "decisions.refines"
 to = ["decisions"]
+nature = "follows"
 
 # The glimpse of the lens of reasoning.
 [[glimpse]]

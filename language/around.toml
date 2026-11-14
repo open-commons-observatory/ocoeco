@@ -1,6 +1,7 @@
 # The lens of around: looked through from one thing. Every other lens looks across a kind of thing; this
 # one stands on a thing - ocoeco focus around@ecosystem/backlog:the-simplest-lens - and shows what it
-# points at and what points at it, each by how, with a few words of what each is. To step is to stand on a
+# points at and what points at it, each by the nature of the pointing - what it rests on, what it is for,
+# what it follows, what it is about - with a few words of what each is. To step is to stand on a
 # neighbour: the same lens, from there. So one walks - toward what a thing is for, toward what it rests on,
 # and back - without the relations being lost on the way. The thing is named as the graph names it: where
 # it is held, its table, its id - the place in full, or by its star.
@@ -56,21 +57,23 @@ line = "{thing} - {says}"
 [[focus]]
 title = "from here - what it points at ({count})"
 sql = """
-SELECT e.how, e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
+SELECT e.nature, CASE WHEN e.nature <> e.how THEN ' (' || e.how || ')' ELSE '' END AS said_as,
+       e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
        CASE WHEN e.holds THEN '' WHEN e.holds IS NULL THEN ' (not in view from here)' ELSE ' (points nowhere)' END AS held
 FROM edges e JOIN here h ON e."from" = h.id LEFT JOIN things t ON t.id = e."to"
-ORDER BY e.how, thing
+ORDER BY e.nature, e.how, thing
 """
-line = "{how} - {thing}{held} - {says}"
+line = "this {nature} {thing}{said_as}{held} - {says}"
 
 [[focus]]
 title = "to here - what points at it ({count})"
 sql = """
-SELECT e.how, e.from_star || '/' || e.from_table || ':' || e.from_id AS thing, coalesce(t.says, '') AS says
+SELECT e.nature, CASE WHEN e.nature <> e.how THEN ' (' || e.how || ')' ELSE '' END AS said_as,
+       e.from_star || '/' || e.from_table || ':' || e.from_id AS thing, coalesce(t.says, '') AS says
 FROM edges e JOIN here h ON e."to" = h.id LEFT JOIN things t ON t.id = e."from"
-ORDER BY e.how, thing
+ORDER BY e.nature, e.how, thing
 """
-line = "{thing} - {how} - {says}"
+line = "{thing} {nature} this{said_as} - {says}"
 
 [[focus]]
 always = true

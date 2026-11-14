@@ -66,20 +66,24 @@ fields = [
 [[relation]]
 from = "glimpses.advances"
 to = ["*"]
+nature = "is for"
 
 [[relation]]
 from = "glimpses.touches"
 to = ["*"]
+nature = "is about"
 
 # Where a record of work was made: the things stood on while it was done - supplied by the act of looking
 # through a lens from a thing, never typed. The work is seen where it happens.
 [[relation]]
 from = "glimpses.where"
 to = ["*"]
+nature = "is about"
 
 [[relation]]
 from = "workings.serves"
 to = ["milestones", "backlog"]
+nature = "is for"
 
 # The glimpse of the lens of results. The record of work as it is done has its own way in -
 # ocoeco glimpse "what was done" - and work done by hand is recorded by ocoeco manual.

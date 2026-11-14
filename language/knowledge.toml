@@ -52,10 +52,12 @@ fields = [
 [[relation]]
 from = "research.sources"
 to = ["sources"]
+nature = "rests on"
 
 [[relation]]
 from = "vocabulary.decided"
 to = ["decisions"]
+nature = "rests on"
 
 # The glimpse of the lens of knowledge.
 [[glimpse]]

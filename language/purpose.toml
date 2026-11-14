@@ -35,6 +35,7 @@ fields = [
 [[relation]]
 from = "milestones.criteria"
 to = ["*"]
+nature = "rests on"
 passes_over = ["@"]
 
 # A condition is a link too: it names a feature and the level it must reach (feature:voice-calls@linux-best) -
@@ -45,6 +46,7 @@ passes_over = ["@"]
 [[relation]]
 from = "milestones.criteria"
 to = ["*"]
+nature = "rests on"
 level = "@"
 passes_over = ["*@"]
 

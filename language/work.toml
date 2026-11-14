@@ -28,6 +28,7 @@ fields = [
 [[relation]]
 from = "backlog.serves"
 to = ["milestones", "decisions"]
+nature = "is for"
 
 # The glimpse of the lens of work: what can be entered through it. A person is asked only for what
 # the computer cannot know; the rest is supplied - and what a person does give always stands.
