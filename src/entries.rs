@@ -289,7 +289,10 @@ pub fn enter(name: &str, args: &[String], today: &str, who: &str) -> Result<Stri
             });
         }
     }
-    note(&dir, &e.table, &id, &changes, today)
+    let said = note(&dir, &e.table, &id, &changes, today)?;
+    // what was entered is what the next record of work touched: remembered, as a row written by note is
+    crate::glimpse::remember(&dir, &e.table, &id)?;
+    Ok(said)
 }
 
 /// The row as it is now, if there is one.
