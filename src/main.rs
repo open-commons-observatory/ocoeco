@@ -574,6 +574,13 @@ fn run() -> Result<()> {
                 single,
                 ocoeco::lenses::with(&places)?,
                 |lens, looking| {
+                    // standing on a thing in the dome is a step on the driver's trail, as it is from a shell
+                    if let Some(thing) = ocoeco::focus::stood_on(lens, &places) {
+                        let who = std::env::var("OCOECO_BY")
+                            .or_else(|_| std::env::var("USER"))
+                            .unwrap_or_else(|_| "someone".into());
+                        ocoeco::trail::step(&who, &thing);
+                    }
                     let found = ocoeco::lenses::with(&places)
                         .unwrap_or_default()
                         .into_iter()
@@ -605,6 +612,27 @@ fn run() -> Result<()> {
                     ocoeco::relations::guarded(&dir, || {
                         ocoeco::entries::enter(entry, &all, &today, &who)
                     })
+                },
+                // the things there are to stand on, each by where it is held, its table and its id
+                || {
+                    ocoeco::relations::as_graph(&places)
+                        .map(|mut graph| graph.remove("things").unwrap_or_default())
+                        .unwrap_or_default()
+                        .iter()
+                        .filter_map(|thing| {
+                            let said = |key: &str| thing.get(key).and_then(|v| v.as_str());
+                            let (id, star, table, place) = (
+                                said("id")?,
+                                said("star")?,
+                                said("of_table")?,
+                                said("place")?,
+                            );
+                            Some(format!(
+                                "{star}/{table}:{}",
+                                id.strip_prefix(&format!("{place}/{table}:"))?
+                            ))
+                        })
+                        .collect()
                 },
             )?;
         }
