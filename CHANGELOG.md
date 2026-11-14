@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.29.0...ocoeco-v0.30.0) (2026-11-14)
+
+
+### Features
+
+* a route said in the language: git history, read where a place is held ([#222](https://github.com/open-commons-observatory/ocoeco/issues/222)) ([d9cf8a8](https://github.com/open-commons-observatory/ocoeco/commit/d9cf8a8f04917cee3188dd3f8c9c87f92e4559a7))
+
 ## [0.29.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.2...ocoeco-v0.29.0) (2026-11-14)
 
 
