@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.25.0...ocoeco-v0.25.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* a relation is a relation whoever declares it ([#201](https://github.com/open-commons-observatory/ocoeco/issues/201)) ([70450b4](https://github.com/open-commons-observatory/ocoeco/commit/70450b47b826a0c01aea6a98336f2bad468446a1))
+
 ## [0.25.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.24.0...ocoeco-v0.25.0) (2026-11-14)
 
 
