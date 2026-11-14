@@ -2,7 +2,7 @@
 [lens]
 id = "purpose"
 says = "Why a star exists and what it must reach: its idea, and its milestones with what makes each reached."
-reads = ["backlog", "edges"]
+reads = ["backlog", "edges", "holding"]
 
 [tables.idea]
 key = ["id"]
@@ -75,6 +75,25 @@ line = "{star} - {says}"
 # name items of the backlog (backlog:id), read off the graph's edges; other criteria are conditions told by tests (a feature at a
 # level), which this lens does not judge and says so. readiness is not how ready a milestone is: it is
 # its rung on the path, earned in order - shown as the rung it is.
+# A milestone ahead is praise of work that fills a gap: read off what holds things back. Followed as far as
+# halts lead, the work that would free the most, once done, is the work ahead - seen, not placed by taste.
+# What holds things back is the work lens's to know (its shape holding); this lens only asks of it.
+[[focus]]
+title = "ahead - what, once done, would free the most ({count})"
+sql = """
+WITH RECURSIVE freed(root, star, id, depth) AS (
+  SELECT halter, star, id, 1 FROM holding
+  UNION
+  SELECT f.root, k.star, k.id, f.depth + 1
+  FROM freed f JOIN holding k ON k.halter_table = 'backlog' AND k.halter_star = f.star AND k.halter_id = f.id
+  WHERE f.depth < 12
+)
+SELECT root, count(DISTINCT star || '/' || id) AS frees,
+       string_agg(DISTINCT star || '/' || id, ', ' ORDER BY star || '/' || id) AS which
+FROM freed GROUP BY root HAVING count(DISTINCT star || '/' || id) > 1 ORDER BY frees DESC, root LIMIT 8
+"""
+line = "{root} - would free {frees}: {which}"
+
 [[focus]]
 named = "rests"
 sql = """
