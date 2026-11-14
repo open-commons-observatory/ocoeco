@@ -274,3 +274,19 @@ mod one_thing_by_two_routes {
         assert_eq!(said, [("o/star", "o/star:ci", "success"), ("o/first", "x:ci", "-")], "one run, as it last was, of the place it names; a row naming a place not in view stays with its keeper");
     }
 }
+
+/// How many rows of a table arrive by every route among these places, before the same thing seen twice
+/// is taken as one.
+pub fn rows_by_route(table: &str, dirs: &[PathBuf]) -> usize {
+    dirs.iter()
+        .map(|dir| {
+            match std::fs::read_to_string(dir.join("oco.toml"))
+                .ok()
+                .and_then(|t| crate::mark::Mark::parse(&t).ok())
+            {
+                Some(mark) => crate::join::rows(dir, &mark, table).len(),
+                None => crate::harvest::read_rows(&dir.join(format!("{table}.json"))).len(),
+            }
+        })
+        .sum()
+}

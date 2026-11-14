@@ -787,8 +787,12 @@ pub fn beam(
                         } else if crate::relations::OF_THE_GRAPH.contains(&t.as_str()) {
                             format!("{t} - {rows} rows made from the links between what is in view, now")
                         } else {
+                            // what arrived by each route - and, where the same thing came by more than one, how
+                            // many are in view: each once, as it last was
+                            let arrived = crate::routes::rows_by_route(t, dirs);
                             match crate::routes::of_a_table(t, dirs).join("; ") {
                                 came if came.is_empty() => format!("{t} - no rows, from anywhere in view"),
+                                came if arrived != *rows => format!("{t} - {came} - {rows} in view, each once, as it last was"),
                                 came => format!("{t} - {came}"),
                             }
                         }
