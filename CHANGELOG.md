@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.14.0...ocoeco-v0.15.0) (2026-11-14)
+
+
+### Features
+
+* a lens made whole through entries: tables, relations, entries, parts ([#158](https://github.com/open-commons-observatory/ocoeco/issues/158)) ([da81635](https://github.com/open-commons-observatory/ocoeco/commit/da8163553840f15b08b0bc06961be9aebed43061))
+
 ## [0.14.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.13.0...ocoeco-v0.14.0) (2026-11-14)
 
 
