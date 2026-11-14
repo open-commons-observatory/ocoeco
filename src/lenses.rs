@@ -582,7 +582,7 @@ mod tests {
         let signs = all.iter().find(|l| l.lens.id == "signs").unwrap();
         assert_eq!(
             signs.lens.reads,
-            ["backlog", "connections", "edges", "nowhere"],
+            ["backlog", "connections", "edges", "nowhere", "holding"],
             "the lens of signs reads the work, and what came of a sign"
         );
         assert_eq!(

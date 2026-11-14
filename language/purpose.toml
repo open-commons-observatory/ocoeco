@@ -82,10 +82,10 @@ line = "{star} - {says}"
 title = "ahead - what, once done, would free the most ({count})"
 sql = """
 WITH RECURSIVE freed(root, star, id, depth) AS (
-  SELECT halter, star, id, 1 FROM holding
+  SELECT halter, star, id, 1 FROM holding WHERE held_table = 'backlog'
   UNION
   SELECT f.root, k.star, k.id, f.depth + 1
-  FROM freed f JOIN holding k ON k.halter_table = 'backlog' AND k.halter_star = f.star AND k.halter_id = f.id
+  FROM freed f JOIN holding k ON k.held_table = 'backlog' AND k.halter_table = 'backlog' AND k.halter_star = f.star AND k.halter_id = f.id
   WHERE f.depth < 12
 )
 SELECT root, count(DISTINCT star || '/' || id) AS frees,
