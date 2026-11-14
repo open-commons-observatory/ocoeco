@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.23.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.22.0...ocoeco-v0.23.0) (2026-11-14)
+
+
+### Features
+
+* a route says as of when: light in, by which route each table came ([#188](https://github.com/open-commons-observatory/ocoeco/issues/188)) ([1bc525d](https://github.com/open-commons-observatory/ocoeco/commit/1bc525d8d989f30defacf6af8e56e934545d8868))
+
+
+### Bug Fixes
+
+* the graph by any route: made of what was observed as of what is held ([#190](https://github.com/open-commons-observatory/ocoeco/issues/190)) ([5a8e028](https://github.com/open-commons-observatory/ocoeco/commit/5a8e028667d352409989f63c44fff2fc77ec64ab))
+
 ## [0.22.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.21.0...ocoeco-v0.22.0) (2026-11-14)
 
 
