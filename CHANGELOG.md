@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.23.0...ocoeco-v0.23.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* one thing by two routes is one thing, as it last was ([#193](https://github.com/open-commons-observatory/ocoeco/issues/193)) ([346ae60](https://github.com/open-commons-observatory/ocoeco/commit/346ae60a3e2f5c0e448f1edfa465f881138a3de6))
+
 ## [0.23.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.22.0...ocoeco-v0.23.0) (2026-11-14)
 
 
