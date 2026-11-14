@@ -428,6 +428,7 @@ pub fn brought(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
+    let _one_look = crate::relations::one_look();
     let all = crate::lenses::with(dirs)?;
     // a lens may be looked through from a thing - lens@thing - as an observatory is looked from somewhere:
     // the lens's {here} is where one stands
@@ -836,6 +837,7 @@ pub fn beam(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
+    let _one_look = crate::relations::one_look();
     let all = crate::lenses::with(dirs)?;
     // a lens of that name - or else a table of that name, looked through as itself
     let itself = identity(lens, &all, dirs);
@@ -1241,6 +1243,7 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
 /// Every lens with a focus: whether its shape is sound, and whether it comes into focus over the place
 /// at `dir` - what does not, and why.
 pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
+    let _one_look = crate::relations::one_look();
     let mut problems: Vec<String> = crate::lenses::differing(dir)
         .into_iter()
         .map(|id| format!("the lens {id} kept here is no longer the one built into this ocoeco: what is looked through is not what is kept"))
