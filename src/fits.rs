@@ -4,7 +4,7 @@
 //! offers the rows that exist, as links; the id offers the rows that a change would be made to; a field of
 //! free words offers nothing, and says so. Nothing here is written apart from the language: it is read.
 
-use crate::entries::{entry, fields};
+use crate::entries::{entry_in, fields};
 use crate::join::rows;
 use crate::mark::Mark;
 use std::path::Path;
@@ -62,7 +62,8 @@ pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
             .iter()
             .map(|c| fit(c.name.clone(), c.is.clone()))
             .collect(),
-        [glimpse, _] if glimpse == "glimpse" => crate::lenses::lenses()
+        [glimpse, _] if glimpse == "glimpse" => crate::lenses::with(&[dir.to_path_buf()])
+            .unwrap_or_default()
             .iter()
             .flat_map(|l| {
                 l.glimpse
@@ -70,7 +71,7 @@ pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
                     .map(|e| fit(e.entry.clone(), e.says.clone()))
             })
             .collect(),
-        [glimpse, name, rest @ ..] if glimpse == "glimpse" => match entry(name) {
+        [glimpse, name, rest @ ..] if glimpse == "glimpse" => match entry_in(name, dir) {
             // a record of work, said in its own words, and the flags it takes
             None => commands
                 .iter()

@@ -26,6 +26,9 @@ fields = [
     { name = "id", type = "string", required = true },
     { name = "lens", type = "string", required = true },
     { name = "name", type = "string", required = true },
+    { name = "key", type = "string" },
+    { name = "extra_fields", type = "boolean" },
+    { name = "dated", type = "string" },
 ]
 
 [tables.lens_fields]
@@ -39,6 +42,8 @@ fields = [
     { name = "kind", type = "string" },
     { name = "needed", type = "boolean" },
     { name = "allowed", type = "string" },
+    { name = "at", type = "integer" },
+    { name = "pattern", type = "string" },
 ]
 
 [tables.lens_entries]
@@ -50,6 +55,20 @@ fields = [
     { name = "entry", type = "string", required = true },
     { name = "fills", type = "string", required = true },
     { name = "asks", type = "string" },
+    { name = "says", type = "string" },
+    { name = "supplies", type = "string" },
+]
+
+[tables.lens_relations]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "from", type = "string", required = true },
+    { name = "to", type = "string", required = true },
+    { name = "passes_over", type = "string" },
+    { name = "level", type = "string" },
 ]
 
 [tables.lens_parts]
@@ -88,6 +107,30 @@ entry = "part"
 says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
 table = "lens_parts"
 asks = ["lens", "part", "title", "named", "urgent", "query", "lays_out", "through", "only", "measure", "whole", "chain", "per"]
+
+[[glimpse]]
+entry = "table"
+says = "A table a lens defines, kept as rows: its key, whether a row may carry more than is declared, and what dates it."
+table = "lens_tables"
+asks = ["lens", "name", "key", "extra_fields", "dated"]
+
+[[glimpse]]
+entry = "field"
+says = "A field of a table a lens defines: its place in order, its kind, whether it is needed, the values it allows, and the shape a value must have."
+table = "lens_fields"
+asks = ["lens", "of_table", "name", "at", "kind", "needed", "allowed", "pattern"]
+
+[[glimpse]]
+entry = "entry"
+says = "An entry a lens takes: the table it fills, what it asks, and what the computer supplies (field from when; ...)."
+table = "lens_entries"
+asks = ["lens", "entry", "says", "fills", "asks", "supplies"]
+
+[[glimpse]]
+entry = "relation"
+says = "A relation a lens declares: the field whose values are links, the tables they point into, and what is passed over."
+table = "lens_relations"
+asks = ["lens", "from", "to", "passes_over", "level"]
 
 [[focus]]
 title = "a field declared again and again ({count})"

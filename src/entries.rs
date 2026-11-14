@@ -44,9 +44,24 @@ pub fn entry(name: &str) -> Option<(Lens, Entry)> {
     })
 }
 
-/// Whether `name` is an entry some lens declares.
+/// The entry of that name among the lenses in view from the place at `dir` - built into ocoeco, or brought
+/// by the place, as files or kept as rows.
+pub fn entry_in(name: &str, dir: &Path) -> Option<(Lens, Entry)> {
+    crate::lenses::with(&[dir.to_path_buf()])
+        .unwrap_or_else(|_| lenses())
+        .into_iter()
+        .find_map(|l| {
+            l.glimpse
+                .iter()
+                .find(|e| e.entry == name)
+                .cloned()
+                .map(|e| (l, e))
+        })
+}
+
+/// Whether `name` is an entry some lens declares, among those in view from where it is typed.
 pub fn is_entry(name: &str) -> bool {
-    entry(name).is_some()
+    entry_in(name, Path::new(".")).is_some()
 }
 
 /// The fields a table declares: name, whether it is needed, and the values it allows.
@@ -178,8 +193,18 @@ pub fn composed() -> String {
 
 /// Makes one entry: `args` are --id ID, --FIELD VALUE, --add-FIELD MORE and --dir DIR, in any order.
 pub fn enter(name: &str, args: &[String], today: &str, who: &str) -> Result<String> {
-    let (lens, e) =
-        entry(name).with_context(|| format!("no lens declares an entry called {name}"))?;
+    // the entry is found where it is entered: the place named by --dir, else here
+    let at = args
+        .iter()
+        .position(|a| a == "--dir")
+        .and_then(|i| args.get(i + 1).cloned())
+        .or_else(|| {
+            args.iter()
+                .find_map(|a| a.strip_prefix("--dir=").map(str::to_string))
+        })
+        .unwrap_or_else(|| ".".to_string());
+    let (lens, e) = entry_in(name, Path::new(&at))
+        .with_context(|| format!("no lens declares an entry called {name}"))?;
     let declared: Vec<String> = fields(&lens, &e.table)
         .into_iter()
         .map(|(n, _, _)| n)
