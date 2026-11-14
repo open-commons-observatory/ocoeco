@@ -36,12 +36,15 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
         // and every link between everything in view: the graph, kept by no place either
         let language = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
         let graph = crate::relations::OF_THE_GRAPH.contains(&table.as_str());
-        let own = language || graph;
+        let kept = crate::kept::OF_THE_KEPT.contains(&table.as_str());
+        let own = language || graph || kept;
         if own {
             let mut made = if language {
                 crate::lenses::as_rows(dirs)?
-            } else {
+            } else if graph {
                 crate::relations::as_graph(dirs)?
+            } else {
+                crate::kept::as_rows(dirs)?
             };
             for row in made.remove(table.as_str()).unwrap_or_default() {
                 seq += 1;
@@ -348,6 +351,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             grew_from: None,
             reads: Vec::new(),
         },
+        keeps_out: Vec::new(),
         tables: toml::Table::from_iter([(table.to_string(), declared)]),
         relation: Vec::new(),
         glimpse: Vec::new(),
@@ -842,6 +846,8 @@ pub fn beam(
                             format!("{t} - {rows} rows made from the lenses in view, now")
                         } else if crate::relations::OF_THE_GRAPH.contains(&t.as_str()) {
                             format!("{t} - {rows} rows made from the links between what is in view, now")
+                        } else if crate::kept::OF_THE_KEPT.contains(&t.as_str()) {
+                            format!("{t} - {rows} rows made from every row in view, now")
                         } else {
                             // what arrived by each route - and, where the same thing came by more than one, how
                             // many are in view: each once, as it last was

@@ -703,6 +703,7 @@ dependencies = [
  "argenv-resolve",
  "clap",
  "ratatui",
+ "regex",
  "serde",
  "serde_json",
  "tad",

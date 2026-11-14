@@ -39,6 +39,18 @@ pub struct Lens {
     /// Its focus: the parts it brings into view.
     #[serde(default)]
     pub focus: Vec<Part>,
+    /// What it keeps out of a place: told by shape, kept out as a row is written, shown where found.
+    #[serde(default)]
+    pub keeps_out: Vec<KeptOut>,
+}
+
+/// One thing a lens keeps out: what it is, the shape it is told by, and what of that shape is let be.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+pub struct KeptOut {
+    pub what: String,
+    pub shape: String,
+    #[serde(default)]
+    pub unless: Option<String>,
 }
 
 /// One thing that can be entered through a lens: the table it fills, what a person is asked for, and
@@ -344,6 +356,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                     grew_from: some(raw(row, "grew_from")),
                     reads: listed(raw(row, "reads")),
                 },
+                keeps_out: Vec::new(),
                 tables: declared,
                 relation: its_relations
                     .iter()
@@ -609,6 +622,7 @@ mod tests {
                 "fulldome",
                 "graph",
                 "insight",
+                "kept-out",
                 "knowledge",
                 "language",
                 "looking-back",

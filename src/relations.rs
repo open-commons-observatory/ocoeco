@@ -173,11 +173,11 @@ pub const OF_THE_GRAPH: [&str; 2] = ["things", "edges"];
 /// observed of it: what it says it is for, the other names its tables go by, what it gathers, and the
 /// rows of each table it keeps. The graph is made of these, and does not ask how they came.
 #[derive(Default)]
-struct Held {
+pub(crate) struct Held {
     says: String,
     also: BTreeMap<String, String>,
     gathers: Vec<String>,
-    tables: BTreeMap<String, Vec<serde_json::Value>>,
+    pub(crate) tables: BTreeMap<String, Vec<serde_json::Value>>,
 }
 
 impl Held {
@@ -190,7 +190,7 @@ impl Held {
 
 /// The places among these folders, by their id: each folder with a mark is one; a folder of what was
 /// observed holds many, each row naming the place it is of.
-fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
+pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
     let mut places: BTreeMap<String, Held> = BTreeMap::new();
     // what each place says of itself, and every table there is to read
     let mut tables: BTreeSet<String> = BTreeSet::new();
