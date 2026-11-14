@@ -258,7 +258,74 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
             all.push((kept_by.clone(), lens));
         }
     }
+    // what a place adds to a lens it does not keep is joined to that lens, wherever it is kept: the lens
+    // as it is looked through is the one it names, and this besides
+    for dir in dirs {
+        for more in added_by(dir) {
+            if let Some((_, lens)) = all.iter_mut().find(|(_, l)| l.lens.id == more.lens.id) {
+                lens.relation.extend(more.relation);
+                lens.focus.extend(more.focus);
+                lens.glimpse.extend(more.glimpse);
+                lens.route.extend(more.route);
+            }
+        }
+    }
     Ok(all)
+}
+
+/// What a place adds to lenses it does not itself keep: the relations, parts, entries and routes it says
+/// for a lens kept elsewhere - built into the program, or brought by another place. Each is a lens of
+/// that name holding only what is added: a lens that changes the composition of the one it names a
+/// little - only what is added is recorded, the rest is referenced.
+pub fn added_by(dir: &Path) -> Vec<Lens> {
+    let mark = std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|text| crate::mark::Mark::parse(&text).ok());
+    let rows = |table: &str| -> Vec<serde_json::Value> {
+        match &mark {
+            Some(mark) => crate::join::rows(dir, mark, table),
+            None if dir.join("projects.json").is_file() => {
+                crate::harvest::read_rows(&dir.join(format!("{table}.json")))
+                    .into_iter()
+                    .map(serde_json::Value::Object)
+                    .collect()
+            }
+            None => Vec::new(),
+        }
+    };
+    let said = |row: &serde_json::Value, key: &str| {
+        row.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    };
+    let own: std::collections::BTreeSet<String> =
+        rows("lenses").iter().map(|row| said(row, "id")).collect();
+    let elsewhere: std::collections::BTreeSet<String> = [
+        "lens_relations",
+        "lens_parts",
+        "lens_entries",
+        "lens_routes",
+    ]
+    .iter()
+    .flat_map(|table| rows(table))
+    .map(|row| said(&row, "lens"))
+    .filter(|lens| !lens.is_empty() && !own.contains(lens))
+    .collect();
+    if elsewhere.is_empty() {
+        return Vec::new();
+    }
+    from_rows(|table| match table {
+        // a lens of each name added to, holding only what is added
+        "lenses" => elsewhere
+            .iter()
+            .map(|id| serde_json::json!({"id": id, "says": "what is added"}))
+            .collect(),
+        // a table is defined by one lens: nothing is added to another's
+        "lens_tables" | "lens_fields" => Vec::new(),
+        other => rows(other),
+    })
 }
 
 /// Every lens there is to look through from these places.
@@ -928,6 +995,78 @@ mod kept_as_rows {
                 .iter()
                 .any(|r| r["id"] == "sheet" && r["star"] == "r"),
             "and the lens of language sees it, kept by that place"
+        );
+    }
+}
+
+#[cfg(test)]
+mod added_to_a_lens {
+    use super::*;
+
+    #[test]
+    fn what_a_place_adds_to_a_lens_kept_elsewhere_is_joined_to_it() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-added-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("oco")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nlenses = \"oco/lenses.json\"\nlens_relations = \"oco/lens_relations.json\"\nlens_parts = \"oco/lens_parts.json\"\n").unwrap();
+        std::fs::write(
+            d.join("oco/lenses.json"),
+            "{\"id\":\"mine\",\"says\":\"A lens of this place.\"}\n",
+        )
+        .unwrap();
+        // a relation said for a lens the program brings, one for a lens of this place, one for a lens nowhere
+        std::fs::write(d.join("oco/lens_relations.json"), "{\"id\":\"program/guards.path\",\"lens\":\"program\",\"from\":\"guards.path\",\"to\":\"source\",\"nature\":\"is part of\"}\n{\"id\":\"mine/1\",\"lens\":\"mine\",\"from\":\"notes.about\",\"to\":\"*\"}\n{\"id\":\"nowhere/1\",\"lens\":\"nowhere\",\"from\":\"a.b\",\"to\":\"*\"}\n").unwrap();
+        std::fs::write(d.join("oco/lens_parts.json"), "{\"id\":\"signs/90\",\"lens\":\"signs\",\"part\":90,\"title\":\"added here ({count})\",\"query\":\"SELECT id FROM problems\",\"lays_out\":\"{id}\"}\n").unwrap();
+        let dirs = [d.clone()];
+        let added: Vec<String> = added_by(&d).into_iter().map(|l| l.lens.id).collect();
+        assert_eq!(
+            added,
+            ["nowhere", "program", "signs"],
+            "what it adds to lenses it does not keep - not to its own"
+        );
+        let all = with(&dirs).unwrap();
+        let of = |id: &str| all.iter().find(|l| l.lens.id == id).unwrap();
+        let before = lenses()
+            .into_iter()
+            .find(|l| l.lens.id == "program")
+            .unwrap()
+            .relation
+            .len();
+        assert_eq!(
+            of("program").relation.len(),
+            before + 1,
+            "the lens the program brings, and this besides"
+        );
+        assert!(of("program")
+            .relation
+            .iter()
+            .any(|r| r.from == "guards.path" && r.to == ["source"]));
+        assert_eq!(
+            of("signs").focus.last().unwrap().title.as_deref(),
+            Some("added here ({count})"),
+            "a part added comes after its own"
+        );
+        assert_eq!(
+            of("mine").relation.len(),
+            1,
+            "its own lens holds its own, once"
+        );
+        assert!(
+            !all.iter().any(|l| l.lens.id == "nowhere"),
+            "what is added to a lens nowhere in view makes no lens"
+        );
+        // and with the place out of view, the lens is as the program brings it
+        assert_eq!(
+            with(&[])
+                .unwrap()
+                .iter()
+                .find(|l| l.lens.id == "program")
+                .unwrap()
+                .relation
+                .len(),
+            before
         );
     }
 }
