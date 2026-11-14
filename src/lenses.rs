@@ -42,6 +42,18 @@ pub struct Lens {
     /// What it keeps out of a place: told by shape, kept out as a row is written, shown where found.
     #[serde(default)]
     pub keeps_out: Vec<KeptOut>,
+    /// Its routes: the tables whose rows are not kept by a place but read from a surface when asked for.
+    #[serde(default)]
+    pub route: Vec<Route>,
+}
+
+/// A route: a table whose rows come from a kind of surface - read where each place in view is held, when
+/// they are asked for, and stored nowhere. The kinds of surface are few, each a small adapter in the
+/// program (the ways in); which table reads from which is said here, in the language.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
+pub struct Route {
+    pub table: String,
+    pub from: String,
 }
 
 /// One thing a lens keeps out: what it is, the shape it is told by, and what of that shape is let be.
@@ -280,12 +292,13 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
             .filter(|t| !t.is_empty())
             .collect()
     };
-    let (tables, fields, entries, relations, parts) = (
+    let (tables, fields, entries, relations, parts, routes) = (
         of("lens_tables"),
         of("lens_fields"),
         of("lens_entries"),
         of("lens_relations"),
         of("lens_parts"),
+        of("lens_routes"),
     );
     let mine = |rows: &[serde_json::Value], id: &str| -> Vec<serde_json::Value> {
         rows.iter()
@@ -368,6 +381,13 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                     reads: listed(raw(row, "reads")),
                 },
                 keeps_out: Vec::new(),
+                route: mine(&routes, &id)
+                    .iter()
+                    .map(|r| Route {
+                        table: raw(r, "of_table"),
+                        from: raw(r, "from"),
+                    })
+                    .collect(),
                 tables: declared,
                 relation: its_relations
                     .iter()
@@ -425,13 +445,14 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
 
 /// The tables that hold the lenses themselves as rows. No place keeps them: they are the language, read
 /// as data - so that it can be looked at through a lens like everything it describes.
-pub const OF_THE_LANGUAGE: [&str; 6] = [
+pub const OF_THE_LANGUAGE: [&str; 7] = [
     "lenses",
     "lens_tables",
     "lens_fields",
     "lens_entries",
     "lens_parts",
     "lens_relations",
+    "lens_routes",
 ];
 
 /// The lenses in view, as rows: each lens, each table it defines, each field of each table, each entry it
@@ -508,6 +529,12 @@ pub fn as_rows(
                 json!({"id": format!("{id}/{}", at + 1), "lens": id, "from": relation.from, "to": relation.to.join(", "),
                        "passes_over": relation.passes_over.join(", "), "level": relation.level.clone().unwrap_or_default(),
                        "nature": relation.nature.clone().unwrap_or_default(), "star": star}),
+            );
+        }
+        for route in &lens.route {
+            add(
+                "lens_routes",
+                json!({"id": format!("{id}/{}", route.table), "lens": id, "of_table": route.table, "from": route.from, "star": star}),
             );
         }
         for (at, part) in lens.focus.iter().enumerate() {

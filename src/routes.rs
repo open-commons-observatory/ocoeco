@@ -301,3 +301,133 @@ pub fn rows_by_route(table: &str, dirs: &[PathBuf]) -> usize {
         })
         .sum()
 }
+
+/// The kinds of surface a route may read from. Each is a small adapter here that makes rows when asked,
+/// from each place in view that is held where it can be read; nothing is stored. A new kind is a function
+/// here; a new route over a kind that exists is said in the language, by a lens.
+pub const KINDS: [&str; 1] = ["git history"];
+
+/// The rows a route reads, each with the place it is of. What the lenses in view say is kept out is kept
+/// out of them as they are read - named where it stood - for a surface holds whatever was written on it.
+pub fn read(
+    route: &crate::lenses::Route,
+    dirs: &[PathBuf],
+) -> Vec<(String, serde_json::Map<String, serde_json::Value>)> {
+    let told = crate::kept::told(dirs);
+    let mut rows = Vec::new();
+    for dir in dirs {
+        let Some(place) = std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|t| crate::mark::Mark::parse(&t).ok())
+            .map(|m| m.project.id)
+        else {
+            continue;
+        };
+        let read = match route.from.as_str() {
+            "git history" => git_history(dir),
+            _ => Vec::new(),
+        };
+        for mut row in read {
+            for value in row.values_mut() {
+                if let Some(words) = value.as_str() {
+                    *value = crate::kept::out_of(words, &told).0.into();
+                }
+            }
+            rows.push((place.clone(), row));
+        }
+    }
+    rows
+}
+
+/// The history of the repository a place is held in, as git has it: each change - its name, when, by
+/// whom, and what it says of itself - the latest first. Nothing where the folder is no repository.
+fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
+    let Ok(out) = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["log", "-n", "2000", "--format=%h%x1f%cI%x1f%an%x1f%s"])
+        .output()
+    else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(4, '\u{1f}');
+            let (id, at, by, says) = (
+                parts.next()?,
+                parts.next()?,
+                parts.next()?,
+                parts.next().unwrap_or_default(),
+            );
+            serde_json::json!({"id": id, "at": at, "by": by, "says": says})
+                .as_object()
+                .cloned()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod a_route {
+    use super::*;
+
+    #[test]
+    fn git_history_is_read_as_rows_where_a_place_is_held_and_nothing_where_it_is_no_repository() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-a-route-{}", std::process::id()))
+            .join("o/held");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/held\"\nname = \"H: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n").unwrap();
+        let route = crate::lenses::Route {
+            table: "commits".into(),
+            from: "git history".into(),
+        };
+        assert!(
+            read(&route, std::slice::from_ref(&d)).is_empty(),
+            "a folder that is no repository has no history"
+        );
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(&d)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "someone")
+                .env("GIT_AUTHOR_EMAIL", "s@x")
+                .env("GIT_COMMITTER_NAME", "someone")
+                .env("GIT_COMMITTER_EMAIL", "s@x")
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-q"]);
+        git(&["add", "oco.toml"]);
+        git(&["commit", "-q", "-m", "feat: a first change"]);
+        let rows = read(&route, std::slice::from_ref(&d));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (
+                rows[0].0.as_str(),
+                rows[0].1["says"].as_str(),
+                rows[0].1["by"].as_str()
+            ),
+            ("o/held", Some("feat: a first change"), Some("someone"))
+        );
+        assert!(
+            rows[0].1["at"]
+                .as_str()
+                .is_some_and(|at| at.starts_with("20"))
+                && rows[0].1["id"].as_str().is_some_and(|id| id.len() >= 7)
+        );
+        assert!(read(
+            &crate::lenses::Route {
+                table: "x".into(),
+                from: "a kind there is no adapter for".into()
+            },
+            std::slice::from_ref(&d)
+        )
+        .is_empty());
+    }
+}
