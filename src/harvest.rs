@@ -66,7 +66,10 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
             json!({"id": id, "project": id, "name": mark.project.name, "title": mark.project.title,
             "order": mark.project.order, "kind": mark.project.kind,
             "parent": mark.project.parent, "link": c.found.url, "platform": c.found.platform,
-            "tables": mark.exports.keys().cloned().collect::<Vec<_>>()}),
+            "tables": mark.exports.keys().cloned().collect::<Vec<_>>(),
+            // what a mark says of the place, so that what was observed says it as the place itself does
+            "also": mark.also, "is": mark.place.as_ref().map(|p| p.is.clone()),
+            "gathers": mark.place.as_ref().map(|p| p.gathers.clone()).unwrap_or_default()}),
         );
         // a lens declares its family and views in lens.toml: one row of the lenses table
         if mark.project.kind == "lens" {
