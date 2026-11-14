@@ -565,6 +565,7 @@ mod tests {
         assert_eq!(
             all.iter().map(|l| l.lens.id.as_str()).collect::<Vec<_>>(),
             [
+                "fulldome",
                 "graph",
                 "insight",
                 "knowledge",
