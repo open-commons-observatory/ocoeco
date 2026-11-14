@@ -136,7 +136,23 @@ pub fn glimpse(dir: &Path, g: &Glimpse, now: &str, id: &str) -> Result<String> {
     if !mark(dir)?.exports.contains_key("glimpses") {
         bail!("this repository does not export a glimpses table yet: add glimpses = \"data/glimpses.json\" to [exports] in oco.toml");
     }
-    let touches = lines(dir, PENDING);
+    // what it touched: the rows remembered since the last record that are there now. A row entered and
+    // then put back - a trial thrown away, a change refused - was not touched by this record.
+    let mark = crate::mark::Mark::parse(
+        &std::fs::read_to_string(dir.join("oco.toml")).unwrap_or_default(),
+    )
+    .ok();
+    let there = |link: &String| {
+        let Some((table, id)) = link.split_once(':') else {
+            return false;
+        };
+        mark.as_ref().is_some_and(|mark| {
+            crate::join::rows(dir, mark, table)
+                .iter()
+                .any(|row| row["id"].as_str() == Some(id))
+        })
+    };
+    let touches: Vec<String> = lines(dir, PENDING).into_iter().filter(there).collect();
     let adv = if g.advances.is_empty() {
         advances(dir, &touches)?
     } else {
