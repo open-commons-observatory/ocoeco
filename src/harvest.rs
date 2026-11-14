@@ -144,6 +144,16 @@ pub fn read_rows(path: &Path) -> Vec<Map<String, Value>> {
         .collect()
 }
 
+/// Writes only the tables of a harvest of a part - what has run, say - into `dir`: a part observed speaks
+/// for that part only, and the places and what a whole observation found are left as it wrote them.
+pub fn write_part(h: &mut Harvest, dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(dir)?;
+    for (table, rows) in h.tables.iter_mut() {
+        std::fs::write(dir.join(format!("{table}.json")), canonical(rows))?;
+    }
+    Ok(())
+}
+
 /// Writes the harvest as tad tables into `dir`: one file per table, projects.json, problems.json.
 pub fn write(h: &mut Harvest, dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir)?;
