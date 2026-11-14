@@ -103,6 +103,7 @@ named = "holding"
 sql = """
 SELECT h.to_star AS star, h.to_id AS id,
        h.from_star || '/' || h.from_table || ':' || h.from_id AS halter,
+       h.from_star AS halter_star, h.from_table AS halter_table, h.from_id AS halter_id,
        CASE WHEN h.from_table = 'backlog' THEN coalesce(hb.status, 'not found')
             WHEN h.from_table = 'problems' THEN 'a sign nothing has come of yet'
             ELSE 'a ' || h.from_table || ' row' END AS stands
