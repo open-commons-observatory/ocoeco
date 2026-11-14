@@ -296,6 +296,11 @@ pub fn as_graph(dirs: &[PathBuf]) -> Result<Graph> {
 pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     use serde_json::json;
     let places = held(dirs);
+    // the relations of every lens in view - those built in, and those a place brings: a relation is a
+    // relation whoever declares it
+    let declared: Vec<Relation> = crate::lenses::with(dirs)
+        .map(|lenses| lenses.into_iter().flat_map(|lens| lens.relation).collect())
+        .unwrap_or_else(|_| relations().to_vec());
     let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
     // where a link points, from the place that holds it, and whether that is there
     let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
@@ -399,7 +404,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         .iter()
         .filter(|(here, _)| only.is_none_or(|o| o == here.as_str()))
     {
-        for relation in relations() {
+        for relation in &declared {
             let Some((table, field)) = relation.from.split_once('.') else {
                 continue;
             };
@@ -884,5 +889,46 @@ mod by_any_route {
         assert!(graph["things"]
             .iter()
             .any(|t| t["id"] == "o/b/decisions:x" && t["says"] == "Decided there"));
+    }
+}
+
+#[cfg(test)]
+mod whoever_declares_it {
+    use super::*;
+
+    #[test]
+    fn a_relation_a_place_s_lens_declares_is_followed_as_one_built_in() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-brought-relation-{}", std::process::id()))
+            .join("o/talk");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/talk\"\nname = \"T: a talk\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nturns = \"data/turns.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/turns.json"),
+            "{\"id\":\"t1\"}\n{\"id\":\"t2\",\"after\":\"t1\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("lenses/talk.toml"), "[lens]\nid = \"talk\"\nsays = \"What was said.\"\n[tables.turns]\nkey = [\"id\"]\nextra_fields = true\nfields = [{ name = \"id\", type = \"string\" }, { name = \"after\", type = \"string\" }]\n[[relation]]\nfrom = \"turns.after\"\nto = [\"turns\"]\nnature = \"follows\"\n").unwrap();
+        let graph = as_graph(std::slice::from_ref(&d)).unwrap();
+        let edge = graph["edges"]
+            .iter()
+            .find(|e| e["how"] == "after")
+            .expect("the relation the place's lens declares");
+        assert_eq!(
+            (
+                edge["from"].as_str(),
+                edge["to"].as_str(),
+                edge["nature"].as_str(),
+                edge["holds"].as_bool()
+            ),
+            (
+                Some("o/talk/turns:t2"),
+                Some("o/talk/turns:t1"),
+                Some("follows"),
+                Some(true)
+            )
+        );
     }
 }
