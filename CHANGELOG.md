@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.9.0...ocoeco-v0.10.0) (2026-11-14)
+
+
+### Features
+
+* repeats is a group: one nature, many faces ([#143](https://github.com/open-commons-observatory/ocoeco/issues/143)) ([f2355b9](https://github.com/open-commons-observatory/ocoeco/commit/f2355b980957adb14b44912ea0cdb8e4f4cd2555))
+* the check reads the graph: what points nowhere is known in one place ([#141](https://github.com/open-commons-observatory/ocoeco/issues/141)) ([e226ee5](https://github.com/open-commons-observatory/ocoeco/commit/e226ee56e00c48bcf208253431143aa0345302ce))
+* urgency is the lens's: what fails is decided in one place ([#145](https://github.com/open-commons-observatory/ocoeco/issues/145)) ([80ffb9c](https://github.com/open-commons-observatory/ocoeco/commit/80ffb9cc1ed596c90a494b3f29fb28bdc7c91261))
+* what is pointed at, shaped once ([#144](https://github.com/open-commons-observatory/ocoeco/issues/144)) ([e9831db](https://github.com/open-commons-observatory/ocoeco/commit/e9831db89b0dd862d41af4da23c58b71972a8a8d))
+
 ## [0.9.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.8.0...ocoeco-v0.9.0) (2026-11-13)
 
 

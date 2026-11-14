@@ -1,6 +1,6 @@
 [package]
 name = "ocoeco"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 description = "The Open Commons Observatory's ecosystem: places that say what they are, and lenses that bring them into focus"
 license = "MIT OR Apache-2.0"
