@@ -279,6 +279,30 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             }
         }
     }
+    // and the language: the rows the program makes of every lens in view are kept where the lens is - a
+    // lens a place brings, in that place; a lens built into the program, in the program's own place where
+    // that is in view. So a lens is a thing to point at as it is a thing to stand on.
+    if let Ok(language) = crate::lenses::as_rows(dirs) {
+        let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
+        for (table, rows) in language {
+            for row in rows {
+                let star = row
+                    .get("star")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let Some(place) = places.keys().find(|id| short(id) == star).cloned() else {
+                    continue;
+                };
+                if let Some(held) = places.get_mut(&place) {
+                    let there = held.tables.entry(table.to_string()).or_default();
+                    if !there.iter().any(|r| r["id"] == row["id"]) {
+                        there.push(serde_json::Value::Object(row));
+                    }
+                }
+            }
+        }
+    }
     places
 }
 
@@ -502,6 +526,167 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         String::new(),
                         how.to_string(),
                         (written(&this), near_holds),
+                    );
+                }
+            }
+        }
+    }
+    // the language itself is in the graph: every lens in view and what it is made of - its tables and
+    // their fields, its entries, its relations, its parts - are things, and how they go together are
+    // links: a part is part of its lens, rests on the tables and shapes it asks of, and places another
+    // lens; an entry is for the table it fills; a lens rests on what it reads. So one stands on a lens
+    // as on anything, and walks from what is laid out back to all it was made of.
+    if only.is_none() {
+        type Row = serde_json::Map<String, serde_json::Value>;
+        let language = crate::lenses::as_rows(dirs).unwrap_or_default();
+        let said = |row: &Row, key: &str| {
+            row.get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        // where a lens is kept: the place of that star among those in view, or the program itself
+        let kept_in = |star: &str| {
+            places
+                .keys()
+                .find(|id| short(id) == star)
+                .cloned()
+                .unwrap_or_else(|| star.to_string())
+        };
+        let named = |table: &str, row: &Row| {
+            format!(
+                "{}/{table}:{}",
+                kept_in(&said(row, "star")),
+                said(row, "id")
+            )
+        };
+        let known: BTreeSet<String> = things
+            .iter()
+            .filter_map(|t| t["id"].as_str().map(str::to_string))
+            .collect();
+        for (table, rows) in &language {
+            for row in rows {
+                let id = named(table, row);
+                if known.contains(&id) {
+                    continue;
+                }
+                let says = match *table {
+                    "lens_relations" => format!("{} - {}", said(row, "from"), said(row, "to")),
+                    _ => in_a_few_words(&serde_json::Value::Object(row.clone())),
+                };
+                things.push(json!({"id": id, "of_table": table, "place": kept_in(&said(row, "star")), "star": said(row, "star"), "says": says}));
+            }
+        }
+        let of_kind = |table: &str| language.get(table).cloned().unwrap_or_default();
+        // the thing a lens is; and the thing a table is, by the lens that defines it
+        let lens_thing = |lens: &str| {
+            of_kind("lenses")
+                .iter()
+                .find(|l| said(l, "id") == lens)
+                .map(|l| named("lenses", l))
+        };
+        let table_thing = |table: &str| {
+            of_kind("lens_tables")
+                .iter()
+                .find(|t| said(t, "name") == table)
+                .map(|t| named("lens_tables", t))
+        };
+        let mut link = |from: String, how: &str, to: Option<String>, nature: &str| {
+            if let Some(to) = to {
+                let here = from
+                    .split_once(':')
+                    .and_then(|(left, _)| left.rsplit_once('/'))
+                    .map(|(place, _)| place.to_string())
+                    .unwrap_or_default();
+                edge(
+                    from,
+                    how,
+                    (to.clone(), Some(true)),
+                    String::new(),
+                    &here,
+                    to,
+                    String::new(),
+                    nature.to_string(),
+                    (String::new(), Some(true)),
+                );
+            }
+        };
+        for kind in [
+            "lens_tables",
+            "lens_entries",
+            "lens_relations",
+            "lens_parts",
+        ] {
+            for row in of_kind(kind) {
+                link(
+                    named(kind, &row),
+                    "of",
+                    lens_thing(&said(&row, "lens")),
+                    "is part of",
+                );
+            }
+        }
+        for field in of_kind("lens_fields") {
+            let table = of_kind("lens_tables")
+                .iter()
+                .find(|t| {
+                    said(t, "lens") == said(&field, "lens")
+                        && said(t, "name") == said(&field, "of_table")
+                })
+                .map(|t| named("lens_tables", t));
+            link(named("lens_fields", &field), "of", table, "is part of");
+        }
+        for entry in of_kind("lens_entries") {
+            link(
+                named("lens_entries", &entry),
+                "fills",
+                table_thing(&said(&entry, "fills")),
+                "is for",
+            );
+        }
+        for lens in of_kind("lenses") {
+            for read in said(&lens, "reads")
+                .split(',')
+                .map(str::trim)
+                .filter(|r| !r.is_empty())
+            {
+                link(
+                    named("lenses", &lens),
+                    "reads",
+                    table_thing(read),
+                    "rests on",
+                );
+            }
+        }
+        let parts = of_kind("lens_parts");
+        for part in &parts {
+            let from = named("lens_parts", part);
+            let placed = said(part, "places");
+            if !placed.is_empty() && placed != "*" {
+                link(from.clone(), "places", lens_thing(&placed), "places");
+            }
+            let query = said(part, "query");
+            for table in of_kind("lens_tables") {
+                if crate::focus::names_table(&query, &said(&table, "name")) {
+                    link(
+                        from.clone(),
+                        "asks of",
+                        Some(named("lens_tables", &table)),
+                        "rests on",
+                    );
+                }
+            }
+            // a shape another part names
+            for shape in parts
+                .iter()
+                .filter(|p| !said(p, "named").is_empty() && said(p, "id") != said(part, "id"))
+            {
+                if crate::focus::names_table(&query, &said(shape, "named")) {
+                    link(
+                        from.clone(),
+                        "asks of",
+                        Some(named("lens_parts", shape)),
+                        "rests on",
                     );
                 }
             }
@@ -731,10 +916,38 @@ mod the_graph {
             "and says what it is for"
         );
         assert_eq!(
-            graph["things"].len(),
+            graph["things"]
+                .iter()
+                .filter(|t| t["place"].as_str().is_some_and(|p| p.starts_with("o/")))
+                .count(),
             7,
             "every row of every place is a thing, and so is each place"
         );
+        // and the language is in the graph: a lens is a thing, and a part of it rests on the table it asks of
+        let of_the_language = |how: &str, from: &str| {
+            graph["edges"]
+                .iter()
+                .find(|e| e["how"] == how && e["from"] == from)
+                .map(|e| {
+                    (
+                        e["to"].as_str().unwrap_or_default().to_string(),
+                        e["nature"].as_str().unwrap_or_default().to_string(),
+                    )
+                })
+        };
+        assert!(graph["things"]
+            .iter()
+            .any(|t| t["id"] == "ocoeco/lenses:work" && t["of_table"] == "lenses"));
+        assert_eq!(
+            of_the_language("of", "ocoeco/lens_tables:work/backlog"),
+            Some(("ocoeco/lenses:work".to_string(), "is part of".to_string()))
+        );
+        assert!(graph["edges"].iter().any(|e| e["how"] == "asks of"
+            && e["nature"] == "rests on"
+            && e["from"]
+                .as_str()
+                .is_some_and(|f| f.starts_with("ocoeco/lens_parts:work/"))
+            && e["to"] == "ocoeco/lens_tables:work/backlog"));
         let pointed: BTreeSet<&str> = graph["edges"]
             .iter()
             .filter_map(|e| e["to"].as_str())
