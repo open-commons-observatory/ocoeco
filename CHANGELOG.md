@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.1...ocoeco-v0.26.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* what an observation could not read is a sign, among the signs ([#208](https://github.com/open-commons-observatory/ocoeco/issues/208)) ([2e93c3e](https://github.com/open-commons-observatory/ocoeco/commit/2e93c3eb013b857333c7c826855ef2471ff570f2))
+
 ## [0.26.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.0...ocoeco-v0.26.1) (2026-11-14)
 
 
