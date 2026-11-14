@@ -149,6 +149,17 @@ enum Cmd {
         dir: std::path::PathBuf,
     },
     /// Bring a lens into focus: what it shows of this place, or of every place under ROOT
+    /// Take a row back: it is no longer kept here - refused where something still points at it. The
+    /// inverse of entering one
+    TakeBack {
+        /// The table: decisions, problems, ...
+        table: String,
+        /// The id of the row to take back
+        id: String,
+        /// The place it is taken back from
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     /// Move rows of a table from this place to another, every link kept true: links to them - here,
     /// there, and in every place under ROOT - are rewritten to where they now are
     Move {
@@ -502,6 +513,13 @@ fn run() -> Result<()> {
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
         Cmd::Commit { staged, dir } => println!("{}", glimpse::commit(&dir, !staged)?),
+        Cmd::TakeBack { table, id, dir } => {
+            // taking a row back is guarded as entering one is: what pointed somewhere still points there
+            println!(
+                "{}",
+                ocoeco::relations::guarded(&dir, || ocoeco::note::take_back(&dir, &table, &id))?
+            );
+        }
         Cmd::Move {
             table,
             ids,

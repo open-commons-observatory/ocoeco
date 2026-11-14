@@ -154,6 +154,40 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
     })
 }
 
+/// Takes the row `id` of `table` back from the place at `dir`: it is no longer kept here. The inverse of
+/// entering one - what merging two things of one nature needs, once what pointed at the one points at the
+/// other. Returns what it did.
+pub fn take_back(dir: &Path, table: &str, id: &str) -> Result<String> {
+    let mark = Mark::parse(
+        &std::fs::read_to_string(dir.join("oco.toml"))
+            .context("no oco.toml here: this repository has no mark")?,
+    )?;
+    let path = mark.exports.get(table).with_context(|| {
+        format!("this repository does not export a {table} table (add it to [exports] in oco.toml)")
+    })?;
+    if path.contains('@') {
+        bail!("{table} is kept on another branch ({path}): it is gathered there, not written here");
+    }
+    let file = dir.join(path);
+    let text = std::fs::read_to_string(&file).unwrap_or_default();
+    let is_it = |line: &&str| {
+        serde_json::from_str::<serde_json::Value>(line)
+            .ok()
+            .and_then(|row| row.get("id").and_then(|v| v.as_str()).map(|its| its == id))
+            .unwrap_or(false)
+    };
+    let kept: Vec<&str> = text.lines().filter(|line| !is_it(line)).collect();
+    if kept.len() == text.lines().count() {
+        bail!("{table} keeps no row called {id} here");
+    }
+    let mut left = kept.join("\n");
+    if !left.is_empty() {
+        left.push('\n');
+    }
+    std::fs::write(&file, left)?;
+    Ok(format!("took back {table} {id}"))
+}
+
 /// The row written as its changes stand.
 fn as_given(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) -> Result<String> {
     let mark = Mark::parse(
@@ -493,5 +527,52 @@ mod spoken_at_a_place {
             (Some(3), Some(true)),
             "written as the kinds its own lens declares"
         );
+    }
+}
+
+#[cfg(test)]
+mod taken_back {
+    use super::*;
+
+    #[test]
+    fn a_row_is_taken_back_and_one_that_is_pointed_at_is_not() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-taken-back-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\ndecisions = \"data/decisions.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/decisions.json"),
+            "{\"id\":\"d1\",\"decision\":\"one\"}\n{\"id\":\"d2\",\"decision\":\"two\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("data/backlog.json"),
+            "{\"id\":\"a\",\"title\":\"A\",\"status\":\"next\",\"serves\":\"decisions:d1\"}\n",
+        )
+        .unwrap();
+        let rows = || std::fs::read_to_string(d.join("data/decisions.json")).unwrap();
+        // a row nothing points at is taken back, and the others stay as they were
+        assert_eq!(
+            crate::relations::guarded(&d, || take_back(&d, "decisions", "d2")).unwrap(),
+            "took back decisions d2"
+        );
+        assert_eq!(rows(), "{\"id\":\"d1\",\"decision\":\"one\"}\n");
+        // a row something points at is not: the write is put back, and it is said why
+        let refused = crate::relations::guarded(&d, || take_back(&d, "decisions", "d1"))
+            .unwrap_err()
+            .to_string();
+        assert!(refused.contains("points nowhere"), "{refused}");
+        assert_eq!(
+            rows(),
+            "{\"id\":\"d1\",\"decision\":\"one\"}\n",
+            "what was there is there again"
+        );
+        // and what is not there cannot be taken back
+        assert!(take_back(&d, "decisions", "nothing")
+            .unwrap_err()
+            .to_string()
+            .contains("keeps no row called nothing"));
     }
 }
