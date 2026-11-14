@@ -37,6 +37,17 @@ from = "milestones.criteria"
 to = ["*"]
 passes_over = ["@"]
 
+# A condition is a link too: it names a feature and the level it must reach (feature:voice-calls@linux-best) -
+# the feature is the row, what follows @ is the level. Said beside the relation above, which passes such links
+# over: the language grows, and what it said stands. A condition over every feature (feature:*@...), or over
+# no kind of row (tests@a-device), names no
+# one row and is passed over.
+[[relation]]
+from = "milestones.criteria"
+to = ["*"]
+level = "@"
+passes_over = ["*@"]
+
 # The glimpse of the lens of purpose.
 [[glimpse]]
 entry = "milestone"
