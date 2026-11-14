@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.27.0...ocoeco-v0.28.0) (2026-11-14)
+
+
+### Features
+
+* a next step and the work since; a record says all it changed ([#212](https://github.com/open-commons-observatory/ocoeco/issues/212)) ([7d44f1e](https://github.com/open-commons-observatory/ocoeco/commit/7d44f1e81847aaf2f6fdf095db7a4d3d6ca3d8fd))
+
 ## [0.27.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.2...ocoeco-v0.27.0) (2026-11-14)
 
 
