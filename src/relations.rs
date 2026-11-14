@@ -74,67 +74,83 @@ fn ids(dir: &Path, mark: &Mark) -> BTreeMap<String, BTreeSet<String>> {
         .collect()
 }
 
-/// Every link of the star at `dir` that points nowhere. With `others` - the stars it may point into,
-/// by their id - links into another star are checked too; without, they are left alone.
+/// A link as it was written: an id, a table and an id, or a star, a table and an id.
+fn written(link: &Link) -> String {
+    match (&link.star, &link.table) {
+        (Some(star), Some(table)) => format!("{star}/{table}:{}", link.id),
+        (_, Some(table)) => format!("{table}:{}", link.id),
+        _ => link.id.clone(),
+    }
+}
+
+/// The edges of a graph, and the things they join.
+pub type Graph = BTreeMap<&'static str, Vec<serde_json::Map<String, serde_json::Value>>>;
+
+/// Every link of the star at `dir` that points nowhere, read off the graph - the one place that knows.
+/// With `others` - the stars it may point into, by their id - links into another star are followed too,
+/// and a star not among them is said to be missing; without, such links are left alone.
 pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<String>> {
-    let read = |d: &Path| -> Result<Mark> {
-        Mark::parse(&std::fs::read_to_string(d.join("oco.toml")).context("no oco.toml here")?)
+    let here =
+        Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).context("no oco.toml here")?)?
+            .project
+            .id;
+    let mut dirs = vec![dir.to_path_buf()];
+    dirs.extend(
+        others
+            .iter()
+            .filter(|(id, _)| **id != here)
+            .map(|(_, d)| d.clone()),
+    );
+    let graph = as_graph_from(&dirs, Some(&here))?;
+    let text = |e: &serde_json::Map<String, serde_json::Value>, key: &str| {
+        e.get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string()
     };
-    let mark = read(dir)?;
-    let own = ids(dir, &mark);
-    let mut abroad: BTreeMap<String, BTreeMap<String, BTreeSet<String>>> = BTreeMap::new();
-    let mut problems = Vec::new();
-    for relation in relations() {
-        let Some((table, field)) = relation.from.split_once('.') else {
-            continue;
+    let mut said: Vec<String> = Vec::new();
+    for e in &graph["edges"] {
+        let through = text(e, "via_id");
+        let from = if through.is_empty() {
+            format!("{} {}", text(e, "from_table"), text(e, "from_id"))
+        } else {
+            format!("connections {through}")
         };
-        for row in rows(dir, &mark, table) {
-            let Some(value) = row[field].as_str() else {
-                continue;
+        let mut say = |field: &str, written: String, holds: Option<bool>, table: String| {
+            let shown = if written.contains(':') {
+                written.clone()
+            } else {
+                format!("{written} (in {table})")
             };
-            let from = format!("{table} {}: {field}", row["id"].as_str().unwrap_or("?"));
-            for link in links(value) {
-                if relation
-                    .passes_over
-                    .iter()
-                    .any(|mark| link.id.contains(mark.as_str()))
-                {
-                    continue;
+            match holds {
+                Some(false) => said.push(format!("{from}: {field} -> {shown} - points nowhere")),
+                None if !others.is_empty() => {
+                    said.push(format!("{from}: {field} -> {written} - no such star here"))
                 }
-                let found = match (&link.star, &link.table) {
-                    (Some(star), Some(t)) => {
-                        let Some(there) = others.get(star) else {
-                            if !others.is_empty() {
-                                problems.push(format!(
-                                    "{from} -> {star}/{t}:{} - no such star here",
-                                    link.id
-                                ));
-                            }
-                            continue;
-                        };
-                        if !abroad.contains_key(star) {
-                            abroad.insert(star.clone(), ids(there, &read(there)?));
-                        }
-                        abroad[star].get(t).is_some_and(|s| s.contains(&link.id))
-                    }
-                    (_, Some(t)) => own.get(t).is_some_and(|s| s.contains(&link.id)),
-                    (_, None) => relation
-                        .to
-                        .iter()
-                        .any(|t| own.get(t).is_some_and(|s| s.contains(&link.id))),
-                };
-                if !found {
-                    let written = match (&link.star, &link.table) {
-                        (Some(s), Some(t)) => format!("{s}/{t}:{}", link.id),
-                        (_, Some(t)) => format!("{t}:{}", link.id),
-                        _ => format!("{} (in {})", link.id, relation.to.join(" or ")),
-                    };
-                    problems.push(format!("{from} -> {written} - points nowhere"));
-                }
+                _ => {}
             }
+        };
+        let holds = |key: &str| e.get(key).and_then(|v| v.as_bool());
+        if through.is_empty() {
+            say(
+                &text(e, "how"),
+                text(e, "written"),
+                holds("holds"),
+                text(e, "to_table"),
+            );
+        } else {
+            say(
+                "from",
+                text(e, "from_written"),
+                holds("from_holds"),
+                "*".into(),
+            );
+            say("to", text(e, "written"), holds("holds"), "*".into());
         }
     }
-    Ok(problems)
+    let mut once = BTreeSet::new();
+    said.retain(|s| once.insert(s.clone()));
+    Ok(said)
 }
 
 /// The tables that hold every link between everything in view as rows. No place keeps them: ocoeco fills
@@ -149,9 +165,13 @@ type Held = (PathBuf, Mark, BTreeMap<String, BTreeSet<String>>);
 /// connection is an edge named by how it bears (led to, needed, halted, repeats), through the connection
 /// that says so. Whether an edge holds is said when the place it points into is in view, and left unsaid
 /// when it is not. A thing is named by where it is held, its table and its id.
-pub fn as_graph(
-    dirs: &[PathBuf],
-) -> Result<BTreeMap<&'static str, Vec<serde_json::Map<String, serde_json::Value>>>> {
+pub fn as_graph(dirs: &[PathBuf]) -> Result<Graph> {
+    as_graph_from(dirs, None)
+}
+
+/// The graph of the places in view, with edges only from the place `only` when it is given: what one
+/// place holds, followed into the others. The check and the guard on writes read it this way.
+pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     use serde_json::json;
     let mut places: BTreeMap<String, Held> = BTreeMap::new();
     for dir in dirs {
@@ -206,12 +226,20 @@ pub fn as_graph(
         }
     }
     let mut edges: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+    // an edge: from where, how, to where and whether that holds; the link as written at its far end; and,
+    // for a connection, the one it came through and whether its near end holds as well
     let mut edge = |from: String,
                     how: &str,
                     (to, holds): (String, Option<bool>),
                     via: String,
-                    here: &str| {
-        let id = format!("{from} {how} {to}");
+                    here: &str,
+                    written: String,
+                    (from_written, from_holds): (String, Option<bool>)| {
+        let id = if via.is_empty() {
+            format!("{from} {how} {to}")
+        } else {
+            format!("{from} {how} {to} via {via}")
+        };
         // each end said as its parts - where it is held, its table, its id - so that a lens joins on them
         // and nothing takes a written link apart again
         let ends = |node: &str| -> (String, String, String) {
@@ -225,10 +253,14 @@ pub fn as_graph(
             json!({"id": id, "from": from, "how": how, "to": to, "holds": holds, "via": via, "star": short(here),
                    "from_place": fp, "from_star": short(&fp), "from_table": ft, "from_id": fi,
                    "to_place": tp, "to_star": short(&tp), "to_table": tt, "to_id": ti,
-                   "via_star": short(&vp), "via_id": vi}),
+                   "via_star": short(&vp), "via_id": vi,
+                   "written": written, "from_written": from_written, "from_holds": from_holds}),
         );
     };
-    for (here, (dir, mark, _)) in &places {
+    for (here, (dir, mark, _)) in places
+        .iter()
+        .filter(|(here, _)| only.is_none_or(|o| o == here.as_str()))
+    {
         for relation in relations() {
             let Some((table, field)) = relation.from.split_once('.') else {
                 continue;
@@ -253,6 +285,8 @@ pub fn as_graph(
                         resolve(here, link, &relation.to),
                         String::new(),
                         here,
+                        written(link),
+                        (String::new(), Some(true)),
                     );
                 }
             }
@@ -269,12 +303,15 @@ pub fn as_graph(
             };
             for this in links(from) {
                 for that in links(to) {
+                    let (near, near_holds) = resolve(here, &this, &anywhere);
                     edge(
-                        resolve(here, &this, &anywhere).0,
+                        near,
                         how,
                         resolve(here, &that, &anywhere),
                         format!("{here}/connections:{id}"),
                         here,
+                        written(&that),
+                        (written(&this), near_holds),
                     );
                 }
             }
