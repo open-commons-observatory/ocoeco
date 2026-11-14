@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.1...ocoeco-v0.16.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* the shared language is kept in language/, apart from a place's lenses ([#168](https://github.com/open-commons-observatory/ocoeco/issues/168)) ([c6de889](https://github.com/open-commons-observatory/ocoeco/commit/c6de8892e74d604cdba30820e5c900bf15c20dd1))
+
 ## [0.16.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.0...ocoeco-v0.16.1) (2026-11-14)
 
 
