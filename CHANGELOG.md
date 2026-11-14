@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.1...ocoeco-v0.32.2) (2026-11-14)
+
+
+### Performance Improvements
+
+* a lens is brought into focus once in a look ([#231](https://github.com/open-commons-observatory/ocoeco/issues/231)) ([f839cdb](https://github.com/open-commons-observatory/ocoeco/commit/f839cdb9da6bfe78eeea34333defba08f682806a))
+
 ## [0.32.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.0...ocoeco-v0.32.1) (2026-11-14)
 
 
