@@ -136,47 +136,6 @@ pub fn observe_runs(candidates: &[Candidate], runs: &dyn Runs, h: &mut Harvest) 
     }
 }
 
-/// Whether a run's conclusion is a failure of some kind. A run that was stopped - most often because a
-/// newer one was asked for - did not fail. (The lens of signs says the same in its own query: one
-/// meaning kept in two places, recorded as a sign until it is one.)
-fn fails(row: &Map<String, Value>) -> bool {
-    !matches!(
-        row.get("conclusion").and_then(Value::as_str),
-        Some("success" | "skipped" | "neutral" | "cancelled")
-    )
-}
-
-/// What changed between two observations of runs: what fails now that did not, and what passes again.
-/// A run seen for the first time is new only if it fails.
-pub fn changes(before: &[Map<String, Value>], after: &[Map<String, Value>]) -> Vec<String> {
-    let text = |r: &Map<String, Value>, f: &str| {
-        r.get(f)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string()
-    };
-    let was: BTreeMap<String, bool> = before.iter().map(|r| (text(r, "id"), fails(r))).collect();
-    let mut said = Vec::new();
-    for r in after {
-        match (was.get(&text(r, "id")).copied(), fails(r)) {
-            (Some(true), false) => said.push(format!(
-                "passes again: {} - {}",
-                text(r, "project"),
-                text(r, "workflow")
-            )),
-            (Some(false) | None, true) => said.push(format!(
-                "fails now: {} - {} ({}) {}",
-                text(r, "project"),
-                text(r, "workflow"),
-                text(r, "conclusion"),
-                text(r, "url")
-            )),
-            _ => {}
-        }
-    }
-    said
-}
-
 /// The rows of a tad table file; none when there is no such file.
 pub fn read_rows(path: &Path) -> Vec<Map<String, Value>> {
     let text = std::fs::read_to_string(path).unwrap_or_default();
@@ -258,42 +217,6 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("its runs could not be read: 403"));
-    }
-
-    #[test]
-    fn what_changed_between_observations_is_said_once() {
-        let row = |id: &str, c: &str| {
-            json!({"id": id, "project": "o/r", "workflow": id, "conclusion": c, "url": "u"})
-                .as_object()
-                .unwrap()
-                .clone()
-        };
-        let before = [
-            row("ci", "success"),
-            row("release", "failure"),
-            row("pages", "failure"),
-        ];
-        let after = [
-            row("ci", "failure"),
-            row("release", "success"),
-            row("pages", "failure"),
-            row("new", "failure"),
-            row("fresh", "success"),
-            // stopped because a newer one was asked for: it did not fail, and nothing is said of it
-            row("replaced", "cancelled"),
-        ];
-        assert_eq!(
-            changes(&before, &after),
-            [
-                "fails now: o/r - ci (failure) u",
-                "passes again: o/r - release",
-                "fails now: o/r - new (failure) u"
-            ]
-        );
-        assert!(
-            changes(&after, &after).is_empty(),
-            "nothing changed, nothing said"
-        );
     }
 
     #[test]

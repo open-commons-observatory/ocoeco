@@ -107,6 +107,10 @@ pub struct Part {
     /// through.
     #[serde(default)]
     pub named: Option<String>,
+    /// What newly comes into view in this part is to be said urgently. It is meaning, not looks: the
+    /// voice that carries what is new reads it, and decides nothing itself.
+    #[serde(default)]
+    pub urgent: bool,
 }
 
 /// Every lens, in the order of their files.
@@ -276,6 +280,13 @@ pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> V
                         chain: Some(listed(raw(p, "chain"))).filter(|c| !c.is_empty()),
                         per: some(raw(p, "per")),
                         named: some(raw(p, "named")),
+                        urgent: p
+                            .get("urgent")
+                            .and_then(|a| {
+                                a.as_bool()
+                                    .or_else(|| a.as_str().map(|s| s.trim() == "true"))
+                            })
+                            .unwrap_or(false),
                     })
                     .collect(),
             }
@@ -358,7 +369,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "star": star}),
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
             );
         }
     }

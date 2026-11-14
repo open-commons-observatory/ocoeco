@@ -166,6 +166,9 @@ pub struct Brought {
     /// What a line means beyond its words, when the lens says so: a measure of a whole (so much, of so
     /// much), one for each line, or none. A lens adds meaning; how it looks is each surface's to say.
     pub measures: Vec<Option<(f64, f64)>>,
+    /// What newly comes into view here is to be said urgently, as the lens says.
+    #[serde(default)]
+    pub urgent: bool,
     /// What each line is about, so it can be known again another time though its words change (an age,
     /// a count): its star and id when the answer names them, otherwise the line itself.
     #[serde(default)]
@@ -305,6 +308,7 @@ pub fn brought(
                             .replace("{count}", &rows.len().to_string())
                     }),
                     lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
+                    urgent: part.urgent,
                     keys: rows
                         .iter()
                         .map(|row| {
@@ -744,9 +748,11 @@ pub fn news(before: &[Brought], now: &[Brought]) -> Vec<String> {
     for part in now {
         let Some(title) = &part.title else { continue };
         let was = was_in(named(title));
+        // what the lens says is urgent is marked so; the voice carries it urgently, deciding nothing
+        let urgently = if part.urgent { "urgent: " } else { "" };
         for (key, line) in part.keys.iter().zip(&part.lines) {
             if !was.contains(key) {
-                said.push(format!("{}: {line}", named(title)));
+                said.push(format!("{urgently}{}: {line}", named(title)));
             }
         }
     }
@@ -755,14 +761,14 @@ pub fn news(before: &[Brought], now: &[Brought]) -> Vec<String> {
         .filter(|p| p.title.is_some())
         .flat_map(|p| p.keys.iter())
         .collect();
+    // what is no longer in view is said as the line it was, under its heading
     let mut gone = std::collections::BTreeSet::new();
-    for key in before
-        .iter()
-        .filter(|p| p.title.is_some())
-        .flat_map(|p| p.keys.iter())
-    {
-        if !in_view.contains(key) && gone.insert(key) {
-            said.push(format!("no longer in view: {key}"));
+    for part in before.iter().filter(|p| p.title.is_some()) {
+        let heading = named(part.title.as_deref().unwrap_or_default());
+        for (key, line) in part.keys.iter().zip(&part.lines) {
+            if !in_view.contains(key) && gone.insert(key) {
+                said.push(format!("no longer in view: {heading}: {line}"));
+            }
         }
     }
     said
@@ -1009,10 +1015,17 @@ mod tests {
             [
                 "in progress: bob: r/b - B",
                 "waiting: r/d - D - waits on E",
-                "no longer in view: r/c"
+                "no longer in view: next: r/c - C"
             ]
         );
         assert!(news(&now, &now).is_empty());
+        // what the lens says is urgent is marked so, for the voice to carry urgently
+        let mut failing = part("failing on main (1)", &[("o/r:ci", "o/r - ci: failure")]);
+        failing.urgent = true;
+        assert_eq!(
+            news(&now, &[failing]).first().map(String::as_str),
+            Some("urgent: failing on main: o/r - ci: failure")
+        );
         let kept =
             std::env::temp_dir().join(format!("ocoeco-since-{}/work.json", std::process::id()));
         let _ = std::fs::remove_file(&kept);
