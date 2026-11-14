@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.3...ocoeco-v0.33.0) (2026-11-14)
+
+
+### Features
+
+* a walk in the dome: point at a thing, stand on it, step back ([#236](https://github.com/open-commons-observatory/ocoeco/issues/236)) ([e5a7f20](https://github.com/open-commons-observatory/ocoeco/commit/e5a7f208dc2d725f3c524342b7810c44298addd0))
+
 ## [0.32.3](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.2...ocoeco-v0.32.3) (2026-11-14)
 
 
