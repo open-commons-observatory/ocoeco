@@ -121,6 +121,32 @@ fn cut(s: &str) -> String {
 
 /// Adds or updates the row `id` of `table` in the repository at `dir`; returns what it did.
 pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) -> Result<String> {
+    // every row is written through here: what the lenses in view say is kept out is kept out as it is
+    // written - named where it stood - and said
+    let told = crate::kept::told(&crate::board::in_view(dir).0);
+    let mut kept: Vec<String> = Vec::new();
+    let changes: Vec<Change> = changes
+        .iter()
+        .map(|change| {
+            let (value, out) = crate::kept::out_of(&change.value, &told);
+            kept.extend(out);
+            Change {
+                field: change.field.clone(),
+                value,
+                append: change.append,
+            }
+        })
+        .collect();
+    let said = as_given(dir, table, id, &changes, today)?;
+    Ok(if kept.is_empty() {
+        said
+    } else {
+        format!("{said} - kept out: {}", kept.join(", "))
+    })
+}
+
+/// The row written as its changes stand.
+fn as_given(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) -> Result<String> {
     let mark = Mark::parse(
         &std::fs::read_to_string(dir.join("oco.toml"))
             .context("no oco.toml here: this repository has no mark")?,

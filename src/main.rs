@@ -716,6 +716,8 @@ fn run() -> Result<()> {
                 }
             }
             problems.extend(ocoeco::relations::broken(&dir, &others)?);
+            // and nothing this place keeps holds what is kept out: seen here, before it lands
+            problems.extend(ocoeco::kept::showing(&dir));
             // and every lens must come into focus over this place: a lens that cannot is not landed
             if let Ok(engine) = tad::sql::DuckDb::find() {
                 problems.extend(ocoeco::focus::every_lens_focuses(&dir, &engine));

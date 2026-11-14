@@ -20,6 +20,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 ureq = "2"
+# the shapes a lens says are kept out of a place are told by this
+regex = "1"
 
 # How the released files are packed (packaging/build-packages.sh, called by the package conveyor).
 [package.metadata.deb]

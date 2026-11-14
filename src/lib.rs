@@ -11,6 +11,7 @@ pub mod gather;
 pub mod glimpse;
 pub mod harvest;
 pub mod join;
+pub mod kept;
 pub mod lenses;
 pub mod manual;
 pub mod mark;

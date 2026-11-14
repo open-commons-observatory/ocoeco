@@ -1,0 +1,92 @@
+# The lens of what is kept out. A place that is open keeps some things out of what it keeps: a token, a
+# key, a private channel, an address. Any lens may say what it keeps out - told by its shape. It is kept
+# out as a row is written: the words around it stay, and what was kept out is named where it stood. And
+# wherever one is found in what a place keeps - written past the entries - it shows, and the check that
+# runs before a change lands says so. Not a wall around a place: a lens, seen like any other. What is
+# kept out, and by what shape it is told, is here to be read and refined.
+[lens]
+id = "kept-out"
+says = "What a place keeps out - a token, a key, a private channel, an address - told by its shape: kept out as a row is written and named where it stood, and shown wherever one is found in what a place keeps."
+
+# What a lens says is kept out, as rows the program makes of the lenses in view.
+[tables.kept_out]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "what", type = "string", required = true },
+    { name = "shape", type = "string", required = true },
+    { name = "unless", type = "string" },
+]
+
+# Where, in what the places in view keep, something was kept out or is showing: rows the program makes
+# of every row in view.
+[tables.kept]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "thing", type = "string", required = true },
+    { name = "of_table", type = "string", required = true },
+    { name = "place", type = "string", required = true },
+    { name = "what", type = "string", required = true },
+    { name = "state", type = "string", required = true, enum = ["kept out", "showing"] },
+    { name = "times", type = "integer" },
+]
+
+[[keeps_out]]
+what = "a token"
+shape = 'gh[opsu]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,}'
+
+[[keeps_out]]
+what = "a key"
+shape = 'AGE-SECRET-KEY-[A-Z0-9]+|-----BEGIN [A-Z ]*PRIVATE KEY-----|ssh-(ed25519|rsa) AAAA[A-Za-z0-9+/]{20,}'
+
+[[keeps_out]]
+what = "a private channel"
+shape = 'ntfy\.sh/[A-Za-z0-9_-]{6,}|hc-ping\.com/[0-9a-f-]{20,}'
+
+[[keeps_out]]
+what = "an address of someone"
+shape = '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[a-z]{2,}'
+
+# an address no one beyond the machine or its own network can reach is let be
+[[keeps_out]]
+what = "an address of a machine"
+shape = '\b[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\b'
+unless = '^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.0\.0\.0$|255\.)'
+
+[[focus]]
+title = "showing, where it is to be kept out ({count})"
+urgent = true
+sql = """
+SELECT star || '/' || of_table || ':' || substr(thing, length(place) + length(of_table) + 3) AS where_it_is, what, times
+FROM kept WHERE state = 'showing' ORDER BY thing, what
+"""
+line = "{where_it_is} - holds {what}, {times} time(s)"
+
+[[focus]]
+title = "kept out, by what it is ({count})"
+sql = """
+SELECT what, sum(times) AS times, count(DISTINCT thing) AS in_rows, count(DISTINCT place) AS places
+FROM kept WHERE state = 'kept out' GROUP BY what ORDER BY times DESC, what
+"""
+line = "{what} - kept out {times} time(s), in {in_rows} row(s) of {places} place(s)"
+
+[[focus]]
+title = "what is kept out, and by what shape it is told ({count})"
+sql = """
+SELECT what, shape, lens, CASE WHEN coalesce("unless", '') = '' THEN '' ELSE ' - unless it is: ' || "unless" END AS let_be
+FROM kept_out ORDER BY lens, seq
+"""
+line = "{what} - told by: {shape}{let_be} (said by the lens {lens})"
+
+[[focus]]
+always = true
+sql = """
+SELECT (SELECT coalesce(sum(times), 0) FROM kept WHERE state = 'kept out') AS out,
+       (SELECT count(DISTINCT thing) FROM kept WHERE state = 'kept out') AS in_rows,
+       (SELECT count(*) FROM kept WHERE state = 'showing') AS showing
+"""
+line = "{out} kept out, in {in_rows} row(s); {showing} showing"
