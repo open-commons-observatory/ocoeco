@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.25.1...ocoeco-v0.26.0) (2026-11-14)
+
+
+### Features
+
+* what a place keeps out: a lens, seen like any other ([#203](https://github.com/open-commons-observatory/ocoeco/issues/203)) ([f57fc04](https://github.com/open-commons-observatory/ocoeco/commit/f57fc0461d0ace8f76beeadfa7d614b6a7a3b330))
+
 ## [0.25.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.25.0...ocoeco-v0.25.1) (2026-11-14)
 
 
