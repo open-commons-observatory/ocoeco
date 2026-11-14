@@ -793,16 +793,27 @@ fn run() -> Result<()> {
                     1,
                 )))
             });
-            let found = match &held {
-                Some(held) => discover::discover(&[(held, held)], None)?,
-                None => discover::discover(&[(&gh, &gh)], None)?,
-            };
             // a place observes what its mark says it gathers, and itself - not whatever is found. A
             // place whose mark names nothing gathered (the first observatory) observes all, as before.
             let own = std::fs::read_to_string("oco.toml")
                 .ok()
                 .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
                 .filter(|m| m.place.as_ref().is_some_and(|p| !p.gathers.is_empty()));
+            let found = match (&held, &own) {
+                (Some(held), _) => discover::discover(&[(held, held)], None)?,
+                // and what it gathers is found by asking for it - every repository of an owner it names,
+                // each star it names, and itself - taking what carries a mark: no label, no search
+                (None, Some(own)) => {
+                    let mut named = own
+                        .place
+                        .as_ref()
+                        .map(|p| p.gathers.clone())
+                        .unwrap_or_default();
+                    named.push(own.project.id.clone());
+                    discover::marked(gh.gathered(&named)?, &gh)
+                }
+                (None, None) => discover::discover(&[(&gh, &gh)], None)?,
+            };
             let found: Vec<_> = match &own {
                 Some(own) => found
                     .into_iter()

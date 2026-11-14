@@ -166,6 +166,61 @@ impl GitHub {
     }
 }
 
+impl GitHub {
+    /// What a place says it gathers, found by asking for it: every repository of an owner it names
+    /// whole (owner/*), and each star it names. No label on a repository, and no search that lags
+    /// behind what exists: what is there is asked for, and a place is what carries a mark.
+    pub fn gathered(&self, gathers: &[String]) -> Result<Vec<Found>> {
+        let one = |i: &serde_json::Value| -> Option<Found> {
+            Some(Found {
+                platform: "github".into(),
+                repo: i["full_name"].as_str()?.to_string(),
+                branch: i["default_branch"].as_str().unwrap_or("main").to_string(),
+                url: i["html_url"].as_str()?.to_string(),
+            })
+        };
+        let mut all: Vec<Found> = Vec::new();
+        for named in gathers {
+            let Some(owner) = named.strip_suffix("/*") else {
+                if let Some(text) = self.get(&format!("https://api.github.com/repos/{named}"))? {
+                    all.extend(
+                        serde_json::from_str::<serde_json::Value>(&text)
+                            .ok()
+                            .as_ref()
+                            .and_then(one),
+                    );
+                }
+                continue;
+            };
+            // an owner is an organisation or a person: asked as the one, then as the other
+            for kind in ["orgs", "users"] {
+                let mut answered = false;
+                for page in 1..=10 {
+                    let Some(text) = self.get(&format!(
+                        "https://api.github.com/{kind}/{owner}/repos?per_page=100&page={page}"
+                    ))?
+                    else {
+                        break;
+                    };
+                    answered = true;
+                    let listed: Vec<serde_json::Value> = serde_json::from_str(&text)
+                        .context("the list of repositories is not JSON")?;
+                    all.extend(listed.iter().filter_map(one));
+                    if listed.len() < 100 {
+                        break;
+                    }
+                }
+                if answered {
+                    break;
+                }
+            }
+        }
+        all.sort_by(|a, b| a.repo.cmp(&b.repo));
+        all.dedup_by(|a, b| a.repo == b.repo);
+        Ok(all)
+    }
+}
+
 impl Default for GitHub {
     fn default() -> Self {
         Self::new()
@@ -296,6 +351,34 @@ pub struct Candidate {
     pub found: Found,
     pub mark: Option<Mark>,
     pub problem: Option<String>,
+}
+
+/// Of these repositories, the places: each that carries a mark, checked against it. One with no mark
+/// is not a place, and is passed over without a word.
+pub fn marked(found: Vec<Found>, source: &dyn Source) -> Vec<Candidate> {
+    found
+        .into_iter()
+        .filter_map(|found| match source.read(&found, "oco.toml") {
+            Ok(Some(text)) => Some(match Mark::parse(&text) {
+                Ok(mark) => Candidate {
+                    found,
+                    mark: Some(mark),
+                    problem: None,
+                },
+                Err(e) => Candidate {
+                    found,
+                    mark: None,
+                    problem: Some(format!("{e:#}")),
+                },
+            }),
+            Ok(None) => None,
+            Err(e) => Some(Candidate {
+                found,
+                mark: None,
+                problem: Some(format!("{e:#}")),
+            }),
+        })
+        .collect()
 }
 
 /// Every candidate the outlets find, each checked against its mark.
@@ -444,5 +527,36 @@ mod tests {
             "https://api.github.com/repos/o/r/contents/oco/gathered/releases.json?ref=main"
         );
         assert!(is_api(&u), "so it is current, and the token applies");
+    }
+}
+
+#[cfg(test)]
+mod what_carries_a_mark {
+    use super::*;
+
+    struct Shelf;
+    impl Source for Shelf {
+        fn read(&self, found: &Found, path: &str) -> Result<Option<String>> {
+            Ok((found.repo == "o/marked" && path == "oco.toml")
+                .then(|| "schema = 1\n[project]\nid = \"o/marked\"\nname = \"M: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n".to_string()))
+        }
+    }
+
+    #[test]
+    fn of_the_repositories_found_a_place_is_what_carries_a_mark() {
+        let found = |repo: &str| Found {
+            platform: "github".into(),
+            repo: repo.into(),
+            branch: "main".into(),
+            url: String::new(),
+        };
+        let places = marked(vec![found("o/marked"), found("o/no-mark")], &Shelf);
+        let said: Vec<&str> = places.iter().map(|c| c.found.repo.as_str()).collect();
+        assert_eq!(
+            said,
+            ["o/marked"],
+            "one with no mark is passed over without a word"
+        );
+        assert!(places[0].mark.is_some() && places[0].problem.is_none());
     }
 }
