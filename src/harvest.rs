@@ -157,7 +157,8 @@ pub fn write_part(h: &mut Harvest, dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Writes the harvest as tad tables into `dir`: one file per table, projects.json, problems.json.
+/// Writes the harvest as tad tables into `dir`: one file per table, and projects.json. What could not be
+/// read is written among the signs (the table problems), not beside them under the same name.
 pub fn write(h: &mut Harvest, dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir)?;
     let as_rows = |v: &[Value]| {
@@ -169,10 +170,33 @@ pub fn write(h: &mut Harvest, dir: &Path) -> Result<()> {
         dir.join("projects.json"),
         canonical(&mut as_rows(&h.projects)),
     )?;
-    std::fs::write(
-        dir.join("problems.json"),
-        canonical(&mut as_rows(&h.problems)),
-    )?;
+    // what could not be read is a sign - it does not fit, and the observation is who saw it: it goes
+    // among the signs the places keep, where it shows, and is gone by itself once the thing reads again
+    for unread in as_rows(&h.problems) {
+        let said = |key: &str| {
+            unread
+                .get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        let named: String = said("id")
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() {
+                    c.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect();
+        let sign = json!({"id": format!("could-not-be-read-{}", named.trim_matches('-')), "project": said("project"), "kind": "unclear", "by": "the observation",
+                          "what": format!("the observation could not read {}: {}", said("id"), said("problem"))});
+        h.tables
+            .entry("problems".to_string())
+            .or_default()
+            .extend(sign.as_object().cloned());
+    }
     for (table, rows) in h.tables.iter_mut() {
         std::fs::write(dir.join(format!("{table}.json")), canonical(rows))?;
     }
@@ -326,5 +350,46 @@ mod tests {
         );
         assert_eq!(h.tables["ci"].len(), 1, "read from oco-data, not from main");
         assert!(h.problems.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod what_could_not_be_read {
+    use super::*;
+
+    #[test]
+    fn it_is_written_among_the_signs_and_the_signs_the_places_keep_stay() {
+        let dir =
+            std::env::temp_dir().join(format!("ocoeco-could-not-be-read-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let row = |v: Value| v.as_object().cloned().unwrap();
+        let mut h = Harvest {
+            projects: Vec::new(),
+            tables: BTreeMap::from([(
+                "problems".to_string(),
+                vec![row(
+                    json!({"id": "a-sign", "project": "o/a", "what": "said by someone", "kind": "lacking"}),
+                )],
+            )]),
+            problems: vec![
+                json!({"id": "o/b:backlog", "project": "o/b", "problem": "data/backlog.json is exported but missing"}),
+            ],
+        };
+        write(&mut h, &dir).unwrap();
+        let kept = read_rows(&dir.join("problems.json"));
+        let said: Vec<(&str, &str)> = kept
+            .iter()
+            .map(|r| (r["id"].as_str().unwrap(), r["project"].as_str().unwrap()))
+            .collect();
+        assert_eq!(
+            said,
+            [("a-sign", "o/a"), ("could-not-be-read-o-b-backlog", "o/b")],
+            "the sign a place keeps stays, and what could not be read is beside it"
+        );
+        assert_eq!(kept[1]["by"].as_str(), Some("the observation"));
+        assert!(kept[1]["what"]
+            .as_str()
+            .unwrap()
+            .ends_with("data/backlog.json is exported but missing"));
     }
 }
