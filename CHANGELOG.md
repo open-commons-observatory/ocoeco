@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.0...ocoeco-v0.32.1) (2026-11-14)
+
+
+### Performance Improvements
+
+* the graph is made once in a look ([#228](https://github.com/open-commons-observatory/ocoeco/issues/228)) ([3bc7fa9](https://github.com/open-commons-observatory/ocoeco/commit/3bc7fa9405cdea1377557aeb4a562156fdff0cca))
+
 ## [0.32.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.31.0...ocoeco-v0.32.0) (2026-11-14)
 
 
