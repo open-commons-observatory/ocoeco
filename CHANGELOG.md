@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.20.0...ocoeco-v0.21.0) (2026-11-14)
+
+
+### Features
+
+* where the work happens: a lens from a place; a record of work says where it was made ([#184](https://github.com/open-commons-observatory/ocoeco/issues/184)) ([3ed76f3](https://github.com/open-commons-observatory/ocoeco/commit/3ed76f3fc3f64eb31114f2ec37c4bbcf6f6d3b75))
+
 ## [0.20.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.19.0...ocoeco-v0.20.0) (2026-11-14)
 
 
