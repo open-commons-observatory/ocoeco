@@ -65,13 +65,21 @@ WHERE h.of_table = 'places' ORDER BY t.id LIMIT 12
 """
 line = "{thing} - {says}"
 
+# A pointing as it is said: by what it is - and, where its field goes by another name, that name beside it.
+# One shape, named, that the two parts below ask of: what is said one way is said once.
+[[focus]]
+named = "said"
+sql = """
+SELECT e.*, CASE WHEN e.nature <> e.how THEN ' (' || e.how || ')' ELSE '' END AS said_as FROM edges e
+"""
+
 [[focus]]
 title = "from here - what it points at ({count})"
 sql = """
-SELECT e.nature, CASE WHEN e.nature <> e.how THEN ' (' || e.how || ')' ELSE '' END AS said_as,
+SELECT e.nature, e.said_as,
        e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
        CASE WHEN e.holds THEN '' WHEN e.holds IS NULL THEN ' (not in view from here)' ELSE ' (points nowhere)' END AS held
-FROM edges e JOIN here h ON e."from" = h.id LEFT JOIN things t ON t.id = e."to"
+FROM said e JOIN here h ON e."from" = h.id LEFT JOIN things t ON t.id = e."to"
 ORDER BY e.nature, e.how, thing
 """
 line = "this {nature} {thing}{said_as}{held} - {says}"
@@ -79,9 +87,9 @@ line = "this {nature} {thing}{said_as}{held} - {says}"
 [[focus]]
 title = "to here - what points at it ({count})"
 sql = """
-SELECT e.nature, CASE WHEN e.nature <> e.how THEN ' (' || e.how || ')' ELSE '' END AS said_as,
+SELECT e.nature, e.said_as,
        e.from_star || '/' || e.from_table || ':' || e.from_id AS thing, coalesce(t.says, '') AS says
-FROM edges e JOIN here h ON e."to" = h.id LEFT JOIN things t ON t.id = e."from"
+FROM said e JOIN here h ON e."to" = h.id LEFT JOIN things t ON t.id = e."from"
 ORDER BY e.nature, e.how, thing
 """
 line = "{thing} {nature} this{said_as} - {says}"
