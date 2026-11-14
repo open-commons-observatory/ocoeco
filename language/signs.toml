@@ -13,7 +13,7 @@
 id = "signs"
 grew_from = "problems"
 says = "What does not fit, said by whoever sees it and shown while nothing has come of it: a sign of something stale, overlapping, lacking or unclear - and what fails or has not moved, read off the work."
-reads = ["backlog", "connections", "edges", "nowhere"]
+reads = ["backlog", "connections", "edges", "nowhere", "holding"]
 
 [tables.problems]
 key = ["id"]
@@ -65,19 +65,37 @@ supplies = [
 # The focus of the lens of signs. A sign has come to something when a connection leads from it (this
 # place's own, or one drawn in another place), or - for rows written before - when it was marked handled.
 [[focus]]
+named = "unanswered"
+sql = """
+SELECT p.* FROM problems p
+WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
+  SELECT 1 FROM edges e WHERE e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id)
+"""
+
+[[focus]]
 title = "showing - nothing has come of it yet ({count})"
 always = true
 sql = """
-SELECT p.star, p.id, p.what, p."by",
-       CASE WHEN coalesce(p."where", '') <> '' THEN ' - at ' || p."where" ELSE '' END AS at,
-       CASE WHEN coalesce(p.kind, '') <> '' THEN ' [' || p.kind || ']' ELSE '' END AS of_kind,
-       date_diff('day', try_cast(p.seen AS DATE), DATE '{today}') AS days
-FROM problems p
-WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
-  SELECT 1 FROM edges e WHERE e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id)
-ORDER BY p.seen, p.seq
+SELECT star, id, what, "by",
+       CASE WHEN coalesce("where", '') <> '' THEN ' - at ' || "where" ELSE '' END AS at,
+       CASE WHEN coalesce(kind, '') <> '' THEN ' [' || kind || ']' ELSE '' END AS of_kind,
+       date_diff('day', try_cast(seen AS DATE), DATE '{today}') AS days
+FROM unanswered ORDER BY seen, seq
 """
 line = "{star}/{id}{of_kind} - {what}{at} (seen by {by}, {days} day(s) ago)"
+
+# What each sign showing waits on: what holds it back, read off the halts drawn to it - or nothing, and then
+# it can be taken up now. What holds things back is the work lens's to know; this lens only asks of it.
+[[focus]]
+title = "showing, and what each waits on ({count})"
+sql = """
+SELECT u.star, u.id,
+       coalesce('held back by ' || string_agg(h.halter || ' (' || h.stands || ')', ', ' ORDER BY h.halter),
+                'nothing drawn holds it: it can be taken up now') AS waits
+FROM unanswered u LEFT JOIN holding h ON h.held_table = 'problems' AND h.star = u.star AND h.id = u.id
+GROUP BY u.star, u.id, u.seen, u.seq ORDER BY u.seen, u.seq
+"""
+line = "{star}/{id} - {waits}"
 
 [[focus]]
 title = "failing on main ({count})"

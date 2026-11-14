@@ -97,11 +97,12 @@ line = "{star}/{id} - {title} - waits on {waits_on}"
 
 # What holds an item back is read off what halts it: a connection says this halted that, and it holds while
 # what halts is not done - an item not done or dropped, a sign nothing has come of - unless a connection
-# says the halt ended. One shape, named, that the two parts below ask of.
+# says the halt ended - an item held back, or a sign. One shape, named, that the parts below and the lens of
+# signs ask of.
 [[focus]]
 named = "holding"
 sql = """
-SELECT h.to_star AS star, h.to_id AS id,
+SELECT h.to_star AS star, h.to_id AS id, h.to_table AS held_table,
        h.from_star || '/' || h.from_table || ':' || h.from_id AS halter,
        h.from_star AS halter_star, h.from_table AS halter_table, h.from_id AS halter_id,
        CASE WHEN h.from_table = 'backlog' THEN coalesce(hb.status, 'not found')
@@ -110,7 +111,7 @@ SELECT h.to_star AS star, h.to_id AS id,
 FROM edges h
 LEFT JOIN backlog hb ON h.from_table = 'backlog' AND hb.star = h.from_star AND hb.id = h.from_id
 LEFT JOIN problems hp ON h.from_table = 'problems' AND hp.star = h.from_star AND hp.id = h.from_id
-WHERE h.how = 'halted' AND h.to_table = 'backlog' AND h.holds
+WHERE h.how = 'halted' AND h.to_table IN ('backlog', 'problems') AND h.holds
   AND coalesce(hb.status, '') NOT IN ('done', 'dropped')
   AND NOT (h.from_table = 'problems' AND (coalesce(hp.handled, '') <> '' OR EXISTS (
         SELECT 1 FROM edges l WHERE l.how = 'led to' AND l.from_table = 'problems' AND l.from_star = h.from_star AND l.from_id = h.from_id)))
@@ -121,7 +122,7 @@ WHERE h.how = 'halted' AND h.to_table = 'backlog' AND h.holds
 title = "held back - read off what halts it ({count})"
 sql = """
 SELECT b.star, b.id, b.title, string_agg(h.halter || ' (' || h.stands || ')', ', ' ORDER BY h.halter) AS by
-FROM holding h JOIN backlog b ON b.star = h.star AND b.id = h.id
+FROM holding h JOIN backlog b ON h.held_table = 'backlog' AND b.star = h.star AND b.id = h.id
 WHERE b.status NOT IN ('done', 'dropped') GROUP BY b.star, b.id, b.title, b.seq ORDER BY b.star, b.seq
 """
 line = "{star}/{id} - {title} - held back by {by}"
@@ -130,7 +131,7 @@ line = "{star}/{id} - {title} - held back by {by}"
 title = "said to be waiting, though nothing drawn holds it back ({count})"
 sql = """
 SELECT b.star, b.id, b.title, coalesce(nullif(b.waits_on, ''), 'nothing said') AS waits_on FROM backlog b
-WHERE b.status = 'waiting' AND NOT EXISTS (SELECT 1 FROM holding h WHERE h.star = b.star AND h.id = b.id)
+WHERE b.status = 'waiting' AND NOT EXISTS (SELECT 1 FROM holding h WHERE h.held_table = 'backlog' AND h.star = b.star AND h.id = b.id)
 ORDER BY b.star, b.seq
 """
 line = "{star}/{id} - {title} - waits on, in words: {waits_on}"
