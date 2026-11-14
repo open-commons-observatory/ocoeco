@@ -98,6 +98,8 @@ pub struct Glimpse {
     pub minutes: Option<String>,
     pub load: Option<String>,
     pub by: String,
+    /// The things stood on while this was done, as links: where it was made, supplied by the act of looking.
+    pub stood_on: Vec<String>,
 }
 
 fn change(field: &str, value: &str) -> Change {
@@ -155,6 +157,9 @@ pub fn glimpse(dir: &Path, g: &Glimpse, now: &str, id: &str) -> Result<String> {
     if !touches.is_empty() {
         changes.push(change("touches", &touches.join(" ")));
     }
+    if !g.stood_on.is_empty() {
+        changes.push(change("where", &g.stood_on.join(" ")));
+    }
     if let Some(m) = &g.minutes {
         changes.push(change("minutes", m));
     }
@@ -170,6 +175,12 @@ pub fn glimpse(dir: &Path, g: &Glimpse, now: &str, id: &str) -> Result<String> {
     }
     if !touches.is_empty() {
         out.push_str(&format!(" - {} row(s) it touched", touches.len()));
+    }
+    if !g.stood_on.is_empty() {
+        out.push_str(&format!(
+            " - made from {} thing(s) stood on",
+            g.stood_on.len()
+        ));
     }
     Ok(out)
 }
@@ -310,6 +321,7 @@ mod tests {
             minutes: Some("5".into()),
             load: None,
             by: "mll".into(),
+            stood_on: vec![],
         };
         let said = glimpse(&d, &g, "2026-11-11T21:00:00Z", "g-20261111-210000").unwrap();
         assert!(

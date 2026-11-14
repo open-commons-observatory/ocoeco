@@ -416,6 +416,47 @@ fn run() -> Result<()> {
                 .or_else(|| std::env::var("OCOECO_BY").ok())
                 .or_else(|| std::env::var("USER").ok())
                 .unwrap_or_else(|| "someone".into());
+            // where it was made: the things stood on since the last record of work - those held in places
+            // kept beside this one - as links from this place; a place stood on is where one looked from,
+            // not a row
+            let own = std::fs::read_to_string(dir.join("oco.toml"))
+                .ok()
+                .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
+                .map(|m| m.project.id);
+            let beside: Vec<String> = std::fs::canonicalize(&dir)
+                .ok()
+                .and_then(|d| {
+                    d.parent()
+                        .and_then(|p| p.parent())
+                        .map(ocoeco::board::projects)
+                })
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|d| {
+                    std::fs::read_to_string(d.join("oco.toml"))
+                        .ok()
+                        .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
+                        .map(|m| m.project.id)
+                })
+                .collect();
+            let stood_on: Vec<String> = ocoeco::trail::taken(&by)
+                .into_iter()
+                .filter(|thing| {
+                    !thing.contains("/places:")
+                        && beside
+                            .iter()
+                            .any(|place| thing.starts_with(&format!("{place}/")))
+                })
+                .map(|thing| {
+                    match own
+                        .as_deref()
+                        .and_then(|own| thing.strip_prefix(&format!("{own}/")))
+                    {
+                        Some(local) => local.to_string(),
+                        None => thing,
+                    }
+                })
+                .collect();
             let g = glimpse::Glimpse {
                 summary,
                 kind,
@@ -424,6 +465,7 @@ fn run() -> Result<()> {
                 minutes,
                 load,
                 by,
+                stood_on,
             };
             println!("{}", glimpse::glimpse(&dir, &g, &now, &id)?);
         }
@@ -562,6 +604,14 @@ fn run() -> Result<()> {
             } else {
                 ocoeco::focus::brought(&lens, &places, &today, &engine)?
             };
+            // looking through a lens from a thing is a step on the driver's trail: the work, seen where it
+            // happens - a record of work reads from it where it was made
+            if let Some(thing) = ocoeco::focus::stood_on(&lens, &places) {
+                let who = std::env::var("OCOECO_BY")
+                    .or_else(|_| std::env::var("USER"))
+                    .unwrap_or_else(|_| "someone".into());
+                ocoeco::trail::step(&who, &thing);
+            }
             match since {
                 // only what is new in view since last time
                 Some(kept) => {
