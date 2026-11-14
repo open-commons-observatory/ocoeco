@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.12.0...ocoeco-v0.13.0) (2026-11-14)
+
+
+### Features
+
+* what fits across stars: the star, then its kind, then the row ([#153](https://github.com/open-commons-observatory/ocoeco/issues/153)) ([b595530](https://github.com/open-commons-observatory/ocoeco/commit/b59553092221171318d4413ad0ebda33ff849423))
+
 ## [0.12.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.11.0...ocoeco-v0.12.0) (2026-11-14)
 
 
