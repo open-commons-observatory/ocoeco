@@ -70,9 +70,18 @@ fn spoken_at(dir: &Path) -> Option<tad::Declaration> {
             tables.entry(name).or_insert(declared);
         }
     }
-    let mut whole = toml::Table::new();
-    whole.insert("tables".into(), toml::Value::Table(tables));
-    toml::Value::Table(whole).try_into().ok()
+    let whole = |tables: toml::Table| -> Option<tad::Declaration> {
+        let mut whole = toml::Table::new();
+        whole.insert("tables".into(), toml::Value::Table(tables));
+        toml::Value::Table(whole).try_into().ok()
+    };
+    // and the tables the place declares itself, where no lens defines them: a row of such a table is held
+    // to the shape its own place says. Where that declaration cannot be read with the rest, the rest stands.
+    let mut with_its_own = tables.clone();
+    for (name, declared) in crate::lenses::of_the_place(dir) {
+        with_its_own.entry(name).or_insert(declared);
+    }
+    whole(with_its_own).or_else(|| whole(tables))
 }
 
 /// ocoeco's shared language: the tables every star may keep - those the lenses define (language/*.toml),

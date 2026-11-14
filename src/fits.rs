@@ -56,6 +56,20 @@ pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
                     .iter()
                     .map(|e| fit(e.entry.clone(), e.says.clone()))
             })
+            // and each table the place keeps that no entry fills: entered as itself
+            .chain(
+                std::fs::read_to_string(dir.join("oco.toml"))
+                    .ok()
+                    .and_then(|t| crate::mark::Mark::parse(&t).ok())
+                    .into_iter()
+                    .flat_map(|_| crate::entries::as_themselves(dir))
+                    .map(|table| {
+                        fit(
+                            table.clone(),
+                            format!("a row of {table}, entered as the table itself"),
+                        )
+                    }),
+            )
             .collect(),
         [glimpse, name, rest @ ..] if glimpse == "glimpse" => match entry_in(name, dir) {
             // a record of work, said in its own words, and the flags it takes
