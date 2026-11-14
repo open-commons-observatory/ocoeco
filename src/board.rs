@@ -1,6 +1,6 @@
 //! Where the places are: every marked project under a root, two levels down (owner/repository), as
 //! the lab keeps them. What was the board - a hand-written view of every backlog - is now the work
-//! lens's focus, declared as data (lenses/work.toml), proven equal to it on 2026-11-12 and then removed.
+//! lens's focus, declared as data (language/work.toml), proven equal to it on 2026-11-12 and then removed.
 
 use std::path::{Path, PathBuf};
 

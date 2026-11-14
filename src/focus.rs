@@ -1,4 +1,4 @@
-//! Focus: a lens brings data into view. A lens's focus is declared as data (lenses/*.toml): parts, each
+//! Focus: a lens brings data into view. A lens's focus is declared as data (language/*.toml): parts, each
 //! a query over the lens's tables and a line saying how one answer is laid out. The data of every place
 //! asked for is gathered - each row with its star - and the queries are run by tad's SQL engine. Nothing
 //! is made: the same data, brought into focus; and what is seen is laid out as plain text - the first

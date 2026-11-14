@@ -1,4 +1,4 @@
-//! Reads lenses/*.toml and builds them into ocoeco. A lens id used twice, or a table defined by two
+//! Reads language/*.toml - the shared language: the lenses built into ocoeco - and builds them in. A lens id used twice, or a table defined by two
 //! lenses, stops the build: a collision is met in the making, never in use. One lens defines a piece
 //! of data; other lenses read it.
 use std::collections::BTreeMap;
@@ -7,7 +7,7 @@ use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=lenses");
-    let mut files: Vec<_> = fs::read_dir("lenses")
+    let mut files: Vec<_> = fs::read_dir("language")
         .expect("a lenses folder")
         .flatten()
         .map(|e| e.path())
@@ -93,7 +93,7 @@ fn main() {
         {
             reads.push((name.clone(), read.to_string()));
         }
-        out.push_str(&format!("    ({name:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/lenses/{name}\"))),\n"));
+        out.push_str(&format!("    ({name:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), \"/language/{name}\"))),\n"));
     }
     for (shape, lens) in &shapes {
         if let Some(other) = tables.get(shape) {

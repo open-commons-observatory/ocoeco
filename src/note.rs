@@ -75,7 +75,7 @@ fn spoken_at(dir: &Path) -> Option<tad::Declaration> {
     toml::Value::Table(whole).try_into().ok()
 }
 
-/// ocoeco's shared language: the tables every star may keep - those the lenses define (lenses/*.toml),
+/// ocoeco's shared language: the tables every star may keep - those the lenses define (language/*.toml),
 /// together, as a tad declaration. Each table is a minimum; a star's rows may carry more fields.
 pub fn language() -> &'static tad::Declaration {
     static LANGUAGE: std::sync::OnceLock<tad::Declaration> = std::sync::OnceLock::new();
