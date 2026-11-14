@@ -334,7 +334,46 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
 /// that says so. Whether an edge holds is said when the place it points into is in view, and left unsaid
 /// when it is not. A thing is named by where it is held, its table and its id.
 pub fn as_graph(dirs: &[PathBuf]) -> Result<Graph> {
-    as_graph_from(dirs, None)
+    // within one look the graph is made once: every lens that reads it, and each table of it a lens asks
+    // of, is given the same one. Not kept beyond the look - what stays open sees what has changed.
+    if let Some(made) = LOOK.with(|look| look.borrow().1.get(dirs).cloned()) {
+        return Ok(made);
+    }
+    let made = as_graph_from(dirs, None)?;
+    LOOK.with(|look| {
+        let mut look = look.borrow_mut();
+        if look.0 > 0 {
+            look.1.insert(dirs.to_vec(), made.clone());
+        }
+    });
+    Ok(made)
+}
+
+thread_local! {
+    /// How many looks are under way, one within another, and the graphs made in them.
+    static LOOK: std::cell::RefCell<(usize, std::collections::HashMap<Vec<PathBuf>, Graph>)> = Default::default();
+}
+
+/// One look: while it lasts, the graph of the places in view is made once and given to all who ask.
+pub struct OneLook;
+
+/// Begins one look - a lens brought into focus, with all it places; a place checked. Where one is begun
+/// within another, they are one look: what was made lasts until the outermost ends.
+pub fn one_look() -> OneLook {
+    LOOK.with(|look| look.borrow_mut().0 += 1);
+    OneLook
+}
+
+impl Drop for OneLook {
+    fn drop(&mut self) {
+        LOOK.with(|look| {
+            let mut look = look.borrow_mut();
+            look.0 = look.0.saturating_sub(1);
+            if look.0 == 0 {
+                look.1.clear();
+            }
+        });
+    }
 }
 
 /// The graph of the places in view, with edges only from the place `only` when it is given: what one
@@ -1164,6 +1203,50 @@ mod whoever_declares_it {
                 Some("follows"),
                 Some(true)
             )
+        );
+    }
+}
+
+#[cfg(test)]
+mod once_in_a_look {
+    use super::*;
+
+    #[test]
+    fn within_one_look_the_graph_is_made_once_and_after_it_what_changed_is_seen() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-one-look-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(d.join("data/notes.json"), "{\"id\":\"a\"}\n").unwrap();
+        let notes = |dirs: &[PathBuf]| {
+            as_graph(dirs).unwrap()["things"]
+                .iter()
+                .filter(|t| t["of_table"] == "notes")
+                .count()
+        };
+        let dirs = [d.clone()];
+        {
+            let _look = one_look();
+            assert_eq!(notes(&dirs), 1);
+            std::fs::write(
+                d.join("data/notes.json"),
+                "{\"id\":\"a\"}\n{\"id\":\"b\"}\n",
+            )
+            .unwrap();
+            let _within = one_look();
+            assert_eq!(
+                notes(&dirs),
+                1,
+                "within one look - and a look within it - the graph is the one made"
+            );
+        }
+        assert_eq!(notes(&dirs), 2, "after the look, what changed is seen");
+        assert_eq!(
+            notes(&dirs),
+            2,
+            "and where no look is under way, nothing is kept"
         );
     }
 }

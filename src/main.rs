@@ -722,6 +722,8 @@ fn run() -> Result<()> {
             );
         }
         Cmd::Check { dir, root } => {
+            // checking a place is one look: the graph is made once for all that is checked of it
+            let _one_look = ocoeco::relations::one_look();
             let (well, mut problems) = join::check(&dir)?;
             // a place's mark and an older lens.toml beside it say the same of what is gathered
             if let (Ok(mark), Ok(old)) = (
