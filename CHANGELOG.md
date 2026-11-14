@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.19.0...ocoeco-v0.20.0) (2026-11-14)
+
+
+### Features
+
+* the top of the walk: a place is a thing, and what it gathers is drawn ([#182](https://github.com/open-commons-observatory/ocoeco/issues/182)) ([e079c85](https://github.com/open-commons-observatory/ocoeco/commit/e079c85ca5e3ec0daa3f495735647b865cb68179))
+
 ## [0.19.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.18.1...ocoeco-v0.19.0) (2026-11-14)
 
 
