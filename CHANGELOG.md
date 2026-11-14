@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.21.0...ocoeco-v0.22.0) (2026-11-14)
+
+
+### Features
+
+* the board reads where the work is happening ([#186](https://github.com/open-commons-observatory/ocoeco/issues/186)) ([4e0ac79](https://github.com/open-commons-observatory/ocoeco/commit/4e0ac79e9720019cbbed73029873f40f246a4222))
+
 ## [0.21.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.20.0...ocoeco-v0.21.0) (2026-11-14)
 
 
