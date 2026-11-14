@@ -9,6 +9,16 @@ use crate::join::rows;
 use crate::mark::Mark;
 use std::path::Path;
 
+/// A command of the program, as its declaration says: its name, what it is, its flags (the long name,
+/// what it is, whether it takes a value) and its positionals' names, in order.
+#[derive(Debug, Clone, Default)]
+pub struct Command {
+    pub name: String,
+    pub is: String,
+    pub flags: Vec<(String, String, bool)>,
+    pub positionals: Vec<String>,
+}
+
 /// One thing that may come next: the word, and what it is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fit {
@@ -45,12 +55,12 @@ fn about(row: &serde_json::Value) -> String {
 /// What may come next after `words` - what is typed after `ocoeco`, the last being the word being typed
 /// (empty at a blank) - standing in the place at `dir`. `commands` are the program's own, with what each
 /// is. Only what begins as the word being typed begins is offered.
-pub fn after(words: &[String], dir: &Path, commands: &[(String, String)]) -> Vec<Fit> {
+pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
     let typing = words.last().cloned().unwrap_or_default();
     let offered = match words {
         [] | [_] => commands
             .iter()
-            .map(|(c, is)| fit(c.clone(), is.clone()))
+            .map(|c| fit(c.name.clone(), c.is.clone()))
             .collect(),
         [glimpse, _] if glimpse == "glimpse" => crate::lenses::lenses()
             .iter()
@@ -61,7 +71,12 @@ pub fn after(words: &[String], dir: &Path, commands: &[(String, String)]) -> Vec
             })
             .collect(),
         [glimpse, name, rest @ ..] if glimpse == "glimpse" => match entry(name) {
-            None => Vec::new(),
+            // a record of work, said in its own words, and the flags it takes
+            None => commands
+                .iter()
+                .find(|c| c.name == "glimpse")
+                .map(|c| command_fits(c, &words[1..], dir))
+                .unwrap_or_default(),
             Some((lens, e)) => {
                 let declared = fields(&lens, &e.table);
                 let before = rest
@@ -106,12 +121,76 @@ pub fn after(words: &[String], dir: &Path, commands: &[(String, String)]) -> Vec
                 }
             }
         },
-        _ => Vec::new(),
+        // any other command: what its declaration says it takes
+        [name, rest @ ..] => commands
+            .iter()
+            .find(|c| &c.name == name)
+            .map(|c| command_fits(c, rest, dir))
+            .unwrap_or_default(),
     };
     offered
         .into_iter()
         .filter(|f| f.word.starts_with(typing.as_str()))
         .collect()
+}
+
+/// What may come next for a command: after a flag that takes a value, what that value may be; otherwise
+/// what its next positional may be, and the flags not yet given.
+fn command_fits(c: &Command, rest: &[String], dir: &Path) -> Vec<Fit> {
+    let before = &rest[..rest.len().saturating_sub(1)];
+    let typing = rest.last().cloned().unwrap_or_default();
+    let takes = |flag: &str| c.flags.iter().any(|(f, _, value)| f == flag && *value);
+    if let Some(flag) = before
+        .last()
+        .and_then(|w| w.strip_prefix("--"))
+        .filter(|f| takes(f))
+    {
+        return value_named(flag, dir);
+    }
+    // the positionals given so far: words that are neither a flag nor what a flag was given
+    let (mut given, mut skip) = (0, false);
+    for word in before {
+        if std::mem::take(&mut skip) {
+            continue;
+        }
+        match word.strip_prefix("--") {
+            Some(flag) => skip = takes(flag),
+            None => given += 1,
+        }
+    }
+    let mut offered = Vec::new();
+    if !typing.starts_with('-') {
+        if let Some(positional) = c.positionals.get(given) {
+            offered.extend(value_named(positional, dir));
+        }
+    }
+    let used: Vec<&str> = before.iter().filter_map(|w| w.strip_prefix("--")).collect();
+    offered.extend(
+        c.flags
+            .iter()
+            .filter(|(f, _, _)| !used.contains(&f.as_str()))
+            .map(|(f, is, _)| fit(format!("--{f}"), is.clone())),
+    );
+    offered
+}
+
+/// What a value of this name may be, where the language or the program says: a lens in view, a surface, a
+/// table this place keeps. Of any other, nothing is known here.
+fn value_named(name: &str, dir: &Path) -> Vec<Fit> {
+    match name {
+        "lens" => crate::lenses::with(&crate::board::in_view(dir).0)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|l| fit(l.lens.id, l.lens.says))
+            .collect(),
+        "surface" => crate::dome::SURFACES.iter().map(|s| fit(*s, "")).collect(),
+        "table" => std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|t| Mark::parse(&t).ok())
+            .map(|m| m.exports.into_keys().map(|t| fit(t, "")).collect())
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
 }
 
 /// What a field of an entry may hold, standing in the place at `dir`. A link may point into this place or
@@ -291,9 +370,49 @@ mod tests {
         std::fs::write(d.join("data/decisions.json"), "").unwrap();
         let words = |f: Vec<Fit>| f.into_iter().map(|f| f.word).collect::<Vec<_>>();
         let commands = [
-            ("glimpse".to_string(), "Record".to_string()),
-            ("focus".to_string(), "Look".to_string()),
+            Command {
+                name: "glimpse".into(),
+                is: "Record".into(),
+                flags: vec![("kind".into(), "What kind".into(), true)],
+                positionals: vec!["summary".into()],
+            },
+            Command {
+                name: "focus".into(),
+                is: "Look".into(),
+                flags: vec![
+                    ("surface".into(), "The surface".into(), true),
+                    ("beam".into(), "Its beam".into(), false),
+                ],
+                positionals: vec!["lens".into()],
+            },
         ];
+        // a command of the program: its positional, from the language - and its flags, from its declaration
+        let focus = words(after(&line(&["focus", ""]), &d, &commands));
+        assert!(
+            focus.contains(&"work".to_string()) && focus.contains(&"--surface".to_string()),
+            "{focus:?}"
+        );
+        assert_eq!(
+            words(after(
+                &line(&["focus", "work", "--surface", "s"]),
+                &d,
+                &commands
+            )),
+            ["screen"]
+        );
+        assert_eq!(
+            words(after(&line(&["focus", "work", "--b"]), &d, &commands)),
+            ["--beam"]
+        );
+        assert_eq!(
+            words(after(
+                &line(&["focus", "work", "--beam", "--surface", "text", ""]),
+                &d,
+                &commands
+            )),
+            Vec::<String>::new(),
+            "all given"
+        );
         assert_eq!(
             words(after(&line(&["gl"]), &d, &commands)),
             ["glimpse"],

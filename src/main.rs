@@ -584,13 +584,27 @@ fn run() -> Result<()> {
         }
         Cmd::Fits { shell, dir, words } => {
             use clap::CommandFactory;
-            let commands: Vec<(String, String)> = Cli::command()
+            // the program's own commands, as their declaration says: name, what each is, its flags, its
+            // positionals - read, not written again
+            let commands: Vec<ocoeco::fits::Command> = Cli::command()
                 .get_subcommands()
-                .map(|c| {
-                    (
-                        c.get_name().to_string(),
-                        c.get_about().map(|a| a.to_string()).unwrap_or_default(),
-                    )
+                .map(|c| ocoeco::fits::Command {
+                    name: c.get_name().to_string(),
+                    is: c.get_about().map(|a| a.to_string()).unwrap_or_default(),
+                    flags: c
+                        .get_arguments()
+                        .filter_map(|a| {
+                            Some((
+                                a.get_long()?.to_string(),
+                                a.get_help().map(|h| h.to_string()).unwrap_or_default(),
+                                a.get_action().takes_values(),
+                            ))
+                        })
+                        .collect(),
+                    positionals: c
+                        .get_positionals()
+                        .map(|a| a.get_id().to_string())
+                        .collect(),
                 })
                 .collect();
             let words = if shell {
