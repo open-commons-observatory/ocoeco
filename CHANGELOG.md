@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.13.0...ocoeco-v0.14.0) (2026-11-14)
+
+
+### Features
+
+* ahead: what, once done, would free the most - read off the halts ([#155](https://github.com/open-commons-observatory/ocoeco/issues/155)) ([d4f10d9](https://github.com/open-commons-observatory/ocoeco/commit/d4f10d992574321bdb2e4acd1bb20f2ae264e0c1))
+* every command speaks from a blank: read off its declaration ([#157](https://github.com/open-commons-observatory/ocoeco/issues/157)) ([d4d6bf7](https://github.com/open-commons-observatory/ocoeco/commit/d4d6bf7e5604a694a8cddd963c31c846e1d1b68d))
+
 ## [0.13.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.12.0...ocoeco-v0.13.0) (2026-11-14)
 
 
