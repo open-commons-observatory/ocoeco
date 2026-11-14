@@ -216,6 +216,6 @@ always = true
 sql = """
 SELECT (SELECT count(*) FROM lenses) AS lenses, (SELECT count(*) FROM lens_tables) AS tables,
        (SELECT count(*) FROM lens_fields) AS fields, (SELECT count(*) FROM lens_entries) AS entries,
-       (SELECT count(*) FROM lens_parts) AS parts
+       (SELECT count(*) FROM lens_parts) AS parts, (SELECT count(*) FROM lens_relations) AS relations
 """
-line = "{lenses} lenses in view: {tables} tables, {fields} fields, {entries} entries, {parts} parts in focus"
+line = "{lenses} lenses in view: {tables} tables, {fields} fields, {relations} relations, {entries} entries, {parts} parts in focus"
