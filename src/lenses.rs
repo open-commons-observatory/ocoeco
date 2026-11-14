@@ -596,19 +596,25 @@ mod tests {
         struct Declared {
             relation: Vec<Relation>,
         }
-        let key = |r: &Relation| (r.from.clone(), r.to.clone(), r.passes_over.clone());
-        let mut stood: Vec<_> = toml::from_str::<Declared>(include_str!(
+        // a relation may gain what it points at, as a table may gain fields: one as it stood is still there
+        // where a relation of the same field, passing over the same, points at all it pointed at
+        let stood = toml::from_str::<Declared>(include_str!(
             "../tests/fixtures/relations-as-they-stood.toml"
         ))
         .unwrap()
-        .relation
-        .iter()
-        .map(key)
-        .collect();
-        let now: Vec<_> = relations().iter().map(key).collect();
-        stood.sort();
-        for relation in &stood {
-            assert!(now.contains(relation), "the relation {relation:?} is gone");
+        .relation;
+        for was in &stood {
+            let still = relations().iter().any(|now| {
+                now.from == was.from
+                    && now.passes_over == was.passes_over
+                    && (now.to.iter().any(|t| t == "*")
+                        || was.to.iter().all(|t| now.to.contains(t)))
+            });
+            assert!(
+                still,
+                "the relation {} - {:?} is gone, or points at less than it did",
+                was.from, was.to
+            );
         }
     }
 

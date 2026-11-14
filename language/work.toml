@@ -27,7 +27,7 @@ fields = [
 # why this work: the milestone or decision it serves
 [[relation]]
 from = "backlog.serves"
-to = ["milestones", "decisions"]
+to = ["milestones", "decisions", "backlog"]
 nature = "is for"
 
 # The glimpse of the lens of work: what can be entered through it. A person is asked only for what
@@ -157,6 +157,23 @@ line = "{star}/{id} - {title} - waits on, in words: {waits_on}"
 title = "next ({count})"
 sql = "SELECT star, id, title FROM backlog WHERE status = 'next' ORDER BY seq"
 line = "{star}/{id} - {title}"
+
+# A step is an item that serves an item. So what an item rests on next is read off: the items that serve
+# it and are not yet done. Where every one is taken and the item still stands open, that shows too. An
+# item's next step as words stays what it is - an intention; a step that is an item can be seen taken.
+[[focus]]
+title = "what rests on steps - read off the items that serve it ({count})"
+sql = """
+WITH step AS (SELECT e.to_star AS star, e.to_id AS id, s.star AS step_star, s.id AS step_id, s.status AS step_status
+              FROM edges e JOIN backlog s ON s.star = e.from_star AND s.id = e.from_id
+              WHERE e.how = 'serves' AND e.from_table = 'backlog' AND e.to_table = 'backlog' AND e.holds)
+SELECT b.star, b.id, b.title, count(*) AS steps, count(*) FILTER (WHERE step.step_status IN ('done', 'dropped')) AS taken,
+       coalesce(string_agg(step.step_star || '/' || step.step_id, ', ' ORDER BY step.step_id)
+                FILTER (WHERE step.step_status NOT IN ('done', 'dropped')), 'every step is taken') AS next
+FROM backlog b JOIN step ON step.star = b.star AND step.id = b.id
+WHERE b.status NOT IN ('done', 'dropped') GROUP BY b.star, b.id, b.title ORDER BY b.star, b.id
+"""
+line = "{star}/{id} - {title}: {taken} of {steps} taken - next: {next}"
 
 # a driver holding more than three at once; work in progress held by nobody or with no next step;
 # work that has not moved for more than a week

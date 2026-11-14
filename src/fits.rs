@@ -472,14 +472,15 @@ mod tests {
             ["a1"],
             "the rows a change would be made to"
         );
-        // a link that may point into two kinds: the kind first - and only kinds that hold rows - then the row
+        // a link that may point into several kinds: the kind first - and only kinds that hold rows - then the
+        // row. An item may serve a milestone or a decision - or another item, which is then a step of it
         assert_eq!(
             words(after(
                 &line(&["glimpse", "item", "--serves", ""]),
                 &d,
                 &commands
             )),
-            ["milestones:"]
+            ["milestones:", "backlog:"]
         );
         let rows = after(
             &line(&["glimpse", "item", "--serves", "milestones:"]),
