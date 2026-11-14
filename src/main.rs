@@ -44,6 +44,10 @@ enum Cmd {
         /// Observe only what has run (runs), not the places' tables
         #[arg(long)]
         only: Option<String>,
+        /// Observe by holding: bring each place found to hand under DIR, as it is on GitHub now, and read it
+        /// there as any place held is read - and what a route reads with it
+        #[arg(long)]
+        hold: Option<std::path::PathBuf>,
     },
     /// Gather a repository's activity, releases and CI into DIR - data made by work
     Gather {
@@ -439,10 +443,38 @@ fn run() -> Result<()> {
                         .map(|m| m.project.id)
                 })
                 .collect();
-            let stood_on: Vec<String> = ocoeco::trail::taken(&by)
+            let trail = ocoeco::trail::taken(&by);
+            // what is there now, among the places kept beside this one: a record of work was made
+            // standing on what is there when it is made - a thing since gone, or named anew, is not
+            // pointed at
+            let there: std::collections::BTreeSet<String> = if trail.is_empty() {
+                Default::default()
+            } else {
+                let dirs = std::fs::canonicalize(&dir)
+                    .ok()
+                    .and_then(|d| {
+                        d.parent()
+                            .and_then(|p| p.parent())
+                            .map(ocoeco::board::projects)
+                    })
+                    .unwrap_or_default();
+                ocoeco::relations::as_graph(&dirs)
+                    .map(|mut graph| graph.remove("things").unwrap_or_default())
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|thing| {
+                        thing
+                            .get("id")
+                            .and_then(|id| id.as_str())
+                            .map(str::to_string)
+                    })
+                    .collect()
+            };
+            let stood_on: Vec<String> = trail
                 .into_iter()
                 .filter(|thing| {
                     !thing.contains("/places:")
+                        && there.contains(thing)
                         && beside
                             .iter()
                             .any(|place| thing.starts_with(&format!("{place}/")))
@@ -785,7 +817,49 @@ fn run() -> Result<()> {
                 );
             }
         }
-        Cmd::Observe { out, root, only } => {
+        Cmd::Observe {
+            out,
+            root,
+            only,
+            hold,
+        } => {
+            // a place observes what its mark says it gathers, and itself - not whatever is found. A
+            // place whose mark names nothing gathered (the first observatory) observes all, as before.
+            let own = std::fs::read_to_string("oco.toml")
+                .ok()
+                .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
+                .filter(|m| m.place.as_ref().is_some_and(|p| !p.gathers.is_empty()));
+            // observing by holding: what is found on GitHub is brought to hand - each place as it is there
+            // now - and read from there as any place held is read. What is observed is then what is held, as
+            // of when it was brought; and what a route reads is observed with it.
+            let root = match (root, &hold) {
+                (None, Some(hold)) => {
+                    let there = match &own {
+                        Some(own) => {
+                            let mut named = own
+                                .place
+                                .as_ref()
+                                .map(|p| p.gathers.clone())
+                                .unwrap_or_default();
+                            named.push(own.project.id.clone());
+                            gh.gathered(&named)?
+                        }
+                        None => <discover::GitHub as discover::Outlet>::find(&gh, None)?,
+                    };
+                    // only what carries a mark is a place: each is asked for its mark before anything is
+                    // brought - an owner may have what is no place at all, and far larger than any
+                    let places: Vec<discover::Found> = discover::marked(there, &gh)
+                        .into_iter()
+                        .filter(|c| c.mark.is_some())
+                        .map(|c| c.found)
+                        .collect();
+                    for (place, why) in discover::hold(&places, hold) {
+                        eprintln!("{place} could not be brought to hand: {why}");
+                    }
+                    Some(hold.display().to_string())
+                }
+                (root, _) => root,
+            };
             let held = root.map(|r| {
                 discover::Held::new(std::path::PathBuf::from(r.replacen(
                     '~',
@@ -793,12 +867,6 @@ fn run() -> Result<()> {
                     1,
                 )))
             });
-            // a place observes what its mark says it gathers, and itself - not whatever is found. A
-            // place whose mark names nothing gathered (the first observatory) observes all, as before.
-            let own = std::fs::read_to_string("oco.toml")
-                .ok()
-                .and_then(|t| ocoeco::mark::Mark::parse(&t).ok())
-                .filter(|m| m.place.as_ref().is_some_and(|p| !p.gathers.is_empty()));
             let found = match (&held, &own) {
                 (Some(held), _) => discover::discover(&[(held, held)], None)?,
                 // and what it gathers is found by asking for it - every repository of an owner it names,
@@ -831,6 +899,10 @@ fn run() -> Result<()> {
                 (None, Some(held)) => harvest::harvest(&found, held),
                 (None, None) => harvest::harvest(&found, &gh),
             };
+            // and what the routes read, where the places are held to be read
+            if only.is_none() && held.is_some() {
+                harvest::observe_routes(&found, &mut h);
+            }
             harvest::observe_runs(&found, &gh, &mut h);
             match only {
                 Some(_) => harvest::write_part(&mut h, &out)?,

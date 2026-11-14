@@ -62,10 +62,16 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
             continue;
         };
         let id = &mark.project.id;
+        // where it lives, for anyone to go to: its address - not the folder it was held in to be read
+        let lives_at = if std::path::Path::new(&c.found.url).is_dir() {
+            format!("https://github.com/{}", c.found.repo)
+        } else {
+            c.found.url.clone()
+        };
         h.projects.push(
             json!({"id": id, "project": id, "name": mark.project.name, "title": mark.project.title,
             "order": mark.project.order, "kind": mark.project.kind,
-            "parent": mark.project.parent, "link": c.found.url, "platform": c.found.platform,
+            "parent": mark.project.parent, "link": lives_at, "platform": c.found.platform,
             "tables": mark.exports.keys().cloned().collect::<Vec<_>>(),
             // what a mark says of the place, so that what was observed says it as the place itself does
             "also": mark.also, "is": mark.place.as_ref().map(|p| p.is.clone()),
@@ -113,6 +119,27 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
         }
     }
     h
+}
+
+/// Observes what the routes read: for every route the lenses in view say, the rows read from each place
+/// that is held to be read - a folder - each naming the place it is of. Where the places are only asked
+/// about, not held, there is nothing to read them from.
+pub fn observe_routes(candidates: &[Candidate], h: &mut Harvest) {
+    let dirs: Vec<std::path::PathBuf> = candidates
+        .iter()
+        .filter(|c| c.mark.is_some())
+        .map(|c| std::path::PathBuf::from(&c.found.url))
+        .filter(|dir| dir.is_dir())
+        .collect();
+    let routes: Vec<crate::lenses::Route> = crate::lenses::with(&dirs)
+        .map(|lenses| lenses.into_iter().flat_map(|l| l.route).collect())
+        .unwrap_or_default();
+    for route in &routes {
+        for (place, mut row) in crate::routes::read(route, &dirs) {
+            row.insert("project".into(), json!(place));
+            h.tables.entry(route.table.clone()).or_default().push(row);
+        }
+    }
 }
 
 /// Observes what has run in every confirmed candidate: the latest finished run of each workflow on its
@@ -391,5 +418,99 @@ mod what_could_not_be_read {
             .as_str()
             .unwrap()
             .ends_with("data/backlog.json is exported but missing"));
+    }
+}
+
+#[cfg(test)]
+mod observed_by_holding {
+    use super::*;
+    use crate::discover::{Found, Held, Source};
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .envs([
+                ("GIT_AUTHOR_NAME", "someone"),
+                ("GIT_AUTHOR_EMAIL", "s@x"),
+                ("GIT_COMMITTER_NAME", "someone"),
+                ("GIT_COMMITTER_EMAIL", "s@x"),
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    #[test]
+    fn a_place_held_is_read_as_it_is_kept_and_what_a_route_reads_is_observed_with_it() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-observed-by-holding-{}", std::process::id()))
+            .join("o/held");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        let mark = "schema = 1\n[project]\nid = \"o/held\"\nname = \"H: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\nactivity = \"gathered/activity.json@oco-data\"\n";
+        std::fs::write(d.join("oco.toml"), mark).unwrap();
+        std::fs::write(d.join("data/notes.json"), "{\"id\":\"a\"}\n").unwrap();
+        git(&d, &["init", "-q", "-b", "main"]);
+        git(&d, &["add", "-A"]);
+        git(&d, &["commit", "-q", "-m", "feat: the place is made"]);
+        // a table kept on another branch of the same repository, as its own workflow would write it
+        git(&d, &["checkout", "-q", "--orphan", "oco-data"]);
+        git(&d, &["rm", "-rfq", "."]);
+        std::fs::create_dir_all(d.join("gathered")).unwrap();
+        std::fs::write(
+            d.join("gathered/activity.json"),
+            "{\"id\":\"2026-11-14\",\"commits\":1}\n",
+        )
+        .unwrap();
+        git(&d, &["add", "-A"]);
+        git(&d, &["commit", "-q", "-m", "data: gathered"]);
+        git(&d, &["checkout", "-q", "main"]);
+        let found = Found {
+            platform: "github".into(),
+            repo: "o/held".into(),
+            branch: "main".into(),
+            url: d.display().to_string(),
+        };
+        let held = Held::new(d.parent().unwrap().parent().unwrap().to_path_buf());
+        assert_eq!(
+            held.read(
+                &Found {
+                    branch: "oco-data".into(),
+                    ..found.clone()
+                },
+                "gathered/activity.json"
+            )
+            .unwrap()
+            .as_deref(),
+            Some("{\"id\":\"2026-11-14\",\"commits\":1}\n"),
+            "read where it is kept: on the other branch"
+        );
+        let candidates = [Candidate {
+            found,
+            mark: Some(crate::mark::Mark::parse(mark).unwrap()),
+            problem: None,
+        }];
+        let mut h = harvest(&candidates, &held);
+        assert!(h.problems.is_empty(), "{:?}", h.problems);
+        assert_eq!(
+            (h.tables["notes"].len(), h.tables["activity"].len()),
+            (1, 1)
+        );
+        observe_routes(&candidates, &mut h);
+        let changes: Vec<(&str, &str)> = h.tables["commits"]
+            .iter()
+            .map(|r| (r["project"].as_str().unwrap(), r["says"].as_str().unwrap()))
+            .collect();
+        assert_eq!(
+            changes,
+            [("o/held", "feat: the place is made")],
+            "the history of the branch it stands on, each change naming the place it is of"
+        );
     }
 }

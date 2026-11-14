@@ -298,6 +298,33 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             }
         }
     }
+    // and what a route reads - a commit, a guard, a file of source: things like any other, read where the
+    // place is held. Of what was observed they are among its tables already, and are not added twice.
+    let routes: Vec<crate::lenses::Route> = crate::lenses::with(dirs)
+        .map(|lenses| lenses.into_iter().flat_map(|l| l.route).collect())
+        .unwrap_or_default();
+    for route in &routes {
+        let mut read: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
+        for (place, row) in crate::routes::read(route, dirs) {
+            read.entry(place)
+                .or_default()
+                .push(serde_json::Value::Object(row));
+        }
+        for (place, rows) in read {
+            let Some(held) = places.get_mut(&place) else {
+                continue;
+            };
+            let there = held.tables.entry(route.table.clone()).or_default();
+            let known: BTreeSet<String> = there
+                .iter()
+                .filter_map(|r| r["id"].as_str().map(str::to_string))
+                .collect();
+            there.extend(
+                rows.into_iter()
+                    .filter(|r| r["id"].as_str().is_some_and(|id| !known.contains(id))),
+            );
+        }
+    }
     places
 }
 
