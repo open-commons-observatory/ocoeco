@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.36.0...ocoeco-v0.37.0) (2026-11-14)
+
+
+### Features
+
+* a row is taken back by saying so, guarded as entering is ([#249](https://github.com/open-commons-observatory/ocoeco/issues/249)) ([59ff83b](https://github.com/open-commons-observatory/ocoeco/commit/59ff83b55aa6768fe2333d00468a050a36604994))
+
 ## [0.36.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.35.0...ocoeco-v0.36.0) (2026-11-14)
 
 
