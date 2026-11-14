@@ -137,6 +137,30 @@ fn answers(engine: &dyn SqlEngine, load: &str, sql: &str) -> Result<Vec<Map<Stri
 
 /// A line with each {name} replaced by that answer's value; what the answer does not hold stays as written.
 pub fn laid_out(line: &str, answer: &Map<String, Value>) -> String {
+    // the passthrough: the row itself - where it is held, its id, and every field it carries as it is
+    if line == "*" {
+        let said = |v: &Value| {
+            v.as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| v.to_string())
+        };
+        let star = answer.get("star").map(said).filter(|s| !s.is_empty());
+        let id = answer.get("id").map(said).unwrap_or_default();
+        let rest: Vec<String> = answer
+            .iter()
+            .filter(|(k, v)| {
+                !matches!(k.as_str(), "id" | "star" | "seq")
+                    && !v.is_null()
+                    && v.as_str() != Some("")
+            })
+            .map(|(k, v)| format!("{k}: {}", said(v)))
+            .collect();
+        return format!(
+            "{}{id} - {}",
+            star.map(|s| format!("{s}/")).unwrap_or_default(),
+            rest.join("; ")
+        );
+    }
     let mut out = String::new();
     let mut rest = line;
     while let Some(open) = rest.find('{') {
@@ -192,6 +216,44 @@ pub struct Brought {
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
+/// The identity: a table looked through with nothing declared but its name - every row passed through,
+/// each field as it is. A table is the passthrough lens over what a place keeps, so it needs no lens file;
+/// it is looked through only where no lens has that name.
+fn identity(table: &str, all: &[Lens]) -> Option<Lens> {
+    let declared = crate::lenses::tables()
+        .get(table)
+        .cloned()
+        .or_else(|| all.iter().find_map(|l| l.tables.get(table).cloned()))?;
+    Some(Lens {
+        lens: crate::lenses::About {
+            id: table.to_string(),
+            says: format!(
+                "The table {table} itself: every row passed through, each field as it is."
+            ),
+            grew_from: None,
+            reads: Vec::new(),
+        },
+        tables: toml::Table::from_iter([(table.to_string(), declared)]),
+        relation: Vec::new(),
+        glimpse: Vec::new(),
+        focus: vec![crate::lenses::Part {
+            title: Some(format!("{table} ({{count}})")),
+            always: false,
+            sql: format!("SELECT * FROM \"{table}\" ORDER BY seq"),
+            line: "*".into(),
+            places: None,
+            only: None,
+            measure: None,
+            of: None,
+            whole: None,
+            chain: None,
+            per: None,
+            named: None,
+            urgent: false,
+        }],
+    })
+}
+
 pub fn brought(
     lens: &str,
     dirs: &[PathBuf],
@@ -199,9 +261,11 @@ pub fn brought(
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
     let all = crate::lenses::with(dirs)?;
-    let Some(found) = all.iter().find(|l| l.lens.id == lens) else {
+    // a lens of that name - or else a table of that name, looked through as itself
+    let itself = identity(lens, &all);
+    let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
         bail!(
-            "no lens is called {lens}: there are {}",
+            "no lens or table is called {lens}: there are the lenses {}",
             all.iter()
                 .map(|l| l.lens.id.as_str())
                 .collect::<Vec<_>>()
@@ -584,9 +648,11 @@ pub fn beam(
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
     let all = crate::lenses::with(dirs)?;
-    let Some(found) = all.iter().find(|l| l.lens.id == lens) else {
+    // a lens of that name - or else a table of that name, looked through as itself
+    let itself = identity(lens, &all);
+    let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
         bail!(
-            "no lens is called {lens}: there are {}",
+            "no lens or table is called {lens}: there are the lenses {}",
             all.iter()
                 .map(|l| l.lens.id.as_str())
                 .collect::<Vec<_>>()
@@ -1483,6 +1549,53 @@ mod tests {
         assert!(focus("no-such-lens", &[], "2026-11-12", &StandIn)
             .unwrap_err()
             .to_string()
-            .contains("no lens is called no-such-lens: there are "));
+            .contains("no lens or table is called no-such-lens: there are the lenses "));
+    }
+}
+
+#[cfg(test)]
+mod the_identity {
+    use super::*;
+
+    /// An engine that answers the passthrough of the table notes with one row.
+    struct Notes;
+    impl SqlEngine for Notes {
+        fn run(&self, script: &str, _format: &str) -> Result<String> {
+            Ok(
+                if script
+                    .trim_end()
+                    .ends_with("SELECT * FROM \"notes\" ORDER BY seq;")
+                {
+                    r#"[{"id":"a","star":"r","seq":1,"n":"x","empty":""}]"#.into()
+                } else {
+                    "[]".into()
+                },
+            )
+        }
+    }
+
+    #[test]
+    fn a_table_is_looked_through_as_itself_with_nothing_declared_but_its_name() {
+        let d = std::env::temp_dir().join(format!("ocoeco-identity-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n").unwrap();
+        std::fs::write(d.join("lenses/inner.toml"), "[lens]\nid = \"inner\"\nsays = \"Defines the notes.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n").unwrap();
+        let parts = brought("notes", std::slice::from_ref(&d), "2026-11-14", &Notes).unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(
+            (parts[0].title.as_deref(), parts[0].lines.as_slice()),
+            (Some("notes (1)"), &["r/a - n: x".to_string()][..]),
+            "the row itself, every field as it is, an empty one left out"
+        );
+        assert!(brought(
+            "nothing-of-this-name",
+            std::slice::from_ref(&d),
+            "2026-11-14",
+            &Notes
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("no lens or table is called"));
     }
 }

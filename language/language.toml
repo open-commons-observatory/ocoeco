@@ -161,6 +161,18 @@ ORDER BY t.lens, t.name
 """
 line = "{name} - defined by {lens}"
 
+# The two faces of a lens are put and get: what its entry puts, its focus should be able to show. A lens
+# whose entry fills a table none of its own parts asks of puts what it does not itself bring into focus.
+[[focus]]
+title = "what a lens puts and does not itself get ({count})"
+sql = """
+SELECT e.lens, e.entry, e.fills FROM lens_entries e
+WHERE NOT EXISTS (
+  SELECT 1 FROM lens_parts p WHERE p.lens = e.lens AND regexp_matches(p.query, '(^|[^a-z_])' || e.fills || '([^a-z_]|$)'))
+ORDER BY e.lens, e.entry
+"""
+line = "{lens}: its entry {entry} puts into {fills}, and none of its parts asks of {fills}"
+
 # The names of the language are words. A lens says what it is; a table and a field are named and say
 # nothing - unless the vocabulary gives the word a meaning. This part shows which names have one.
 [[focus]]

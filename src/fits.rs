@@ -183,6 +183,11 @@ fn value_named(name: &str, dir: &Path) -> Vec<Fit> {
             .unwrap_or_default()
             .into_iter()
             .map(|l| fit(l.lens.id, l.lens.says))
+            .chain(
+                crate::lenses::tables()
+                    .keys()
+                    .map(|t| fit(t.clone(), "the table itself, every row passed through")),
+            )
             .collect(),
         "surface" => crate::dome::SURFACES.iter().map(|s| fit(*s, "")).collect(),
         "table" => std::fs::read_to_string(dir.join("oco.toml"))
