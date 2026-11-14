@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.1...ocoeco-v0.28.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* a next step is not read off work: the part taken back ([#217](https://github.com/open-commons-observatory/ocoeco/issues/217)) ([7634f7d](https://github.com/open-commons-observatory/ocoeco/commit/7634f7db2b614aaf68f644cd33e0eb474226f7f9))
+
 ## [0.28.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.0...ocoeco-v0.28.1) (2026-11-14)
 
 
