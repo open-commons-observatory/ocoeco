@@ -133,10 +133,14 @@ table = "lens_relations"
 asks = ["lens", "from", "to", "passes_over", "level"]
 
 [[focus]]
-title = "a name that holds different kinds in different tables ({count})"
+title = "a name that holds different kinds of value in different tables ({count})"
 sql = """
-WITH each AS (
-  SELECT name, kind, string_agg(DISTINCT of_table, ', ' ORDER BY of_table) AS tables FROM lens_fields GROUP BY name, kind
+WITH said AS (
+  -- what a value is: a date is words held to a shape, as an id may be held to a pattern - not another nature
+  SELECT name, of_table, CASE kind WHEN 'integer' THEN 'a whole number' WHEN 'number' THEN 'a number'
+                                   WHEN 'boolean' THEN 'yes or no' ELSE 'words' END AS kind FROM lens_fields
+), each AS (
+  SELECT name, kind, string_agg(DISTINCT of_table, ', ' ORDER BY of_table) AS tables FROM said GROUP BY name, kind
 )
 SELECT name, count(*) AS kinds, string_agg(kind || ' in ' || tables, '; ' ORDER BY kind) AS how
 FROM each GROUP BY name HAVING count(*) > 1 ORDER BY kinds DESC, name
