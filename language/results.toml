@@ -93,6 +93,12 @@ from = "glimpses.where"
 to = ["*"]
 nature = "is about"
 
+# each time it was done by hand is one more time of that work done by hand
+[[relation]]
+from = "manual_events.record"
+to = ["manual_work"]
+nature = "repeats"
+
 [[relation]]
 from = "workings.serves"
 to = ["milestones", "backlog"]
@@ -127,6 +133,17 @@ SELECT star, action, "count" AS times FROM manual_work WHERE status = 'manual'
 ORDER BY try_cast("count" AS INTEGER) DESC, star, seq
 """
 line = "{star} - {action} ({times} times)"
+
+# each time something was done by hand, and what it took: the handwork, where it was recorded - what took
+# the most first, since that is what would be most worth making through the system itself
+[[focus]]
+title = "by hand, and what it took ({count})"
+sql = """
+SELECT star, record, star || '/manual_work:' || record AS thing, count(*) AS times,
+       CAST(round(sum(coalesce(try_cast(minutes AS DOUBLE), 0))) AS INTEGER) AS minutes, max(left("at", 10)) AS last
+FROM manual_events GROUP BY star, record ORDER BY sum(coalesce(try_cast(minutes AS DOUBLE), 0)) DESC, star, record
+"""
+line = "{star}/{record} - {times} time(s), {minutes} minute(s) in all, the last on {last}"
 
 [[focus]]
 always = true
