@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.28.0...ocoeco-v0.28.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* a record of work touched what is there when it is made ([#215](https://github.com/open-commons-observatory/ocoeco/issues/215)) ([aa29e6f](https://github.com/open-commons-observatory/ocoeco/commit/aa29e6f5846f8b51f6a56298e77ca9b2027b3c38))
+
 ## [0.28.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.27.0...ocoeco-v0.28.0) (2026-11-14)
 
 
