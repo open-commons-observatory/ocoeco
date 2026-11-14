@@ -73,7 +73,7 @@ line = "{how} - {links} links, from {sources} things to {ends}"
 title = "the longest line of one kind ({count})"
 sql = """
 WITH RECURSIVE walk(start, reached, how, depth) AS (
-  SELECT "from", "to", how, 1 FROM edges WHERE holds
+  SELECT "from", "to", how, 1 FROM edges WHERE holds AND how <> 'repeats'
   UNION ALL
   SELECT w.start, e."to", w.how, w.depth + 1
   FROM walk w JOIN edges e ON e."from" = w.reached AND e.how = w.how AND e.holds
@@ -84,6 +84,25 @@ SELECT how, max(depth) AS depth, regexp_replace(arg_max(start, depth), '^[^/]+/'
 FROM walk GROUP BY how HAVING max(depth) > 1 ORDER BY depth DESC, how
 """
 line = "{how} - {depth} links long, from {began} to {ended}"
+
+# A repeat is not a direction: it says two things are one nature with different faces. Walked as a line
+# it comes back to where it began; asked as what it is, it is a group - every thing reached through
+# repeats, whichever way, is one of its faces.
+[[focus]]
+title = "one nature, many faces - what repeats joins ({count})"
+sql = """
+WITH RECURSIVE pairs AS (
+  SELECT "from" AS a, "to" AS b FROM edges WHERE how = 'repeats' AND holds
+  UNION SELECT "to", "from" FROM edges WHERE how = 'repeats' AND holds
+), reach(start, reached) AS (
+  SELECT a, a FROM pairs
+  UNION
+  SELECT r.start, p.b FROM reach r JOIN pairs p ON p.a = r.reached
+), one AS (SELECT start, min(reached) AS nature FROM reach GROUP BY start)
+SELECT count(*) AS faces, string_agg(regexp_replace(start, '^[^/]+/', ''), ', ' ORDER BY start) AS which
+FROM one GROUP BY nature ORDER BY faces DESC, nature
+"""
+line = "{faces} faces of one: {which}"
 
 [[focus]]
 # What points nowhere is a shape this lens names and does not lay out: whether something fits is the lens
