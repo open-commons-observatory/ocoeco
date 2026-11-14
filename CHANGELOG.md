@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.2...ocoeco-v0.27.0) (2026-11-14)
+
+
+### Features
+
+* the language in the graph: a lens is a thing; a star says why it exists ([#210](https://github.com/open-commons-observatory/ocoeco/issues/210)) ([f5df7ef](https://github.com/open-commons-observatory/ocoeco/commit/f5df7ef6d6e18f858e3eb64c716c67e5dee3d0f5))
+
 ## [0.26.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.1...ocoeco-v0.26.2) (2026-11-14)
 
 
