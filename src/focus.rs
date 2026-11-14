@@ -1430,6 +1430,10 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
         Ok(all) => all,
         Err(e) => return vec![format!("{e:#}")],
     };
+    // what this place adds to a lens kept elsewhere is read only where that lens is in view
+    problems.extend(crate::lenses::added_by(dir).into_iter().filter(|more| !all.iter().any(|l| l.lens.id == more.lens.id)).map(|more| {
+        format!("this place adds to the lens {}, and no lens of that name is in view from here: what it adds is not read", more.lens.id)
+    }));
     // a lens that only places others is not brought into focus again on its own: what it places is
     for lens in all
         .iter()
