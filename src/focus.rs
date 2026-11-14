@@ -275,14 +275,70 @@ fn standing(lens: &Lens, here: &str) -> Lens {
     stood
 }
 
+/// What a table no lens declares is, read off the rows the places in view keep of it: keyed by id, and
+/// each field a whole number, a number, or yes or no where every value of it is so - otherwise words.
+/// None where no place keeps such a table, or its rows have no id to be told apart by.
+fn read_off(table: &str, dirs: &[PathBuf]) -> Option<toml::Value> {
+    let rows = crate::routes::rows_by_place(table, dirs);
+    if rows.is_empty()
+        || !rows
+            .iter()
+            .all(|(_, row)| row.get("id").is_some_and(Value::is_string))
+    {
+        return None;
+    }
+    let mut kinds: std::collections::BTreeMap<&str, &'static str> = Default::default();
+    for (key, value) in rows
+        .iter()
+        .flat_map(|(_, row)| row.iter())
+        .filter(|(key, value)| !value.is_null() && !matches!(key.as_str(), "id" | "star" | "seq"))
+    {
+        let kind = match value {
+            Value::Bool(_) => "boolean",
+            Value::Number(n) if n.is_i64() || n.is_u64() => "integer",
+            Value::Number(_) => "number",
+            _ => "string",
+        };
+        kinds
+            .entry(key.as_str())
+            .and_modify(|was| {
+                if *was != kind {
+                    *was = if matches!((*was, kind), ("integer", "number") | ("number", "integer"))
+                    {
+                        "number"
+                    } else {
+                        "string"
+                    };
+                }
+            })
+            .or_insert(kind);
+    }
+    let field = |name: &str, kind: &str| {
+        toml::Value::Table(toml::Table::from_iter([
+            ("name".to_string(), name.into()),
+            ("type".to_string(), kind.into()),
+        ]))
+    };
+    let fields: Vec<toml::Value> = std::iter::once(field("id", "string"))
+        .chain(kinds.iter().map(|(name, kind)| field(name, kind)))
+        .collect();
+    Some(toml::Value::Table(toml::Table::from_iter([
+        ("key".to_string(), toml::Value::Array(vec!["id".into()])),
+        ("extra_fields".to_string(), true.into()),
+        ("fields".to_string(), toml::Value::Array(fields)),
+    ])))
+}
+
 /// The identity: a table looked through with nothing declared but its name - every row passed through,
 /// each field as it is. A table is the passthrough lens over what a place keeps, so it needs no lens file;
 /// it is looked through only where no lens has that name.
-fn identity(table: &str, all: &[Lens]) -> Option<Lens> {
+fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
     let declared = crate::lenses::tables()
         .get(table)
         .cloned()
-        .or_else(|| all.iter().find_map(|l| l.tables.get(table).cloned()))?;
+        .or_else(|| all.iter().find_map(|l| l.tables.get(table).cloned()))
+        // a table no lens declares is still a table a place keeps: its shape is read off its rows
+        .or_else(|| read_off(table, dirs))?;
     Some(Lens {
         lens: crate::lenses::About {
             id: table.to_string(),
@@ -326,7 +382,7 @@ pub fn brought(
         .split_once('@')
         .map_or((lens, None), |(lens, here)| (lens, Some(here)));
     // a lens of that name - or else a table of that name, looked through as itself
-    let itself = identity(lens, &all);
+    let itself = identity(lens, &all, dirs);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
         bail!(
             "no lens or table is called {lens}: there are the lenses {}",
@@ -729,7 +785,7 @@ pub fn beam(
 ) -> Result<Vec<Brought>> {
     let all = crate::lenses::with(dirs)?;
     // a lens of that name - or else a table of that name, looked through as itself
-    let itself = identity(lens, &all);
+    let itself = identity(lens, &all, dirs);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
         bail!(
             "no lens or table is called {lens}: there are the lenses {}",
@@ -1712,6 +1768,46 @@ mod from_a_thing {
         assert_eq!(
             stood.focus[0].title.as_deref(),
             Some("from o/r/notes:it's ({count})")
+        );
+    }
+}
+
+#[cfg(test)]
+mod a_table_no_lens_declares {
+    use super::*;
+
+    #[test]
+    fn its_shape_is_read_off_the_rows_a_place_keeps() {
+        let d = std::env::temp_dir().join(format!("ocoeco-read-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nplain = \"data/plain.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/plain.json"),
+            "{\"id\":\"p\",\"n\":3,\"said\":\"x\"}\n{\"id\":\"q\",\"n\":2.5,\"sure\":true}\n",
+        )
+        .unwrap();
+        let declared = read_off("plain", std::slice::from_ref(&d)).expect("a table a place keeps");
+        let kinds: Vec<(&str, &str)> = declared["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| (f["name"].as_str().unwrap(), f["type"].as_str().unwrap()))
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                ("id", "string"),
+                ("n", "number"),
+                ("said", "string"),
+                ("sure", "boolean")
+            ],
+            "a whole number and a number together are a number"
+        );
+        assert!(read_off("kept-by-no-place", std::slice::from_ref(&d)).is_none());
+        assert!(
+            identity("plain", &[], std::slice::from_ref(&d)).is_some(),
+            "and it is looked through as itself"
         );
     }
 }
