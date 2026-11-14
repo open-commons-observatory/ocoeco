@@ -18,6 +18,7 @@ fields = [
     { name = "minutes", type = "number" },
     { name = "load", type = "number" },
     { name = "released", type = "string" },
+    { name = "where", type = "string" },
 ]
 
 [tables.workings]
@@ -68,6 +69,12 @@ to = ["*"]
 
 [[relation]]
 from = "glimpses.touches"
+to = ["*"]
+
+# Where a record of work was made: the things stood on while it was done - supplied by the act of looking
+# through a lens from a thing, never typed. The work is seen where it happens.
+[[relation]]
+from = "glimpses.where"
 to = ["*"]
 
 [[relation]]

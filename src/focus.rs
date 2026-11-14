@@ -216,6 +216,86 @@ pub struct Brought {
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
+/// Whether a lens says anything of where one stands.
+fn says_here(lens: &Lens) -> bool {
+    lens.focus.iter().any(|p| {
+        p.sql.contains("{here}") || p.title.as_deref().is_some_and(|t| t.contains("{here}"))
+    })
+}
+
+/// The place of that name among those in view: by its id, by its star, or as the graph names it as a thing.
+/// None where no place is so called; refused where several are.
+fn place_named(name: &str, dirs: &[PathBuf]) -> Result<Option<PathBuf>> {
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    for dir in dirs {
+        let Some(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|t| crate::mark::Mark::parse(&t).ok())
+        else {
+            continue;
+        };
+        let id = mark.project.id;
+        let star = id.rsplit('/').next().unwrap_or(&id).to_string();
+        if name == id
+            || name == star
+            || name == format!("{star}/places:{star}")
+            || name == format!("{id}/places:{star}")
+        {
+            found.push((id, dir.clone()));
+        }
+    }
+    // the place named in full is the one meant, where a star of that name is held under several owners
+    if let Some(exact) = found
+        .iter()
+        .position(|(id, _)| name == id || name.starts_with(&format!("{id}/")))
+    {
+        return Ok(Some(found.swap_remove(exact).1));
+    }
+    match found.len() {
+        0 => Ok(None),
+        1 => Ok(Some(found.swap_remove(0).1)),
+        _ => bail!(
+            "several places are called {name}: {} - name it in full",
+            found
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+/// What was stood on, when a lens is looked through from a thing (lens@thing): the thing as the graph
+/// names it in full - for the trail, which a record of work reads where it was made from. None where the
+/// lens is not looked through from a thing, or the thing is not in view.
+pub fn stood_on(lens: &str, dirs: &[PathBuf]) -> Option<String> {
+    let (_, here) = lens.split_once('@')?;
+    if let Ok(Some(place)) = place_named(here, dirs) {
+        let id = crate::mark::Mark::parse(&std::fs::read_to_string(place.join("oco.toml")).ok()?)
+            .ok()?
+            .project
+            .id;
+        return Some(format!(
+            "{id}/places:{}",
+            id.rsplit('/').next().unwrap_or(&id)
+        ));
+    }
+    let things = crate::relations::as_graph(dirs).ok()?.remove("things")?;
+    things.iter().find_map(|t| {
+        let (id, star, table, place) = (
+            t.get("id")?.as_str()?,
+            t.get("star")?.as_str()?,
+            t.get("of_table")?.as_str()?,
+            t.get("place")?.as_str()?,
+        );
+        let short = format!(
+            "{star}/{table}:{}",
+            id.strip_prefix(&format!("{place}/{table}:"))?
+        );
+        (here == id || here == short).then(|| id.to_string())
+    })
+}
+
 /// The lens as looked through from a thing: wherever it says {here}, the thing stood on.
 fn standing(lens: &Lens, here: &str) -> Lens {
     let mut stood = lens.clone();
@@ -289,6 +369,14 @@ pub fn brought(
     };
     if found.focus.is_empty() {
         bail!("the lens {lens} has no focus yet");
+    }
+    // a lens that says nothing of where one stands is looked through from a place: what is in view is what
+    // is in view from there - a star what it holds, a constellation its stars, an observatory all it looks at
+    if let Some(here) = here.filter(|_| !says_here(found)) {
+        let Some(from) = place_named(here, dirs)? else {
+            bail!("the lens {lens} is looked through from a place, and {here} is no place in view - a lens that says {{here}} is looked through from any thing");
+        };
+        return brought(lens, &crate::board::in_view(&from).0, today, engine);
     }
     let stood;
     let found = match here {

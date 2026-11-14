@@ -530,14 +530,38 @@ mod tests {
         let was: toml::Table = include_str!("../tests/fixtures/language-as-it-stood.toml")
             .parse()
             .unwrap();
-        // lenses are additive: every table as it stood is still there, unchanged; new lenses may add
+        // the language grows and does not rewrite what it said: every table as it stood is still there, and
+        // every field it had is still there as it was, in the order it had - a table may have gained fields
+        // after them, as the language may gain a table or a relation; new lenses may add
         let now_tables = tables();
         for (name, table) in was["tables"].as_table().unwrap() {
-            assert_eq!(
-                now_tables.get(name),
-                Some(table),
-                "the table {name} changed"
+            let now = now_tables
+                .get(name)
+                .and_then(|t| t.as_table())
+                .unwrap_or_else(|| panic!("the table {name} is gone"));
+            let fields = |t: &toml::Table| {
+                t.get("fields")
+                    .and_then(|f| f.as_array())
+                    .cloned()
+                    .unwrap_or_default()
+            };
+            let (had, has) = (fields(table.as_table().unwrap()), fields(now));
+            assert!(
+                has.len() >= had.len() && has[..had.len()] == had[..],
+                "a field the table {name} had is gone or changed"
             );
+            for (key, value) in table
+                .as_table()
+                .unwrap()
+                .iter()
+                .filter(|(key, _)| *key != "fields")
+            {
+                assert_eq!(
+                    now.get(key),
+                    Some(value),
+                    "the table {name} changed in {key}"
+                );
+            }
         }
         #[derive(serde::Deserialize)]
         struct Declared {
