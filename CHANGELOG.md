@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.15.0...ocoeco-v0.15.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* a row is held to the lens that defines its table, built in or brought ([#162](https://github.com/open-commons-observatory/ocoeco/issues/162)) ([2b48085](https://github.com/open-commons-observatory/ocoeco/commit/2b48085ef59403ff8e269908df08b22a67a6d067))
+
 ## [0.15.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.14.0...ocoeco-v0.15.0) (2026-11-14)
 
 
