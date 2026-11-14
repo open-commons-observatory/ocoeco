@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.31.0...ocoeco-v0.32.0) (2026-11-14)
+
+
+### Features
+
+* observed by holding: one way of reading; what a route reads is a thing ([#226](https://github.com/open-commons-observatory/ocoeco/issues/226)) ([5edf02a](https://github.com/open-commons-observatory/ocoeco/commit/5edf02a78072892df072625bae619949d20756c7))
+
 ## [0.31.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.30.0...ocoeco-v0.31.0) (2026-11-14)
 
 
