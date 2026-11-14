@@ -90,9 +90,13 @@ WITH RECURSIVE walk(start, reached, how, depth) AS (
   FROM walk w JOIN edges e ON e."from" = w.reached AND e.how = w.how AND e.holds
   WHERE w.depth < 16
 )
-SELECT how, max(depth) AS depth, regexp_replace(arg_max(start, depth), '^[^/]+/', '') AS began,
-       regexp_replace(arg_max(reached, depth), '^[^/]+/', '') AS ended
-FROM walk GROUP BY how HAVING max(depth) > 1 ORDER BY depth DESC, how
+SELECT how, depth, regexp_replace(start, '^[^/]+/', '') AS began, regexp_replace(reached, '^[^/]+/', '') AS ended
+FROM (
+  -- one line of each kind: the longest - and of those equally long, the first by where it begins and
+  -- ends, so that the answer is settled, and where it begins and where it ends are of the same line
+  SELECT how, depth, start, reached, row_number() OVER (PARTITION BY how ORDER BY depth DESC, start, reached) AS nth FROM walk
+)
+WHERE nth = 1 AND depth > 1 ORDER BY depth DESC, how
 """
 line = "{how} - {depth} links long, from {began} to {ended}"
 
