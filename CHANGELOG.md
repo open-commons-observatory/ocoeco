@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.30.0...ocoeco-v0.31.0) (2026-11-14)
+
+
+### Features
+
+* a shape carved from files: the program's source and its guards, each a route ([#224](https://github.com/open-commons-observatory/ocoeco/issues/224)) ([ac72fa4](https://github.com/open-commons-observatory/ocoeco/commit/ac72fa44af27cb4b36ef0392290ed0520388d55f))
+
 ## [0.30.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.29.0...ocoeco-v0.30.0) (2026-11-14)
 
 
