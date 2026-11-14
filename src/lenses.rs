@@ -146,6 +146,20 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
                 .into_iter()
                 .map(|lens| (format!("{lens:?}"), lens)),
         );
+    } else if dir.join("projects.json").is_file() {
+        // by whatever route they arrived: what an observatory observed holds the lenses its places keep as
+        // rows, and they are looked through as where they are kept
+        let observed = |table: &str| -> Vec<serde_json::Value> {
+            crate::harvest::read_rows(&dir.join(format!("{table}.json")))
+                .into_iter()
+                .map(serde_json::Value::Object)
+                .collect()
+        };
+        found.extend(
+            from_rows(observed)
+                .into_iter()
+                .map(|lens| (format!("{lens:?}"), lens)),
+        );
     }
     Ok(found)
 }
