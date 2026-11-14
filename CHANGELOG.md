@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.34.0...ocoeco-v0.35.0) (2026-11-14)
+
+
+### Features
+
+* the walk is in the plane: a line says the thing it is about ([#243](https://github.com/open-commons-observatory/ocoeco/issues/243)) ([31ca8ed](https://github.com/open-commons-observatory/ocoeco/commit/31ca8ed47efeeaa93031177bab51494601507aca))
+
 ## [0.34.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.33.0...ocoeco-v0.34.0) (2026-11-14)
 
 
