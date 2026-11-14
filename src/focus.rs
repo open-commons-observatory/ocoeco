@@ -898,7 +898,11 @@ pub fn beam(
                         } else if crate::kept::OF_THE_KEPT.contains(&t.as_str()) {
                             format!("{t} - {rows} rows made from every row in view, now")
                         } else if let Some(route) = all.iter().flat_map(|l| l.route.iter()).find(|r| r.table == *t) {
-                            format!("{t} - {rows} rows read from {}, where {places} place(s) are held, now", route.from)
+                            // read where the places are held, now - or, of what was observed, when it was
+                            match dirs.iter().map(|dir| crate::routes::route(dir)).find(|(by, _)| *by == crate::routes::OBSERVED) {
+                                Some((_, as_of)) => format!("{t} - {rows} rows read from {} when it was observed, {as_of}", route.from),
+                                None => format!("{t} - {rows} rows read from {}, where {places} place(s) are held, now", route.from),
+                            }
                         } else {
                             // what arrived by each route - and, where the same thing came by more than one, how
                             // many are in view: each once, as it last was

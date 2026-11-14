@@ -337,12 +337,70 @@ impl Outlet for Held {
 
 impl Source for Held {
     fn read(&self, found: &Found, path: &str) -> Result<Option<String>> {
-        match std::fs::read_to_string(std::path::Path::new(&found.url).join(path)) {
+        let dir = std::path::Path::new(&found.url);
+        match std::fs::read_to_string(dir.join(path)) {
             Ok(text) => Ok(Some(text)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            // not in its folder: it may be kept on another branch of the same repository - read there,
+            // as it last was
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                Ok(crate::join::kept(dir, &format!("{path}@{}", found.branch)))
+            }
             Err(e) => Err(e.into()),
         }
     }
+}
+
+/// Brings each of these repositories to hand under `into` - owner/repository - as it is on GitHub now:
+/// fetched where it is already there, cloned where it is not. So that what is observed is read as any place
+/// held is read, by the same ways in. What could not be brought is returned, with why.
+pub fn hold(found: &[Found], into: &std::path::Path) -> Vec<(String, String)> {
+    let git = |args: &[&str]| -> std::result::Result<(), String> {
+        match std::process::Command::new("git").args(args).output() {
+            Ok(out) if out.status.success() => Ok(()),
+            Ok(out) => Err(String::from_utf8_lossy(&out.stderr)
+                .lines()
+                .last()
+                .unwrap_or("git did not say why")
+                .to_string()),
+            Err(e) => Err(e.to_string()),
+        }
+    };
+    let mut not_brought = Vec::new();
+    for place in found {
+        let dir = into.join(&place.repo);
+        let at = dir.display().to_string();
+        let brought = if dir.join(".git").exists() {
+            git(&["-C", &at, "fetch", "-q", "--prune", "origin"]).and_then(|_| {
+                git(&[
+                    "-C",
+                    &at,
+                    "checkout",
+                    "-q",
+                    "-B",
+                    &place.branch,
+                    &format!("origin/{}", place.branch),
+                ])
+            })
+        } else {
+            // its history whole, and of its files only those of the branch it stands on: the rest is
+            // fetched as it is asked for
+            std::fs::create_dir_all(dir.parent().unwrap_or(into))
+                .map_err(|e| e.to_string())
+                .and_then(|_| {
+                    git(&[
+                        "clone",
+                        "-q",
+                        "--filter=blob:none",
+                        &format!("https://github.com/{}.git", place.repo),
+                        &at,
+                    ])
+                })
+        };
+        if let Err(why) = brought {
+            not_brought.push((place.repo.clone(), why));
+        }
+    }
+    not_brought
 }
 
 /// A candidate, confirmed or not: its mark, or why it is not one.

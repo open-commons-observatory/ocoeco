@@ -314,30 +314,55 @@ pub fn read(
     dirs: &[PathBuf],
 ) -> Vec<(String, serde_json::Map<String, serde_json::Value>)> {
     let told = crate::kept::told(dirs);
+    // each place is read on its own, side by side: one place's surface does not wait for another's
+    let read: Vec<Vec<(String, serde_json::Map<String, serde_json::Value>)>> =
+        std::thread::scope(|scope| {
+            let reading: Vec<_> = dirs
+                .iter()
+                .map(|dir| scope.spawn(move || of_one_place(route, dir)))
+                .collect();
+            reading
+                .into_iter()
+                .map(|one| one.join().unwrap_or_default())
+                .collect()
+        });
     let mut rows = Vec::new();
-    for dir in dirs {
-        let Some(place) = std::fs::read_to_string(dir.join("oco.toml"))
-            .ok()
-            .and_then(|t| crate::mark::Mark::parse(&t).ok())
-            .map(|m| m.project.id)
-        else {
-            continue;
-        };
-        let read = match route.from.as_str() {
-            "git history" => git_history(dir),
-            "files" => files(dir, route.which.as_deref(), route.shape.as_deref()),
-            _ => Vec::new(),
-        };
-        for mut row in read {
-            for value in row.values_mut() {
-                if let Some(words) = value.as_str() {
-                    *value = crate::kept::out_of(words, &told).0.into();
-                }
+    for (place, mut row) in read.into_iter().flatten() {
+        for value in row.values_mut() {
+            if let Some(words) = value.as_str() {
+                *value = crate::kept::out_of(words, &told).0.into();
             }
-            rows.push((place.clone(), row));
         }
+        rows.push((place, row));
     }
     rows
+}
+
+/// What a route reads of one folder: of a place held there, from its surface; of what was observed, the
+/// rows an observatory read when it held each place - each naming the place it is of, as they were then.
+fn of_one_place(
+    route: &crate::lenses::Route,
+    dir: &Path,
+) -> Vec<(String, serde_json::Map<String, serde_json::Value>)> {
+    let Some(place) = std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|t| crate::mark::Mark::parse(&t).ok())
+        .map(|m| m.project.id)
+    else {
+        if !dir.join("projects.json").is_file() {
+            return Vec::new();
+        }
+        return crate::harvest::read_rows(&dir.join(format!("{}.json", route.table)))
+            .into_iter()
+            .filter_map(|row| Some((row.get("project")?.as_str()?.to_string(), row)))
+            .collect();
+    };
+    let read = match route.from.as_str() {
+        "git history" => git_history(dir),
+        "files" => files(dir, route.which.as_deref(), route.shape.as_deref()),
+        _ => Vec::new(),
+    };
+    read.into_iter().map(|row| (place.clone(), row)).collect()
 }
 
 /// The history of the repository a place is held in, as git has it: each change - its name, when, by
@@ -452,8 +477,16 @@ fn files(
                         row.insert(name.to_string(), part.as_str().into());
                     }
                 }
-                row.entry("id".to_string())
-                    .or_insert_with(|| format!("{within}:{line}").into());
+                // a row is named by what the shape names - its id, else its name - within its file; by
+                // the line it was found on only where the shape names nothing: a line moves when
+                // anything above it is edited, and a thing that is pointed at must keep its name
+                let named = ["id", "name"]
+                    .iter()
+                    .find_map(|part| row.get(*part).and_then(|v| v.as_str()).map(str::to_string));
+                row.insert(
+                    "id".into(),
+                    format!("{within}:{}", named.unwrap_or_else(|| line.to_string())).into(),
+                );
                 row.insert("path".into(), within.clone().into());
                 row.insert("line".into(), line.into());
                 rows.push(row);
