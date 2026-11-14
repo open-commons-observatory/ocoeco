@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.33.0...ocoeco-v0.34.0) (2026-11-14)
+
+
+### Features
+
+* a surface is said by a lens: the text surface, in the language ([#241](https://github.com/open-commons-observatory/ocoeco/issues/241)) ([ef55a10](https://github.com/open-commons-observatory/ocoeco/commit/ef55a10722860a201c3cf24cf69a6ba7bf322954))
+
 ## [0.33.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.3...ocoeco-v0.33.0) (2026-11-14)
 
 
