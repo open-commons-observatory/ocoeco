@@ -163,12 +163,21 @@ fn values(
             .collect(),
         _ => {
             let wanted = typing.split_once(':').map(|(t, _)| t.to_string());
+            // a link into one kind of row is written as the id alone, as the language writes it; with a kind
+            // named, as kind:id
+            let bare = wanted.is_none();
             tables
                 .iter()
                 .filter(|t| wanted.as_deref().is_none_or(|w| w == t.as_str()))
                 .flat_map(|t| {
                     kept(t).into_iter().filter_map(move |r| {
-                        Some(fit(format!("{t}:{}", r.get("id")?.as_str()?), about(&r)))
+                        let id = r.get("id")?.as_str()?;
+                        let word = if bare {
+                            id.to_string()
+                        } else {
+                            format!("{t}:{id}")
+                        };
+                        Some(fit(word, about(&r)))
                     })
                 })
                 .collect()
@@ -290,6 +299,20 @@ mod tests {
             )),
             [""],
             "free words: nothing to offer"
+        );
+        // a link into one kind of row: the id alone, as the language writes it
+        std::fs::write(
+            d.join("data/decisions.json"),
+            "{\"id\":\"d1\",\"decision\":\"The first\"}\n",
+        )
+        .unwrap();
+        assert_eq!(
+            words(after(
+                &line(&["glimpse", "decision", "--refines", "d"]),
+                &d,
+                &commands
+            )),
+            ["d1"]
         );
         assert_eq!(
             typed_line("ocoeco glimpse item --st", 24),

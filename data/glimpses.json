@@ -93,3 +93,4 @@
 {"id":"g-20261114-003433","at":"2026-11-14T00:34:33Z","by":"claude","kind":"feat","summary":"what fits here: from a blank, what may come next","advances":"backlog:ocoeco-on-argenv"}
 {"id":"g-20261114-004408","at":"2026-11-14T00:44:08Z","by":"claude","kind":"feat","summary":"a name is not the place: a table's other names, and a link's level","advances":"backlog:read-off-the-act"}
 {"id":"g-20261114-005527","at":"2026-11-14T00:55:27Z","by":"claude","kind":"feat","summary":"held back, read off what halts it; a halt can be said to have ended","advances":"backlog:read-off-the-act"}
+{"id":"g-20261114-005932","at":"2026-11-14T00:59:32Z","by":"claude","kind":"fix","summary":"a link into one kind of row is offered as the id alone","advances":"backlog:read-off-the-act"}
