@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.23.1...ocoeco-v0.23.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* the language asks what a value is; two signs say what looking found ([#196](https://github.com/open-commons-observatory/ocoeco/issues/196)) ([14c26c2](https://github.com/open-commons-observatory/ocoeco/commit/14c26c218d333d8172dc1eba7b3775e7551f9e9c))
+
 ## [0.23.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.23.0...ocoeco-v0.23.1) (2026-11-14)
 
 
