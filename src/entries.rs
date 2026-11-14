@@ -47,16 +47,62 @@ pub fn entry(name: &str) -> Option<(Lens, Entry)> {
 /// The entry of that name among the lenses in view from the place at `dir` - built into ocoeco, or brought
 /// by the place, as files or kept as rows.
 pub fn entry_in(name: &str, dir: &Path) -> Option<(Lens, Entry)> {
-    crate::lenses::with(&[dir.to_path_buf()])
-        .unwrap_or_else(|_| lenses())
+    let in_view = crate::lenses::with(&[dir.to_path_buf()]).unwrap_or_else(|_| lenses());
+    if let Some(found) = in_view.iter().find_map(|l| {
+        l.glimpse
+            .iter()
+            .find(|e| e.entry == name)
+            .cloned()
+            .map(|e| (l.clone(), e))
+    }) {
+        return Some(found);
+    }
+    // a table the place keeps is entered as itself where no entry has its name and none fills it: the
+    // identity's second face. It asks every field the table is declared to have - by a lens, by the
+    // place's own declaration, or as its rows show.
+    if in_view
+        .iter()
+        .any(|l| l.glimpse.iter().any(|e| e.table == name))
+    {
+        return None;
+    }
+    let lens = crate::focus::itself(name, dir)?;
+    let asks = fields(&lens, name)
         .into_iter()
-        .find_map(|l| {
-            l.glimpse
-                .iter()
-                .find(|e| e.entry == name)
-                .cloned()
-                .map(|e| (l, e))
+        .map(|(field, _, _)| field)
+        .filter(|f| !matches!(f.as_str(), "id" | "star" | "seq"))
+        .collect();
+    let says = format!(
+        "A row of {name}, entered as the table itself: every field it is declared to have."
+    );
+    Some((
+        lens,
+        Entry {
+            entry: name.to_string(),
+            says,
+            table: name.to_string(),
+            asks,
+            supplies: Vec::new(),
+        },
+    ))
+}
+
+/// The tables the place at `dir` keeps that are entered as themselves: those no entry fills, kept where
+/// the place can write them.
+pub fn as_themselves(dir: &Path) -> Vec<String> {
+    let Some(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|t| Mark::parse(&t).ok())
+    else {
+        return Vec::new();
+    };
+    mark.exports
+        .into_keys()
+        .filter(|table| {
+            table != "glimpses"
+                && entry_in(table, dir).is_some_and(|(_, e)| e.entry == *table && e.table == *table)
         })
+        .collect()
 }
 
 /// Whether `name` is an entry some lens declares, among those in view from where it is typed.
@@ -487,5 +533,66 @@ mod tests {
             "{view}"
         );
         assert!(is_entry("item") && !is_entry("what was done"));
+    }
+}
+
+#[cfg(test)]
+mod as_itself {
+    use super::*;
+
+    #[test]
+    fn a_table_no_entry_fills_is_entered_as_itself_and_held_to_its_place_s_own_declaration() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-entered-as-itself-{}", std::process::id()))
+            .join("o/canon");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/canon\"\nname = \"C: a canon\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nprinciples = \"data/principles.json\"\nbacklog = \"data/backlog.json\"\n").unwrap();
+        std::fs::write(d.join("tables.toml"), "[tables.principles]\nkey = [\"id\"]\n\n[[tables.principles.fields]]\nname = \"id\"\ntype = \"string\"\nrequired = true\n\n[[tables.principles.fields]]\nname = \"name\"\ntype = \"string\"\n\n[[tables.principles.fields]]\nname = \"year\"\ntype = \"integer\"\n").unwrap();
+        std::fs::write(
+            d.join("data/principles.json"),
+            "{\"id\":\"kiss\",\"name\":\"Keep it simple\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("data/backlog.json"), "").unwrap();
+        let at = d.to_str().unwrap().to_string();
+        let words = |w: &[&str]| -> Vec<String> {
+            w.iter()
+                .map(|s| s.to_string())
+                .chain(["--dir".to_string(), at.clone()])
+                .collect()
+        };
+        // the place's own declaration says what may be entered: the fields it declares, of the kinds it declares
+        let (_, entry) =
+            entry_in("principles", &d).expect("a table the place keeps, entered as itself");
+        assert_eq!(
+            entry.asks,
+            ["name", "year"],
+            "every field it is declared to have"
+        );
+        enter(
+            "principles",
+            &words(&["--id", "kiss", "--year", "1960"]),
+            "2026-11-14",
+            "someone",
+        )
+        .unwrap();
+        let kept = std::fs::read_to_string(d.join("data/principles.json")).unwrap();
+        assert!(
+            kept.contains("\"name\":\"Keep it simple\"") && kept.contains("\"year\":1960"),
+            "what it had stays, and a whole number is written as one: {kept}"
+        );
+        assert!(
+            enter(
+                "principles",
+                &words(&["--id", "kiss", "--shown_in", "x"]),
+                "2026-11-14",
+                "someone"
+            )
+            .is_err(),
+            "a field its own declaration does not have is not taken"
+        );
+        // a table an entry fills is entered through that entry, not as itself
+        assert!(entry_in("backlog", &d).is_none() && as_themselves(&d) == ["principles"]);
     }
 }

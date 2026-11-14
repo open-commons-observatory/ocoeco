@@ -176,6 +176,17 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
     Ok(found)
 }
 
+/// The tables a place declares in a declaration of its own - tables.toml at its root, the same kind of
+/// declaration a lens holds for the tables it defines - by name. A place may say the shape of what it
+/// keeps itself; where no lens defines a table, that is its shape.
+pub fn of_the_place(dir: &Path) -> toml::Table {
+    std::fs::read_to_string(dir.join("tables.toml"))
+        .ok()
+        .and_then(|text| text.parse::<toml::Table>().ok())
+        .and_then(|whole| whole.get("tables").and_then(|t| t.as_table()).cloned())
+        .unwrap_or_default()
+}
+
 /// Every lens there is to look through from these places, each with where it is kept: those built into
 /// ocoeco, and those the places bring. A brought lens is held to what the build holds the built-in ones
 /// to, said when it is looked through: no id used twice, no table defined by two lenses. One lens brought

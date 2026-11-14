@@ -278,6 +278,29 @@ fn standing(lens: &Lens, here: &str) -> Lens {
     stood
 }
 
+/// A table the place at `dir` keeps, as a lens of itself - for entering a row of it as the table itself,
+/// the identity's second face. None where the place keeps no such table, or keeps it on another branch,
+/// where its own workflow writes it.
+pub fn itself(table: &str, dir: &Path) -> Option<Lens> {
+    let mark =
+        crate::mark::Mark::parse(&std::fs::read_to_string(dir.join("oco.toml")).ok()?).ok()?;
+    mark.exports
+        .iter()
+        .find(|(t, path)| t.as_str() == table && !path.contains('@'))?;
+    let dirs = [dir.to_path_buf()];
+    let all = crate::lenses::with(&dirs).unwrap_or_default();
+    let mut lens = identity(table, &all, &dirs)?;
+    // and the relations any lens in view declares for it: a link in one of its fields is offered and held
+    // as it is for an entry a lens declares
+    lens.relation = all
+        .iter()
+        .flat_map(|l| l.relation.iter())
+        .filter(|r| r.from.split_once('.').is_some_and(|(of, _)| of == table))
+        .cloned()
+        .collect();
+    Some(lens)
+}
+
 /// What a table no lens declares is, read off the rows the places in view keep of it: keyed by id, and
 /// each field a whole number, a number, or yes or no where every value of it is so - otherwise words.
 /// None where no place keeps such a table, or its rows have no id to be told apart by.
@@ -340,7 +363,12 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
         .get(table)
         .cloned()
         .or_else(|| all.iter().find_map(|l| l.tables.get(table).cloned()))
-        // a table no lens declares is still a table a place keeps: its shape is read off its rows
+        // a table no lens declares may be declared by the place that keeps it, in a declaration of its own
+        .or_else(|| {
+            dirs.iter()
+                .find_map(|dir| crate::lenses::of_the_place(dir).get(table).cloned())
+        })
+        // and one declared nowhere is still a table a place keeps: its shape is read off its rows
         .or_else(|| read_off(table, dirs))?;
     Some(Lens {
         lens: crate::lenses::About {
