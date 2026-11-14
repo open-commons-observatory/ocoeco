@@ -213,7 +213,18 @@ fn value_named(name: &str, dir: &Path) -> Vec<Fit> {
                     .map(|t| fit(t.clone(), "the table itself, every row passed through")),
             )
             .collect(),
-        "surface" => crate::dome::SURFACES.iter().map(|s| fit(*s, "")).collect(),
+        // the surfaces the program has, and those said by a lens in view
+        "surface" => crate::dome::SURFACES
+            .iter()
+            .map(|s| fit(*s, ""))
+            .chain(
+                crate::lenses::with(&crate::board::in_view(dir).0)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(crate::focus::lays_out_a_plane)
+                    .map(|l| fit(l.lens.id, l.lens.says)),
+            )
+            .collect(),
         "table" => std::fs::read_to_string(dir.join("oco.toml"))
             .ok()
             .and_then(|t| Mark::parse(&t).ok())
