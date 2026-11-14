@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.15.1...ocoeco-v0.16.0) (2026-11-14)
+
+
+### Features
+
+* a plane holds planes: the fulldome is a lens placing every lens ([#164](https://github.com/open-commons-observatory/ocoeco/issues/164)) ([d941420](https://github.com/open-commons-observatory/ocoeco/commit/d9414200b3de96cbed762b8ed07eeb99c2740733))
+
 ## [0.15.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.15.0...ocoeco-v0.15.1) (2026-11-14)
 
 
