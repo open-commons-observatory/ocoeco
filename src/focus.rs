@@ -808,9 +808,22 @@ pub fn beam(
         } else {
             Brought {
                 title: Some(format!("light in ({})", tables.len())),
+                // each table, and by which route it came - and as of when: a route must not hide that
                 lines: tables
                     .iter()
-                    .map(|(t, rows, places)| format!("{t} - {rows} rows, from {places} place(s)"))
+                    .map(|(t, rows, places)| {
+                        let _ = places;
+                        if crate::lenses::OF_THE_LANGUAGE.contains(&t.as_str()) {
+                            format!("{t} - {rows} rows made from the lenses in view, now")
+                        } else if crate::relations::OF_THE_GRAPH.contains(&t.as_str()) {
+                            format!("{t} - {rows} rows made from the links between what is in view, now")
+                        } else {
+                            match crate::routes::of_a_table(t, dirs).join("; ") {
+                                came if came.is_empty() => format!("{t} - no rows, from anywhere in view"),
+                                came => format!("{t} - {came}"),
+                            }
+                        }
+                    })
                     .collect(),
                 keys: tables.iter().map(|(t, _, _)| t.clone()).collect(),
                 ..Default::default()
@@ -1527,7 +1540,7 @@ mod tests {
         );
         assert_eq!(
             inner[0].lines,
-            ["notes - 3 rows, from 1 place(s)"],
+            ["notes - 3 rows from 1 place(s) held here, as it is now"],
             "what enters, and from where"
         );
         assert_eq!(
