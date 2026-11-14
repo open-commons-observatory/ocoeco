@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.2...ocoeco-v0.17.0) (2026-11-14)
+
+
+### Features
+
+* what each sign waits on, read off the halts drawn to it ([#170](https://github.com/open-commons-observatory/ocoeco/issues/170)) ([ab63468](https://github.com/open-commons-observatory/ocoeco/commit/ab63468ef82ae71310102457d481dd5d4e85f212))
+
+
+### Bug Fixes
+
+* a part observed speaks for that part only ([#172](https://github.com/open-commons-observatory/ocoeco/issues/172)) ([aaa194d](https://github.com/open-commons-observatory/ocoeco/commit/aaa194d5d1f78d6c7ce708655d6564913c60fe2f))
+
 ## [0.16.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.1...ocoeco-v0.16.2) (2026-11-14)
 
 
