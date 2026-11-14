@@ -214,8 +214,10 @@ impl InTerminal {
 
     /// Every lens given - those built in, and those the places in view bring.
     pub fn of(scale: String, all: Vec<crate::lenses::Lens>) -> InTerminal {
+        // a surface said by a lens is not looked through on its own: it lays out what another brings
         let lenses: Vec<(String, String, bool)> = all
             .into_iter()
+            .filter(|l| !crate::focus::lays_out_a_plane(l))
             .map(|l| (l.lens.id, l.lens.says, !l.focus.is_empty()))
             .collect();
         let at = lenses

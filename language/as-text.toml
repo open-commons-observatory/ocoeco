@@ -1,0 +1,52 @@
+# A surface, said by a lens. What every other lens brings into focus is a plane; this one takes a plane -
+# as rows, in the order it is laid out - and lays it out as plain text. It is the text surface the program
+# has always had, said in the language: the two give the same, line for line. A place may say a surface of
+# its own the same way: a lens that reads the plane.
+
+[lens]
+id = "as-text"
+says = "A surface, said by a lens: a plane laid out as plain text - a heading with its lines beneath, a lens placed within it by its name and what it says. Looked through from the lens whose plane it lays out: as-text@a-lens."
+
+# What a lens brings into focus, as rows - a plane, in the order it is laid out: a lens placed within it,
+# by its name (of_lens) and what it says of itself, or why it brought nothing; a part's heading; and each
+# line - whether it sits beneath a heading (inset), how far along a chain it is (along), its measure of a
+# whole where it has one (so_much, of_all), and what it is about. Made by the program from the lens stood
+# on; kept by no place.
+[tables.plane]
+extra_fields = true
+key = ["id"]
+fields = [
+  { name = "id", type = "string", required = true },
+  { name = "kind", type = "string", required = true, enum = ["lens", "nothing", "heading", "line"] },
+  { name = "says", type = "string" },
+  { name = "of_lens", type = "string" },
+  { name = "depth", type = "integer" },
+  { name = "inset", type = "boolean" },
+  { name = "along", type = "integer" },
+  { name = "so_much", type = "number" },
+  { name = "of_all", type = "number" },
+  { name = "about", type = "string" },
+  { name = "urgent", type = "boolean" },
+]
+
+# each row of the plane, as a line of plain text: a placed lens by its name and what it says, after an empty
+# line; why it brought nothing, in brackets; a heading as it is; a line beneath its heading, further in as
+# far along as it is, a measure shown as ten cells
+[[focus]]
+always = true
+sql = """
+WITH laid AS (
+  SELECT *, CAST(CASE WHEN of_all > 0 THEN least(10, greatest(0, round(so_much / of_all * 10))) ELSE 0 END AS INTEGER) AS filled
+  FROM plane
+)
+SELECT CASE kind
+  WHEN 'lens' THEN chr(10) || coalesce(of_lens, '') || ': ' || coalesce(says, '')
+  WHEN 'nothing' THEN '  (' || coalesce(says, '') || ')'
+  WHEN 'heading' THEN coalesce(says, '')
+  ELSE CASE WHEN inset THEN '  ' ELSE '' END || repeat('  ', CAST(coalesce(along, 0) AS INTEGER))
+       || CASE WHEN of_all IS NULL THEN '' ELSE repeat('█', filled) || repeat('░', 10 - filled) || ' ' END
+       || coalesce(says, '')
+END AS text
+FROM laid ORDER BY seq
+"""
+line = "{text}"
