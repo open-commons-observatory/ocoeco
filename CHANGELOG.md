@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.35.0...ocoeco-v0.36.0) (2026-11-14)
+
+
+### Features
+
+* what a place adds to a lens kept elsewhere is joined to it ([#246](https://github.com/open-commons-observatory/ocoeco/issues/246)) ([d768dc2](https://github.com/open-commons-observatory/ocoeco/commit/d768dc234c6e3050c4b1e5155e30f67b4b730dd9))
+
 ## [0.35.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.34.0...ocoeco-v0.35.0) (2026-11-14)
 
 
