@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.26.0...ocoeco-v0.26.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* a place is found by what is gathered, not by a label ([#205](https://github.com/open-commons-observatory/ocoeco/issues/205)) ([3d8d559](https://github.com/open-commons-observatory/ocoeco/commit/3d8d5594a89988996335f1400eab5bca18462fd2))
+
 ## [0.26.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.25.1...ocoeco-v0.26.0) (2026-11-14)
 
 
