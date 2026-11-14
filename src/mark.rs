@@ -26,6 +26,10 @@ pub struct Mark {
     /// What place this is beyond a star, and what it gathers; a mark without it is a star's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,
+    /// Other names this place's tables are known by: a name, and the table it names. A name is not the
+    /// place it names - many names may point at one table, and a link written with any of them holds.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub also: BTreeMap<String, String>,
 }
 
 /// A place that gathers: a constellation keeps what holds between its stars; an observatory gathers
@@ -83,6 +87,11 @@ impl Mark {
                 if parts.len() != 2 || parts.iter().any(|p| p.is_empty()) || parts[0] == "*" {
                     bail!("it gathers {gathered:?}, which is neither owner/repository nor owner/*");
                 }
+            }
+        }
+        for (name, table) in &m.also {
+            if !m.exports.contains_key(table) {
+                bail!("it says {name} is another name for {table}, which it does not keep");
             }
         }
         Ok(m)

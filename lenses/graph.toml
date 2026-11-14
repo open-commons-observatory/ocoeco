@@ -39,6 +39,7 @@ fields = [
     { name = "written", type = "string" },
     { name = "from_written", type = "string" },
     { name = "from_holds", type = "boolean" },
+    { name = "level", type = "string" },
 ]
 
 [[focus]]

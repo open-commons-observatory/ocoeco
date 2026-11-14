@@ -16,6 +16,10 @@ pub struct Relation {
     /// Marks of what is not a link to a row: a value holding one of these is passed over.
     #[serde(default)]
     pub passes_over: Vec<String>,
+    /// Where a link holds this mark, what follows it is the level its row must reach (feature:x@best),
+    /// not part of its id.
+    #[serde(default)]
+    pub level: Option<String>,
 }
 
 /// The relations of the shared language: those every lens declares.
@@ -24,7 +28,7 @@ pub fn relations() -> Vec<Relation> {
 }
 
 /// A link as written: an id, a table and an id (table:id), or a star, a table and an id.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Link {
     pub star: Option<String>,
     pub table: Option<String>,
@@ -187,14 +191,29 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
     // where a link points, from the place that holds it, and whether that is there
     let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
-        let has = |place: &str, table: &str| {
+        // a table may be written by another name its place knows it by: a name is not the place
+        let named = |place: &str, table: &str| -> String {
             places
                 .get(place)
-                .map(|(_, _, own)| own.get(table).is_some_and(|ids| ids.contains(&link.id)))
+                .and_then(|(_, mark, _)| mark.also.get(table))
+                .cloned()
+                .unwrap_or_else(|| table.to_string())
+        };
+        let has = |place: &str, table: &str| {
+            places.get(place).map(|(_, _, own)| {
+                own.get(&named(place, table))
+                    .is_some_and(|ids| ids.contains(&link.id))
+            })
         };
         match (&link.star, &link.table) {
-            (Some(star), Some(table)) => (format!("{star}/{table}:{}", link.id), has(star, table)),
-            (_, Some(table)) => (format!("{here}/{table}:{}", link.id), has(here, table)),
+            (Some(star), Some(table)) => (
+                format!("{star}/{}:{}", named(star, table), link.id),
+                has(star, table),
+            ),
+            (_, Some(table)) => (
+                format!("{here}/{}:{}", named(here, table), link.id),
+                has(here, table),
+            ),
             (_, None) => {
                 let own = places.get(here).map(|(_, _, own)| own);
                 let any = to.iter().any(|t| t == "*");
@@ -234,6 +253,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     via: String,
                     here: &str,
                     written: String,
+                    level: String,
                     (from_written, from_holds): (String, Option<bool>)| {
         let id = if via.is_empty() {
             format!("{from} {how} {to}")
@@ -254,7 +274,8 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                    "from_place": fp, "from_star": short(&fp), "from_table": ft, "from_id": fi,
                    "to_place": tp, "to_star": short(&tp), "to_table": tt, "to_id": ti,
                    "via_star": short(&vp), "via_id": vi,
-                   "written": written, "from_written": from_written, "from_holds": from_holds}),
+                   "written": written, "from_written": from_written, "from_holds": from_holds,
+                   "level": level}),
         );
     };
     for (here, (dir, mark, _)) in places
@@ -279,13 +300,33 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         .iter()
                         .any(|m| l.id.contains(m.as_str()))
                 }) {
+                    // where the relation says a link carries a level, what follows its mark is the level, not the id
+                    let (row, level) = match relation
+                        .level
+                        .as_deref()
+                        .and_then(|m| link.id.split_once(m))
+                    {
+                        Some((id, level)) => (
+                            Link {
+                                id: id.to_string(),
+                                ..link.clone()
+                            },
+                            level.to_string(),
+                        ),
+                        None => (link.clone(), String::new()),
+                    };
+                    // a level said of no kind of row (tests@a-device) names no row: it is a condition, not a link
+                    if !level.is_empty() && row.table.is_none() {
+                        continue;
+                    }
                     edge(
                         format!("{here}/{table}:{id}"),
                         field,
-                        resolve(here, link, &relation.to),
+                        resolve(here, &row, &relation.to),
                         String::new(),
                         here,
                         written(link),
+                        level,
                         (String::new(), Some(true)),
                     );
                 }
@@ -311,6 +352,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         format!("{here}/connections:{id}"),
                         here,
                         written(&that),
+                        String::new(),
                         (written(&this), near_holds),
                     );
                 }
