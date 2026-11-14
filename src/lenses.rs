@@ -1,4 +1,4 @@
-//! The lenses built into this ocoeco (lenses/*.toml). A lens has two faces: its glimpse catches data -
+//! The lenses built into this ocoeco (language/*.toml). A lens has two faces: its glimpse catches data -
 //! the tables it defines and how they relate - and its focus brings it into view. Until 2026-11-12 the
 //! tables sat together in one file, written from outside; now each belongs to the lens that needs it.
 //! Regrouped, not rewritten: a test holds them to the language as it stood.

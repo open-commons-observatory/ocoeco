@@ -103,3 +103,4 @@
 {"id":"g-20261114-073313","at":"2026-11-14T07:33:13Z","by":"claude","kind":"docs","summary":"lenses as data: done","advances":"backlog:lenses-as-data"}
 {"id":"g-20261114-081622","at":"2026-11-14T08:16:22Z","by":"claude","kind":"feat","summary":"a plane holds planes: the fulldome is a lens placing every lens","advances":"backlog:read-off-the-act"}
 {"id":"g-20261114-082352","at":"2026-11-14T08:23:52Z","by":"claude","kind":"fix","summary":"places, not through: one word for placing side by side","advances":"backlog:read-off-the-act"}
+{"id":"g-20261114-082823","at":"2026-11-14T08:28:23Z","by":"claude","kind":"fix","summary":"the shared language is kept in language/, apart from a place's lenses","advances":"backlog:read-off-the-act"}
