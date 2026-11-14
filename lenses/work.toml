@@ -161,7 +161,7 @@ line = "{text}"
 # What has not moved is a sign, and the lens of signs says what that is: its part is placed here.
 # One lens asks; this one only places - the same line of a query is not written twice.
 [[focus]]
-through = "signs"
+places = "signs"
 only = "not moved in the work"
 
 [[focus]]

@@ -80,7 +80,7 @@ pub struct Part {
     /// itself. A lens made of such parts is a lens of lenses: it says only what to place together, and
     /// knows nothing of where the data comes from or how it is shaped.
     #[serde(default)]
-    pub through: Option<String>,
+    pub places: Option<String>,
     /// Of what that lens brings into focus, only the part under this heading.
     #[serde(default)]
     pub only: Option<String>,
@@ -368,7 +368,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         always: yes(p, "always"),
                         sql: raw(p, "query"),
                         line: raw(p, "lays_out"),
-                        through: some(raw(p, "through")),
+                        places: some(raw(p, "places")),
                         only: some(raw(p, "only")),
                         measure: some(raw(p, "measure")),
                         of: raw(p, "of").trim().parse().ok(),
@@ -473,7 +473,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "through": part.through.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
             );
         }
     }
@@ -796,7 +796,7 @@ mod kept_as_rows {
             "{\"id\":\"sheet\",\"says\":\"What goes together, and nothing else.\"}\n",
         )
         .unwrap();
-        std::fs::write(d.join("oco/lens_parts.json"), "{\"id\":\"sheet/2\",\"lens\":\"sheet\",\"part\":2,\"through\":\"signs\",\"only\":\"showing\"}\n{\"id\":\"sheet/1\",\"lens\":\"sheet\",\"part\":1,\"through\":\"work\"}\n").unwrap();
+        std::fs::write(d.join("oco/lens_parts.json"), "{\"id\":\"sheet/2\",\"lens\":\"sheet\",\"part\":2,\"places\":\"signs\",\"only\":\"showing\"}\n{\"id\":\"sheet/1\",\"lens\":\"sheet\",\"part\":1,\"places\":\"work\"}\n").unwrap();
         let all = with(std::slice::from_ref(&d)).unwrap();
         let sheet = all
             .iter()
@@ -805,7 +805,7 @@ mod kept_as_rows {
         let placed: Vec<(Option<&str>, Option<&str>)> = sheet
             .focus
             .iter()
-            .map(|p| (p.through.as_deref(), p.only.as_deref()))
+            .map(|p| (p.places.as_deref(), p.only.as_deref()))
             .collect();
         assert_eq!(
             placed,

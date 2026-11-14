@@ -228,14 +228,14 @@ pub fn brought(
         for part in &found.focus {
             // a part may be what another lens brings into focus, placed here - all of it, or the part
             // under one heading. The other lens gathers, shapes and lays out; this one only places.
-            if let Some(other) = &part.through {
+            if let Some(other) = &part.places {
                 // what is placed: one lens, or every lens in view ("*") - but this one, and any that places
                 // every lens itself
                 let placing: Vec<&Lens> = if other == "*" {
                     all.iter()
                         .filter(|l| {
                             l.lens.id != lens
-                                && !l.focus.iter().any(|p| p.through.as_deref() == Some("*"))
+                                && !l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
                         })
                         .collect()
                 } else {
@@ -253,7 +253,7 @@ pub fn brought(
                 for placed in placing {
                     thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
                     if DEEP.get() > 8 {
-                        bail!("the lens {lens} looks through {other}, which comes back to it: lenses placed in a ring");
+                        bail!("the lens {lens} places {other}, which comes back to it: lenses placed in a ring");
                     }
                     DEEP.set(DEEP.get() + 1);
                     let theirs = brought(&placed.lens.id, dirs, today, engine);
@@ -519,7 +519,7 @@ fn widened(lens: &Lens, all: &[Lens]) -> Lens {
                 giver
                     .focus
                     .iter()
-                    .filter(|p| p.named.is_some() && p.through.is_none())
+                    .filter(|p| p.named.is_some() && p.places.is_none())
                     .cloned(),
             );
         }
@@ -550,7 +550,7 @@ fn giver_of<'a>(shape: &str, all: &'a [Lens]) -> Option<&'a Lens> {
 /// the lens gives them - so a shape may ask of one named before it.
 fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
     let mut script = load.to_string();
-    for part in lens.focus.iter().filter(|p| p.through.is_none()) {
+    for part in lens.focus.iter().filter(|p| p.places.is_none()) {
         if let Some(name) = &part.named {
             script.push_str(&format!(
                 "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
@@ -677,7 +677,7 @@ pub fn beam(
                 (Some(title), _) => title.to_string(),
                 (None, _) => "a part with no heading".to_string(),
             };
-            let (line, measure) = match &part.through {
+            let (line, measure) = match &part.places {
                 Some(other) => {
                     let came: usize = if all.iter().any(|l| l.lens.id == *other) {
                         brought(other, dirs, today, engine)?
@@ -750,7 +750,7 @@ pub fn beam(
         // on, from here: the lenses that place this one, and the surfaces it is laid out on
         let placed_in: Vec<&str> = all
             .iter()
-            .filter(|l| l.focus.iter().any(|p| p.through.as_deref() == Some(lens)))
+            .filter(|l| l.focus.iter().any(|p| p.places.as_deref() == Some(lens)))
             .map(|l| l.lens.id.as_str())
             .collect();
         let mut on = Brought {
@@ -863,7 +863,7 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
             // a part placed from another lens asks nothing here: what must hold is that the lens, and the
             // heading if one is named, are there - told for the lenses built in; one a place brings is
             // met when it is looked through
-            if let Some(other) = &part.through {
+            if let Some(other) = &part.places {
                 if let Some(theirs) = crate::lenses::lenses().iter().find(|l| l.lens.id == *other) {
                     if let Some(only) = part.only.as_deref().filter(|only| {
                         !theirs.focus.iter().any(|p| {
@@ -880,8 +880,7 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
             }
             if part.sql.trim().is_empty() {
                 doubts.push(
-                    "a part asks nothing: it has neither a query nor a lens to look through"
-                        .to_string(),
+                    "a part asks nothing: it has neither a query nor a lens it places".to_string(),
                 );
                 continue;
             }
@@ -973,7 +972,7 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
     // a lens that only places others is not brought into focus again on its own: what it places is
     for lens in all
         .iter()
-        .filter(|l| l.focus.iter().any(|p| p.through.is_none()))
+        .filter(|l| l.focus.iter().any(|p| p.places.is_none()))
     {
         match shape(lens, engine) {
             Err(e) => problems.push(format!(
@@ -1338,7 +1337,7 @@ mod tests {
         )
         .unwrap();
         std::fs::write(d.join("lenses/inner.toml"), "[lens]\nid = \"inner\"\nsays = \"Asks one thing of the notes.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n[[focus]]\ntitle = \"kept ({count})\"\nsql = \"SELECT n FROM notes -- kept\"\nline = \"{n}\"\n").unwrap();
-        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"Places the inner lens, and asks nothing.\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"Places the inner lens, and asks nothing.\"\n[[focus]]\nplaces = \"inner\"\nonly = \"kept\"\n").unwrap();
         let places = [d.clone()];
         let inner = beam("inner", &places, "2026-11-13", &Two).unwrap();
         let titles: Vec<&str> = inner
@@ -1412,7 +1411,7 @@ mod tests {
             ),
         )
         .unwrap();
-        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"A sheet: places what the inner lens brings, and asks nothing.\"\n[[focus]]\nthrough = \"inner\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"A sheet: places what the inner lens brings, and asks nothing.\"\n[[focus]]\nplaces = \"inner\"\n[[focus]]\nplaces = \"inner\"\nonly = \"kept\"\n").unwrap();
         let places = [d.clone()];
         let sheet = brought("sheet", &places, "2026-11-13", &ByWord).unwrap();
         // the whole of the inner lens, as a plane within the sheet - its own shape kept; then only its part
@@ -1439,7 +1438,7 @@ mod tests {
             (Some("kept (1)"), &["one".to_string()][..])
         );
         // a lens that is not in view from here is said to be so, and the rest is shown
-        std::fs::write(d.join("lenses/far.toml"), "[lens]\nid = \"far\"\nsays = \"Places a lens that only another place brings.\"\n[[focus]]\nthrough = \"brought-elsewhere\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
+        std::fs::write(d.join("lenses/far.toml"), "[lens]\nid = \"far\"\nsays = \"Places a lens that only another place brings.\"\n[[focus]]\nplaces = \"brought-elsewhere\"\n[[focus]]\nplaces = \"inner\"\nonly = \"kept\"\n").unwrap();
         let far = brought("far", &places, "2026-11-13", &ByWord).unwrap();
         assert_eq!(
             far.iter()
@@ -1448,7 +1447,7 @@ mod tests {
             ["brought-elsewhere: not in view from here", "kept (1)"]
         );
         // lenses placed in a ring are said, not followed for ever
-        std::fs::write(d.join("lenses/ring.toml"), "[lens]\nid = \"ring\"\nsays = \"Looks through itself, which cannot be.\"\n[[focus]]\nthrough = \"ring\"\n").unwrap();
+        std::fs::write(d.join("lenses/ring.toml"), "[lens]\nid = \"ring\"\nsays = \"Places itself, which cannot be.\"\n[[focus]]\nplaces = \"ring\"\n").unwrap();
         assert!(brought("ring", &places, "2026-11-13", &ByWord)
             .unwrap_err()
             .to_string()
