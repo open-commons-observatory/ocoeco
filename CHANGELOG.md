@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.11.0...ocoeco-v0.12.0) (2026-11-14)
+
+
+### Features
+
+* held back, read off what halts it; a halt can be said to have ended ([#150](https://github.com/open-commons-observatory/ocoeco/issues/150)) ([89ecd56](https://github.com/open-commons-observatory/ocoeco/commit/89ecd567887dd46d6fbd44dc91b260ad5072ebf2))
+
+
+### Bug Fixes
+
+* a link into one kind of row is offered as the id alone ([#151](https://github.com/open-commons-observatory/ocoeco/issues/151)) ([3eff039](https://github.com/open-commons-observatory/ocoeco/commit/3eff03996dd871432e7bd378330549a36c0f85c9))
+
 ## [0.11.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.10.0...ocoeco-v0.11.0) (2026-11-14)
 
 
