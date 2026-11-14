@@ -6,14 +6,14 @@
 # it is held, its table, its id - the place in full, or by its star.
 [lens]
 id = "around"
-says = "From one thing: what it points at and what points at it, each by how - a step away in every direction. Looked through from a thing: around@star/table:id."
+says = "From one thing: where it is held, what it points at and what points at it, each by how - a step away in every direction; from a place, what it holds and reaches for. Looked through from a thing: around@star/table:id."
 reads = ["edges", "things"]
 
 # Where one stands: the thing of that name. One shape, named, that the parts below ask of.
 [[focus]]
 named = "here"
 sql = """
-SELECT id, star, of_table, says, star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3) AS thing
+SELECT id, star, of_table, place, says, star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3) AS thing
 FROM things
 WHERE id = '{here}' OR star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3) = '{here}'
 """
@@ -22,6 +22,34 @@ WHERE id = '{here}' OR star || '/' || of_table || ':' || substr(id, length(place
 title = "standing on ({count})"
 sql = """
 SELECT thing, says FROM here ORDER BY thing
+"""
+line = "{thing} - {says}"
+
+# Every thing is held in a place, and a place says what it is for: one step up from anything.
+[[focus]]
+title = "held in ({count})"
+sql = """
+SELECT p.star || '/places:' || p.star AS thing, p.says
+FROM here h JOIN things p ON p.of_table = 'places' AND p.place = h.place WHERE h.of_table <> 'places'
+"""
+line = "{thing} - {says}"
+
+# Standing on a place: what it holds, by kind - a step down into any of them is that table, looked through
+# as itself - and the milestones it holds, which say what it reaches for.
+[[focus]]
+title = "holds, by kind ({count})"
+sql = """
+SELECT t.of_table, count(*) AS things FROM here h JOIN things t ON t.place = h.place AND t.of_table <> 'places'
+WHERE h.of_table = 'places' GROUP BY t.of_table ORDER BY things DESC, t.of_table
+"""
+line = "{of_table} - {things}"
+
+[[focus]]
+title = "reaches for ({count})"
+sql = """
+SELECT t.star || '/milestones:' || substr(t.id, length(t.place) + 13) AS thing, t.says
+FROM here h JOIN things t ON t.place = h.place AND t.of_table = 'milestones'
+WHERE h.of_table = 'places' ORDER BY t.id LIMIT 24
 """
 line = "{thing} - {says}"
 

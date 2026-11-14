@@ -268,6 +268,11 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
     }
+    // every place is a thing too, and what it says of itself is what it is for: so a walk arrives at it
+    for (id, (_, mark, _)) in &places {
+        things.push(json!({"id": format!("{id}/places:{}", short(id)), "of_table": "places", "place": id, "star": short(id),
+                           "says": mark.project.name}));
+    }
     let mut edges: BTreeMap<String, serde_json::Value> = BTreeMap::new();
     // an edge: from where, how, to where and whether that holds; the link as written at its far end; and,
     // for a connection, the one it came through and whether its near end holds as well
@@ -354,6 +359,29 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         (String::new(), Some(true)),
                     );
                 }
+            }
+        }
+        // what a place gathers, as its mark says: a constellation its stars, an observatory what it looks at
+        for pattern in mark.place.iter().flat_map(|p| p.gathers.iter()) {
+            let gathered = |other: &&String| match pattern.strip_suffix("/*") {
+                Some(owner) => other.starts_with(&format!("{owner}/")),
+                None => *other == pattern,
+            };
+            for other in places
+                .keys()
+                .filter(|other| *other != here)
+                .filter(gathered)
+            {
+                edge(
+                    format!("{here}/places:{}", short(here)),
+                    "gathers",
+                    (format!("{other}/places:{}", short(other)), Some(true)),
+                    String::new(),
+                    here,
+                    other.clone(),
+                    String::new(),
+                    (String::new(), Some(true)),
+                );
             }
         }
         let anywhere = ["*".to_string()];
@@ -592,10 +620,19 @@ mod the_graph {
                 Some("o/a/connections:c1")
             )
         );
+        let star = graph["things"]
+            .iter()
+            .find(|t| t["of_table"] == "places" && t["place"] == "o/a")
+            .expect("a place is a thing");
+        assert_eq!(
+            (star["id"].as_str(), star["says"].as_str()),
+            (Some("o/a/places:a"), Some("P: a place")),
+            "and says what it is for"
+        );
         assert_eq!(
             graph["things"].len(),
-            5,
-            "every row of every place is a thing"
+            7,
+            "every row of every place is a thing, and so is each place"
         );
         let pointed: BTreeSet<&str> = graph["edges"]
             .iter()
@@ -647,5 +684,43 @@ mod the_graph {
                 "an edge carries what the lens declares"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod the_top {
+    use super::*;
+
+    #[test]
+    fn what_a_place_gathers_is_drawn_from_it_so_a_walk_reaches_the_whole() {
+        let base = std::env::temp_dir().join(format!("ocoeco-top-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let mark = |id: &str, place: &str| {
+            format!("schema = 1\n[project]\nid = \"{id}\"\nname = \"N: what {id} is for\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n{place}")
+        };
+        for (id, place) in [
+            (
+                "o/whole",
+                "[place]\nis = \"constellation\"\ngathers = [\"o/star\", \"p/*\"]\n",
+            ),
+            ("o/star", ""),
+            ("p/other", ""),
+            ("q/apart", ""),
+        ] {
+            let d = base.join(id);
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(d.join("oco.toml"), mark(id, place)).unwrap();
+        }
+        let dirs: Vec<PathBuf> = ["o/whole", "o/star", "p/other", "q/apart"]
+            .iter()
+            .map(|id| base.join(id))
+            .collect();
+        let graph = as_graph(&dirs).unwrap();
+        let gathered: BTreeSet<&str> = graph["edges"]
+            .iter()
+            .filter(|e| e["how"] == "gathers" && e["from"] == "o/whole/places:whole")
+            .filter_map(|e| e["to"].as_str())
+            .collect();
+        assert_eq!(gathered, BTreeSet::from(["o/star/places:star", "p/other/places:other"]), "the one it names, and every one under the owner it names - not what it does not gather");
     }
 }
