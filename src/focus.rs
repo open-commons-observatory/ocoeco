@@ -169,6 +169,14 @@ pub struct Brought {
     /// What newly comes into view here is to be said urgently, as the lens says.
     #[serde(default)]
     pub urgent: bool,
+    /// A plane placed within this one - a whole lens, placed - its own shapes kept: this part is then that
+    /// lens's name (title) and what it says of itself (about), or why it brought nothing.
+    #[serde(default)]
+    pub within: Vec<Brought>,
+    #[serde(default)]
+    pub about: Option<String>,
+    #[serde(default)]
+    pub nothing_because: Option<String>,
     /// What each line is about, so it can be known again another time though its words change (an age,
     /// a count): its star and id when the answer names them, otherwise the line itself.
     #[serde(default)]
@@ -221,32 +229,67 @@ pub fn brought(
             // a part may be what another lens brings into focus, placed here - all of it, or the part
             // under one heading. The other lens gathers, shapes and lays out; this one only places.
             if let Some(other) = &part.through {
-                // a lens that is not in view from here cannot be placed: said, and the rest is shown -
-                // what is in view depends on where one looks from, and that is not a fault of the lens
-                if !all.iter().any(|l| l.lens.id == *other) {
+                // what is placed: one lens, or every lens in view ("*") - but this one, and any that places
+                // every lens itself
+                let placing: Vec<&Lens> = if other == "*" {
+                    all.iter()
+                        .filter(|l| {
+                            l.lens.id != lens
+                                && !l.focus.iter().any(|p| p.through.as_deref() == Some("*"))
+                        })
+                        .collect()
+                } else {
+                    all.iter().filter(|l| l.lens.id == *other).collect()
+                };
+                // a lens that is not in view from here cannot be placed: said, and the rest is shown - what
+                // is in view depends on where one looks from, and that is not a fault of the lens
+                if placing.is_empty() {
                     parts.push(Brought {
                         title: Some(format!("{other}: not in view from here")),
                         ..Default::default()
                     });
                     continue;
                 }
-                thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
-                if DEEP.get() > 8 {
-                    bail!("the lens {lens} looks through {other}, which comes back to it: lenses placed in a ring");
+                for placed in placing {
+                    thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
+                    if DEEP.get() > 8 {
+                        bail!("the lens {lens} looks through {other}, which comes back to it: lenses placed in a ring");
+                    }
+                    DEEP.set(DEEP.get() + 1);
+                    let theirs = brought(&placed.lens.id, dirs, today, engine);
+                    DEEP.set(DEEP.get() - 1);
+                    match &part.only {
+                        // one shape of it, placed among this lens's own
+                        Some(only) => parts.extend(
+                            theirs?
+                                .into_iter()
+                                .filter(|p| {
+                                    !p.title.as_deref().is_some_and(|t| t.starts_with(NOT_SOUND))
+                                })
+                                .filter(|p| p.title.as_deref().is_some_and(|t| named(t) == only)),
+                        ),
+                        // the whole of it: its plane, placed within this one, its own shape kept
+                        None => {
+                            let (within, nothing_because) = match theirs {
+                                Ok(within) => (within, None),
+                                // lenses placed in a ring are no lens failing to bring something: the arrangement cannot be
+                                Err(why)
+                                    if format!("{why:#}").contains("lenses placed in a ring") =>
+                                {
+                                    return Err(why)
+                                }
+                                Err(why) => (Vec::new(), Some(format!("{why:#}"))),
+                            };
+                            parts.push(Brought {
+                                title: Some(placed.lens.id.clone()),
+                                about: Some(placed.lens.says.clone()),
+                                within,
+                                nothing_because,
+                                ..Default::default()
+                            });
+                        }
+                    }
                 }
-                DEEP.set(DEEP.get() + 1);
-                let theirs = brought(other, dirs, today, engine);
-                DEEP.set(DEEP.get() - 1);
-                parts.extend(
-                    theirs?
-                        .into_iter()
-                        .filter(|p| !p.title.as_deref().is_some_and(|t| t.starts_with(NOT_SOUND)))
-                        .filter(|p| {
-                            part.only.as_deref().is_none_or(|only| {
-                                p.title.as_deref().is_some_and(|t| named(t) == only)
-                            })
-                        }),
-                );
                 continue;
             }
             // a shape named for the other parts, with no line of its own, is passed on through, not laid out
@@ -309,6 +352,9 @@ pub fn brought(
                     }),
                     lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
                     urgent: part.urgent,
+                    within: Vec::new(),
+                    about: None,
+                    nothing_because: None,
                     keys: rows
                         .iter()
                         .map(|row| {
@@ -924,7 +970,11 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
         Ok(all) => all,
         Err(e) => return vec![format!("{e:#}")],
     };
-    for lens in all.iter().filter(|l| !l.focus.is_empty()) {
+    // a lens that only places others is not brought into focus again on its own: what it places is
+    for lens in all
+        .iter()
+        .filter(|l| l.focus.iter().any(|p| p.through.is_none()))
+    {
         match shape(lens, engine) {
             Err(e) => problems.push(format!(
                 "the shape of the lens {} cannot be told: {}",
@@ -1365,18 +1415,28 @@ mod tests {
         std::fs::write(d.join("lenses/sheet.toml"), "[lens]\nid = \"sheet\"\nsays = \"A sheet: places what the inner lens brings, and asks nothing.\"\n[[focus]]\nthrough = \"inner\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();
         let places = [d.clone()];
         let sheet = brought("sheet", &places, "2026-11-13", &ByWord).unwrap();
-        let laid: Vec<(&str, &str)> = sheet
-            .iter()
-            .map(|p| (p.title.as_deref().unwrap_or_default(), p.lines[0].as_str()))
-            .collect();
+        // the whole of the inner lens, as a plane within the sheet - its own shape kept; then only its part
+        // under one heading, among the sheet's own
+        assert_eq!(sheet.len(), 2, "{sheet:?}");
         assert_eq!(
-            laid,
-            [
-                ("kept (1)", "one"),
-                ("other (1)", "two"),
-                ("kept (1)", "one")
-            ],
-            "all of the inner lens, then only its part under one heading"
+            (
+                sheet[0].title.as_deref(),
+                sheet[0].about.as_deref(),
+                sheet[0]
+                    .within
+                    .iter()
+                    .map(|p| p.title.clone().unwrap_or_default())
+                    .collect::<Vec<_>>()
+            ),
+            (
+                Some("inner"),
+                Some("Asks two things of the data."),
+                vec!["kept (1)".to_string(), "other (1)".to_string()]
+            )
+        );
+        assert_eq!(
+            (sheet[1].title.as_deref(), sheet[1].lines.as_slice()),
+            (Some("kept (1)"), &["one".to_string()][..])
         );
         // a lens that is not in view from here is said to be so, and the rest is shown
         std::fs::write(d.join("lenses/far.toml"), "[lens]\nid = \"far\"\nsays = \"Places a lens that only another place brings.\"\n[[focus]]\nthrough = \"brought-elsewhere\"\n[[focus]]\nthrough = \"inner\"\nonly = \"kept\"\n").unwrap();

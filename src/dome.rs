@@ -7,19 +7,11 @@
 use crate::focus::Brought;
 use anyhow::{bail, Result};
 
-/// One lens in the fulldome: its id, what it says of itself, and what it brought into focus - or why
-/// it brought nothing (it has no focus yet, or could not come into focus).
-pub struct InDome {
-    pub id: String,
-    pub says: String,
-    pub brought: std::result::Result<Vec<Brought>, String>,
-}
-
-/// The port: lays out what a lens brought into focus, and the fulldome - every lens together.
+/// The port: lays out a plane - what a lens brought into focus, planes placed within it included.
 pub trait Dome {
     fn lay_out(&self, parts: &[Brought]) -> String;
-    /// Every lens, in focus, on this surface; `scale` says what is in view.
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String;
+    /// The whole: a plane laid out within the surface's own frame - its title, and for a page its style.
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String;
     /// What this surface requires of whatever shows it, for the shapes to look as they were fitted -
     /// so that when it looks wrong, it can be said why. A surface that flows requires nothing.
     fn requires(&self) -> Option<String> {
@@ -109,6 +101,18 @@ impl Dome for Text {
     fn lay_out(&self, parts: &[Brought]) -> String {
         let mut text = String::new();
         for part in parts {
+            // a plane placed within this one: its name and what it says, then its own shapes - or why none
+            if let Some(about) = &part.about {
+                text.push_str(&format!(
+                    "\n{}: {about}\n",
+                    part.title.as_deref().unwrap_or_default()
+                ));
+                match &part.nothing_because {
+                    Some(why) => text.push_str(&format!("  ({why})\n")),
+                    None => text.push_str(&self.lay_out(&part.within)),
+                }
+                continue;
+            }
             let inset = if part.title.is_some() { "  " } else { "" };
             if let Some(title) = &part.title {
                 text.push_str(title);
@@ -129,16 +133,8 @@ impl Dome for Text {
         text
     }
 
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
-        let mut text = format!("the fulldome - {scale}\n");
-        for lens in lenses {
-            text.push_str(&format!("\n{}: {}\n", lens.id, lens.says));
-            match &lens.brought {
-                Ok(parts) => text.push_str(&self.lay_out(parts)),
-                Err(why) => text.push_str(&format!("  ({why})\n")),
-            }
-        }
-        text
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
+        format!("the fulldome - {scale}\n{}", self.lay_out(plane))
     }
 }
 
@@ -150,6 +146,17 @@ impl Dome for Markdown {
     fn lay_out(&self, parts: &[Brought]) -> String {
         let mut text = String::new();
         for part in parts {
+            if let Some(about) = &part.about {
+                text.push_str(&format!(
+                    "\n## {}\n\n{about}\n\n",
+                    part.title.as_deref().unwrap_or_default()
+                ));
+                match &part.nothing_because {
+                    Some(why) => text.push_str(&format!("*{why}*\n")),
+                    None => text.push_str(&self.lay_out(&part.within)),
+                }
+                continue;
+            }
             if !text.is_empty() {
                 text.push('\n');
             }
@@ -179,16 +186,8 @@ impl Dome for Markdown {
         text
     }
 
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
-        let mut text = format!("# The fulldome\n\n{scale}\n");
-        for lens in lenses {
-            text.push_str(&format!("\n## {}\n\n{}\n\n", lens.id, lens.says));
-            match &lens.brought {
-                Ok(parts) => text.push_str(&self.lay_out(parts)),
-                Err(why) => text.push_str(&format!("*{why}*\n")),
-            }
-        }
-        text
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
+        format!("# The fulldome\n\n{scale}\n{}", self.lay_out(plane))
     }
 }
 
@@ -210,6 +209,22 @@ impl Dome for Html {
     fn lay_out(&self, parts: &[Brought]) -> String {
         let mut text = String::new();
         for part in parts {
+            if let Some(about) = &part.about {
+                let id = part.title.as_deref().unwrap_or_default();
+                text.push_str(&format!(
+                    "<h2 id=\"{}\">{}</h2>\n<p class=\"says\">{}</p>\n",
+                    escaped(id),
+                    escaped(id),
+                    escaped(about)
+                ));
+                match &part.nothing_because {
+                    Some(why) => {
+                        text.push_str(&format!("<p class=\"none\">{}</p>\n", escaped(why)))
+                    }
+                    None => text.push_str(&self.lay_out(&part.within)),
+                }
+                continue;
+            }
             text.push_str("<section>\n");
             match &part.title {
                 Some(title) => {
@@ -240,20 +255,9 @@ impl Dome for Html {
         text
     }
 
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
         let mut text = format!("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>The fulldome</title>\n<style>{STYLE}</style>\n</head>\n<body>\n<h1>The fulldome</h1>\n<p class=\"scale\">{}</p>\n", escaped(scale));
-        for lens in lenses {
-            text.push_str(&format!(
-                "<h2 id=\"{}\">{}</h2>\n<p class=\"says\">{}</p>\n",
-                escaped(&lens.id),
-                escaped(&lens.id),
-                escaped(&lens.says)
-            ));
-            match &lens.brought {
-                Ok(parts) => text.push_str(&self.lay_out(parts)),
-                Err(why) => text.push_str(&format!("<p class=\"none\">{}</p>\n", escaped(why))),
-            }
-        }
+        text.push_str(&self.lay_out(plane));
         text.push_str("</body>\n</html>\n");
         text
     }
@@ -335,6 +339,19 @@ impl Screen {
 
     fn parts(&self, out: &mut Vec<String>, parts: &[Brought]) {
         for part in parts {
+            if let Some(about) = &part.about {
+                out.push(String::new());
+                self.put(
+                    out,
+                    &format!("{}: ", part.title.as_deref().unwrap_or_default()),
+                    about,
+                );
+                match &part.nothing_because {
+                    Some(why) => self.put(out, "  ", &format!("({why})")),
+                    None => self.parts(out, &part.within),
+                }
+                continue;
+            }
             let inset = if part.title.is_some() { "  " } else { "" };
             if let Some(title) = &part.title {
                 self.put(out, "", title);
@@ -371,7 +388,7 @@ impl Dome for Screen {
         self.written(out)
     }
 
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
         let mut out = Vec::new();
         self.put(&mut out, "", &format!("the fulldome - {scale}"));
         self.put(
@@ -379,14 +396,7 @@ impl Dome for Screen {
             "",
             &format!("(laid out for {})", self.requires().unwrap_or_default()),
         );
-        for lens in lenses {
-            out.push(String::new());
-            self.put(&mut out, &format!("{}: ", lens.id), &lens.says);
-            match &lens.brought {
-                Ok(parts) => self.parts(&mut out, parts),
-                Err(why) => self.put(&mut out, "  ", &format!("({why})")),
-            }
-        }
+        self.parts(&mut out, plane);
         self.written(out)
     }
 
@@ -407,17 +417,9 @@ impl Dome for Json {
         serde_json::to_string_pretty(parts).unwrap_or_default() + "\n"
     }
 
-    fn fulldome(&self, scale: &str, lenses: &[InDome]) -> String {
-        let lenses: Vec<serde_json::Value> = lenses
-            .iter()
-            .map(|lens| match &lens.brought {
-                Ok(parts) => serde_json::json!({"id": lens.id, "says": lens.says, "parts": parts}),
-                Err(why) => {
-                    serde_json::json!({"id": lens.id, "says": lens.says, "nothing_because": why})
-                }
-            })
-            .collect();
-        serde_json::to_string_pretty(&serde_json::json!({"scale": scale, "lenses": lenses}))
+    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
+        // the plane as it is, planes within it included: nothing of its shape is lost
+        serde_json::to_string_pretty(&serde_json::json!({"scale": scale, "plane": plane}))
             .unwrap_or_default()
             + "\n"
     }
@@ -491,18 +493,20 @@ mod tests {
     #[test]
     fn the_fulldome_is_every_lens_on_a_surface_and_says_which_brought_nothing() {
         let lenses = [
-            InDome {
-                id: "work".into(),
-                says: "The flow of work.".into(),
-                brought: Ok(parts()),
+            Brought {
+                title: Some("work".into()),
+                about: Some("The flow of work.".into()),
+                within: parts(),
+                ..Default::default()
             },
-            InDome {
-                id: "purpose".into(),
-                says: "Why a star exists.".into(),
-                brought: Err("the lens purpose has no focus yet".into()),
+            Brought {
+                title: Some("purpose".into()),
+                about: Some("Why a star exists.".into()),
+                nothing_because: Some("the lens purpose has no focus yet".into()),
+                ..Default::default()
             },
         ];
-        let text = Text.fulldome("this place", &lenses);
+        let text = Text.whole("this place", &lenses);
         assert!(
             text.starts_with(
                 "the fulldome - this place\n\nwork: The flow of work.\nin progress (1)\n"
@@ -510,7 +514,7 @@ mod tests {
                 .contains("purpose: Why a star exists.\n  (the lens purpose has no focus yet)\n"),
             "{text}"
         );
-        let page = Html.fulldome("every place observed", &lenses);
+        let page = Html.whole("every place observed", &lenses);
         assert!(
             page.starts_with("<!doctype html>")
                 && page.ends_with("</body>\n</html>\n")
@@ -523,7 +527,7 @@ mod tests {
             page.matches("</section>").count()
         );
         assert!(Markdown
-            .fulldome("this place", &lenses)
+            .whole("this place", &lenses)
             .contains("## purpose\n\nWhy a star exists.\n\n*the lens purpose has no focus yet*\n"));
     }
 
@@ -626,12 +630,13 @@ mod tests {
                 && cramped.contains(" line(s) reach past 8 columns"),
             "{cramped}"
         );
-        let whole = screen.fulldome(
+        let whole = screen.whole(
             "this place",
-            &[InDome {
-                id: "work".into(),
-                says: "The flow of work.".into(),
-                brought: Ok(parts.to_vec()),
+            &[Brought {
+                title: Some("work".into()),
+                about: Some("The flow of work.".into()),
+                within: parts.to_vec(),
+                ..Default::default()
             }],
         );
         assert!(whole.starts_with("the fulldome - this place\n(laid out for 40 columns of monospaced\ncharacters, unwrapped)\n\nwork: The flow of work.\n") && whole.lines().all(|l| wide(l) <= 40), "{whole}");
@@ -651,26 +656,28 @@ mod tests {
             read, parts,
             "what is read back is the projection, whole - what each line is about with it"
         );
-        let whole: serde_json::Value = serde_json::from_str(&Json.fulldome(
+        let whole: serde_json::Value = serde_json::from_str(&Json.whole(
             "this place",
             &[
-                InDome {
-                    id: "work".into(),
-                    says: "The flow.".into(),
-                    brought: Ok(parts.to_vec()),
+                Brought {
+                    title: Some("work".into()),
+                    about: Some("The flow.".into()),
+                    within: parts.to_vec(),
+                    ..Default::default()
                 },
-                InDome {
-                    id: "purpose".into(),
-                    says: "Why.".into(),
-                    brought: Err("nothing yet".into()),
+                Brought {
+                    title: Some("purpose".into()),
+                    about: Some("Why.".into()),
+                    nothing_because: Some("nothing yet".into()),
+                    ..Default::default()
                 },
             ],
         ))
         .unwrap();
         assert_eq!(
             (
-                whole["lenses"][0]["parts"][0]["keys"][0].as_str(),
-                whole["lenses"][1]["nothing_because"].as_str()
+                whole["plane"][0]["within"][0]["keys"][0].as_str(),
+                whole["plane"][1]["nothing_because"].as_str()
             ),
             (Some("r/a"), Some("nothing yet"))
         );

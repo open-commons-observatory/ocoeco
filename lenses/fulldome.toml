@@ -1,0 +1,9 @@
+# The fulldome: every lens in view, placed side by side - a plane of planes. It asks nothing of its own;
+# each lens it places keeps its own shape within it. Any place may make another such plane, placing what
+# it chooses; this one places them all - but itself, and any other that places them all.
+[lens]
+id = "fulldome"
+says = "Every lens in view, placed side by side: a plane of planes, each lens keeping its own shape within it."
+
+[[focus]]
+through = "*"

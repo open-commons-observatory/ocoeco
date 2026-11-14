@@ -485,20 +485,13 @@ fn run() -> Result<()> {
                 .unwrap_or_default();
             let engine = tad::sql::DuckDb::find()?;
             if let Some(surface) = surface {
-                // the whole fulldome, laid out on a surface: every lens, and what each brought into focus
-                let lenses: Vec<ocoeco::dome::InDome> = ocoeco::lenses::with(&places)?
-                    .into_iter()
-                    .map(|l| ocoeco::dome::InDome {
-                        brought: ocoeco::focus::brought(&l.lens.id, &places, &today, &engine)
-                            .map_err(|e| format!("{e:#}")),
-                        id: l.lens.id,
-                        says: l.lens.says,
-                    })
-                    .collect();
+                // the whole fulldome, laid out on a surface: the plane-lens that places every lens in view,
+                // each keeping its own shape within it - laid out as any plane is, in the surface's frame
+                let plane = ocoeco::focus::brought("fulldome", &places, &today, &engine)?;
                 print!(
                     "{}",
                     ocoeco::dome::surface(&surface, width)?
-                        .fulldome(&format!("{scale}, {today}"), &lenses)
+                        .whole(&format!("{scale}, {today}"), &plane)
                 );
                 return Ok(());
             }
