@@ -141,18 +141,77 @@ pub fn check(dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
     Ok((well, problems))
 }
 
-/// The rows of one exported table kept in this repository (not on another branch).
+/// The rows of one table a place keeps: in its folder, or on another branch of its own repository.
 pub fn rows(dir: &Path, mark: &Mark, table: &str) -> Vec<serde_json::Value> {
     mark.exports
         .iter()
-        .find(|(t, path)| t.as_str() == table && !path.contains('@'))
-        .and_then(|(_, path)| std::fs::read_to_string(dir.join(path)).ok())
+        .find(|(t, _)| t.as_str() == table)
+        .and_then(|(_, path)| kept(dir, path))
         .map(|t| {
             t.lines()
                 .filter_map(|l| serde_json::from_str(l).ok())
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// What a place keeps at a path, as text: a file in its folder - or, where the path names another branch
+/// (path@branch), the file as it last was on that branch of the same repository, read with git. A table a
+/// place keeps elsewhere in its own repository is kept by it all the same.
+pub fn kept(dir: &Path, path: &str) -> Option<String> {
+    let Some((path, branch)) = path.split_once('@') else {
+        return std::fs::read_to_string(dir.join(path)).ok();
+    };
+    // asked once in a run: the same table is read by the graph, by a lens and by the beam
+    type AlreadyRead =
+        std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), Option<String>>>;
+    static READ: std::sync::OnceLock<AlreadyRead> = std::sync::OnceLock::new();
+    let read = READ.get_or_init(Default::default);
+    let key = (dir.to_path_buf(), format!("{path}@{branch}"));
+    if let Some(known) = read.lock().ok().and_then(|r| r.get(&key).cloned()) {
+        return known;
+    }
+    let found = [
+        format!("origin/{branch}:{path}"),
+        format!("{branch}:{path}"),
+    ]
+    .iter()
+    .find_map(|at| {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["show", at])
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    });
+    if let Ok(mut r) = read.lock() {
+        r.insert(key, found.clone());
+    }
+    found
+}
+
+/// When the branch a table is kept on last changed, in seconds - where the mark says it is kept on one.
+pub fn kept_on_a_branch(dir: &Path, mark: &Mark, table: &str) -> Option<i64> {
+    let (_, branch) = mark
+        .exports
+        .iter()
+        .find(|(t, _)| t.as_str() == table)?
+        .1
+        .split_once('@')?;
+    [format!("origin/{branch}"), branch.to_string()]
+        .iter()
+        .find_map(|at| {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(["log", "-1", "--format=%ct", at])
+                .output()
+                .ok()?;
+            String::from_utf8_lossy(&out.stdout).trim().parse().ok()
+        })
 }
 
 /// How completely the repository tells its essence (SPEC.md section 11): how many of the four are

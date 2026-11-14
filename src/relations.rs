@@ -199,12 +199,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             .map_err(anyhow::Error::from)
             .and_then(|t| Mark::parse(&t))
         {
-            tables.extend(
-                mark.exports
-                    .iter()
-                    .filter(|(_, path)| !path.contains('@'))
-                    .map(|(table, _)| table.clone()),
-            );
+            tables.extend(mark.exports.keys().cloned());
             let gathers = mark
                 .place
                 .as_ref()

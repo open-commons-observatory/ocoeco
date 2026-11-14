@@ -10,6 +10,9 @@ pub const HELD: &str = "held here";
 pub const OBSERVED: &str = "observed";
 /// A record or a copy the machine keeps in its own data folder: as of when it was last written.
 pub const KEPT: &str = "kept on this machine";
+/// A table a place keeps on another branch of its own repository, read there: as of when that branch last
+/// changed.
+pub const ON_A_BRANCH: &str = "kept on another branch";
 
 /// By which route what a folder holds is got to, and as of when it is so.
 pub fn route(dir: &Path) -> (&'static str, String) {
@@ -76,14 +79,22 @@ pub fn of_a_table(table: &str, dirs: &[PathBuf]) -> Vec<String> {
     let mut by: std::collections::BTreeMap<&'static str, (usize, usize, Vec<String>)> =
         Default::default();
     for dir in dirs {
-        let (route, as_of) = route(dir);
+        let (mut route, mut as_of) = route(dir);
         let rows = if route == OBSERVED {
             crate::harvest::read_rows(&dir.join(format!("{table}.json"))).len()
         } else {
-            std::fs::read_to_string(dir.join("oco.toml"))
+            let mark = std::fs::read_to_string(dir.join("oco.toml"))
                 .ok()
-                .and_then(|t| crate::mark::Mark::parse(&t).ok())
-                .map_or(0, |mark| crate::join::rows(dir, &mark, table).len())
+                .and_then(|t| crate::mark::Mark::parse(&t).ok());
+            // a table the place keeps on another branch of its own repository is as of when that branch
+            // last changed, not as the folder is now
+            if let Some(when) = mark
+                .as_ref()
+                .and_then(|mark| crate::join::kept_on_a_branch(dir, mark, table))
+            {
+                (route, as_of) = (ON_A_BRANCH, written(Some(when)));
+            }
+            mark.map_or(0, |mark| crate::join::rows(dir, &mark, table).len())
         };
         if rows > 0 {
             let entry = by.entry(route).or_default();
