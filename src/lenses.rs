@@ -285,7 +285,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                     .into_iter()
                     .filter(|f| raw(f, "of_table") == name)
                     .collect();
-                its.sort_by_key(|f| number(f, "at"));
+                its.sort_by_key(|f| number(f, "ordinal"));
                 let fields = its
                     .iter()
                     .map(|f| {
@@ -452,7 +452,7 @@ pub fn as_rows(
                     .collect();
                 add(
                     "lens_fields",
-                    json!({"id": format!("{id}/{table}/{}", said("name")), "lens": id, "of_table": table, "at": at + 1, "name": said("name"), "pattern": said("pattern"), "kind": said("type"), "needed": field.get("required").and_then(|r| r.as_bool()).unwrap_or(false), "allowed": allowed.join(", "), "star": star}),
+                    json!({"id": format!("{id}/{table}/{}", said("name")), "lens": id, "of_table": table, "ordinal": at + 1, "name": said("name"), "pattern": said("pattern"), "kind": said("type"), "needed": field.get("required").and_then(|r| r.as_bool()).unwrap_or(false), "allowed": allowed.join(", "), "star": star}),
                 );
             }
         }
