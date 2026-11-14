@@ -54,6 +54,13 @@ pub struct Lens {
 pub struct Route {
     pub table: String,
     pub from: String,
+    /// Which of what the surface holds: for files, the paths within the place - ** any folders, * any name.
+    #[serde(default)]
+    pub which: Option<String>,
+    /// The shape carved from each: every place it is found is a row, and what it names are the row's
+    /// fields. Where no shape is said, each whole one is a row.
+    #[serde(default)]
+    pub shape: Option<String>,
 }
 
 /// One thing a lens keeps out: what it is, the shape it is told by, and what of that shape is let be.
@@ -386,6 +393,8 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                     .map(|r| Route {
                         table: raw(r, "of_table"),
                         from: raw(r, "from"),
+                        which: some(raw(r, "which")),
+                        shape: some(raw(r, "shape")),
                     })
                     .collect(),
                 tables: declared,
@@ -534,7 +543,8 @@ pub fn as_rows(
         for route in &lens.route {
             add(
                 "lens_routes",
-                json!({"id": format!("{id}/{}", route.table), "lens": id, "of_table": route.table, "from": route.from, "star": star}),
+                json!({"id": format!("{id}/{}", route.table), "lens": id, "of_table": route.table, "from": route.from,
+                       "which": route.which.clone().unwrap_or_default(), "shape": route.shape.clone().unwrap_or_default(), "star": star}),
             );
         }
         for (at, part) in lens.focus.iter().enumerate() {
@@ -670,6 +680,7 @@ mod tests {
                 "knowledge",
                 "language",
                 "looking-back",
+                "program",
                 "purpose",
                 "reasoning",
                 "results",
