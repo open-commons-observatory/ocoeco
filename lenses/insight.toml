@@ -13,7 +13,7 @@ dated = "date"
 fields = [
     { name = "id", type = "string", required = true },
     { name = "from", type = "string", required = true },
-    { name = "how", type = "string", required = true, enum = ["led to", "needed", "halted", "repeats"] },
+    { name = "how", type = "string", required = true, enum = ["led to", "needed", "halted", "repeats", "ended"] },
     { name = "to", type = "string", required = true },
     { name = "says", type = "string", required = true },
     { name = "known", type = "string", required = true, enum = ["recorded", "measured", "read", "reasoned"] },
@@ -34,7 +34,7 @@ to = ["*"]
 # The glimpse of the lens of insight.
 [[glimpse]]
 entry = "connection"
-says = "How one thing bears on another: this led to, needed, halted or repeats that - with why, and how it is known."
+says = "How one thing bears on another: this led to, needed, halted or repeats that - or ended it, said of a halt that is over - with why, and how it is known."
 table = "connections"
 asks = ["from", "how", "to", "says", "known", "thread"]
 supplies = [{ field = "date", from = "today", when = "new" }, { field = "by", from = "who", when = "new" }]
