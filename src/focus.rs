@@ -769,7 +769,7 @@ fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
 }
 
 /// Whether a query names a table: the name standing as a word of its own.
-fn names_table(sql: &str, table: &str) -> bool {
+pub(crate) fn names_table(sql: &str, table: &str) -> bool {
     let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
     sql.match_indices(table).any(|(at, _)| {
         !word(sql[..at].chars().next_back()) && !word(sql[at + table.len()..].chars().next())

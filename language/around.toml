@@ -54,6 +54,17 @@ WHERE h.of_table = 'places' ORDER BY t.id LIMIT 24
 """
 line = "{thing} - {says}"
 
+# And why it exists, in its own words: the rows of its idea - the fuller saying of what its mark says in
+# a line.
+[[focus]]
+title = "why it exists, in its own words ({count})"
+sql = """
+SELECT t.star || '/idea:' || substr(t.id, length(t.place) + 7) AS thing, t.says
+FROM here h JOIN things t ON t.place = h.place AND t.of_table = 'idea'
+WHERE h.of_table = 'places' ORDER BY t.id LIMIT 12
+"""
+line = "{thing} - {says}"
+
 [[focus]]
 title = "from here - what it points at ({count})"
 sql = """
