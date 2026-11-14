@@ -60,6 +60,21 @@ impl Row {
     }
 }
 
+/// The language as the place at `dir` speaks it: the tables the lenses built into ocoeco define, and those
+/// its own lenses define. None where the place's lenses cannot be read together; the shared language then
+/// stands alone.
+fn spoken_at(dir: &Path) -> Option<tad::Declaration> {
+    let mut tables = crate::lenses::tables();
+    for lens in crate::lenses::with(&[dir.to_path_buf()]).ok()? {
+        for (name, declared) in lens.tables {
+            tables.entry(name).or_insert(declared);
+        }
+    }
+    let mut whole = toml::Table::new();
+    whole.insert("tables".into(), toml::Value::Table(tables));
+    toml::Value::Table(whole).try_into().ok()
+}
+
 /// ocoeco's shared language: the tables every star may keep - those the lenses define (lenses/*.toml),
 /// together, as a tad declaration. Each table is a minimum; a star's rows may carry more fields.
 pub fn language() -> &'static tad::Declaration {
@@ -131,7 +146,13 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
     let sorted = rows
         .windows(2)
         .all(|w| w[0].0.text("id") <= w[1].0.text("id"));
-    let shape = language().tables.get(table);
+    // a row is held to its table's declaration as the place speaks the language: the lenses built into
+    // ocoeco, and those the place brings - as files or kept as rows
+    let spoken = spoken_at(dir);
+    let shape = spoken
+        .as_ref()
+        .and_then(|d| d.tables.get(table))
+        .or_else(|| language().tables.get(table));
     let pos = rows.iter().position(|(r, _)| r.text("id") == id);
     let added = pos.is_none();
     let mut row = match pos {
@@ -387,5 +408,55 @@ mod tests {
             "each table a minimum, keyed by id"
         );
         assert_eq!(l.tables["backlog"].dated.as_deref(), Some("opened"));
+    }
+}
+
+#[cfg(test)]
+mod spoken_at_a_place {
+    use super::*;
+
+    #[test]
+    fn a_row_is_held_to_the_declaration_of_the_lens_the_place_brings() {
+        let d = std::env::temp_dir().join(format!("ocoeco-spoken-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nquestions = \"data/questions.json\"\n").unwrap();
+        std::fs::write(d.join("data/questions.json"), "").unwrap();
+        std::fs::write(d.join("lenses/questions.toml"), "[lens]\nid = \"questions\"\nsays = \"What is asked.\"\n[tables.questions]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"asked\", type = \"integer\" }, { name = \"answered\", type = \"boolean\" }]\n").unwrap();
+        let change = |field: &str, value: &str| {
+            vec![Change {
+                field: field.into(),
+                value: value.into(),
+                append: false,
+            }]
+        };
+        // a whole number where the place's own lens declares one, and nothing else
+        assert!(
+            note(&d, "questions", "q1", &change("asked", "x"), "2026-11-14")
+                .unwrap_err()
+                .to_string()
+                .contains("asked must be a whole number")
+        );
+        note(&d, "questions", "q1", &change("asked", "3"), "2026-11-14").unwrap();
+        note(
+            &d,
+            "questions",
+            "q1",
+            &change("answered", "true"),
+            "2026-11-14",
+        )
+        .unwrap();
+        let row: serde_json::Value = serde_json::from_str(
+            std::fs::read_to_string(d.join("data/questions.json"))
+                .unwrap()
+                .trim(),
+        )
+        .unwrap();
+        assert_eq!(
+            (row["asked"].as_i64(), row["answered"].as_bool()),
+            (Some(3), Some(true)),
+            "written as the kinds its own lens declares"
+        );
     }
 }
