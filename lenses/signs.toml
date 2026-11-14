@@ -81,6 +81,8 @@ line = "{star}/{id}{of_kind} - {what}{at} (seen by {by}, {days} day(s) ago)"
 
 [[focus]]
 title = "failing on main ({count})"
+# a run that fails on main is said urgently when it newly comes into view: the lens says so, the voice carries it
+urgent = true
 sql = """
 SELECT project, workflow, conclusion, url, left("at", 10) AS day FROM runs
 WHERE conclusion NOT IN ('success', 'skipped', 'neutral', 'cancelled') ORDER BY "at", seq

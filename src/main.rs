@@ -678,7 +678,6 @@ fn run() -> Result<()> {
             }
         }
         Cmd::Observe { out, root, only } => {
-            let before = harvest::read_rows(&out.join("runs.json"));
             let held = root.map(|r| {
                 discover::Held::new(std::path::PathBuf::from(r.replacen(
                     '~',
@@ -723,10 +722,6 @@ fn run() -> Result<()> {
                 h.problems.len(),
                 out.display()
             );
-            // what changed since the last observation: said at every scale
-            for change in harvest::changes(&before, &h.tables["runs"]) {
-                println!("{change}");
-            }
         }
     }
     Ok(())
