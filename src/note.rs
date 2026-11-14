@@ -173,6 +173,11 @@ pub fn note(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
                         .with_context(|| format!("{} must be a number, not '{new}'", c.field))?,
                 ),
             },
+            "boolean" => Value::Bool(match new.trim() {
+                "true" | "yes" => true,
+                "false" | "no" => false,
+                other => bail!("{} must be true or false, not '{other}'", c.field),
+            }),
             _ => Value::String(new.clone()),
         };
         if !added && old != new {

@@ -141,12 +141,8 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
         .ok()
         .and_then(|text| crate::mark::Mark::parse(&text).ok())
     {
-        let (kept, parts) = (
-            crate::join::rows(dir, &mark, "lenses"),
-            crate::join::rows(dir, &mark, "lens_parts"),
-        );
         found.extend(
-            from_rows(&kept, &parts)
+            from_rows(|table| crate::join::rows(dir, &mark, table))
                 .into_iter()
                 .map(|lens| (format!("{lens:?}"), lens)),
         );
@@ -214,16 +210,31 @@ pub fn with(dirs: &[PathBuf]) -> Result<Vec<Lens>> {
     Ok(in_view(dirs)?.into_iter().map(|(_, lens)| lens).collect())
 }
 
-/// The lenses that rows describe: each lens row, with its parts in their order. Rows carry what a lens
-/// says of itself, what it reads, and each part whole - so a lens of lenses, or one that asks of tables
-/// other lenses define, can be kept as rows and is then the lens it describes. A lens's own tables and
-/// entries are not yet carried by rows.
-pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> Vec<Lens> {
+/// The lenses that rows describe, whole: each lens row with its tables (their fields in order), its
+/// relations, its entries and its parts in their order - `of` gives the rows of each of the language's
+/// tables. A lens kept this way is the lens it describes: it may define data, take entries, arrange and ask.
+pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
     let raw = |row: &serde_json::Value, key: &str| {
         row.get(key)
             .and_then(|v| v.as_str())
             .unwrap_or_default()
             .to_string()
+    };
+    let yes = |row: &serde_json::Value, key: &str| {
+        row.get(key)
+            .and_then(|v| {
+                v.as_bool()
+                    .or_else(|| v.as_str().map(|s| s.trim() == "true"))
+            })
+            .unwrap_or(false)
+    };
+    let number = |row: &serde_json::Value, key: &str| {
+        row.get(key)
+            .and_then(|n| {
+                n.as_i64()
+                    .or_else(|| n.as_str().and_then(|s| s.trim().parse().ok()))
+            })
+            .unwrap_or(0)
     };
     let some = |text: String| Some(text).filter(|t| !t.trim().is_empty());
     let listed = |text: String| -> Vec<String> {
@@ -232,44 +243,129 @@ pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> V
             .filter(|t| !t.is_empty())
             .collect()
     };
-    lenses
+    let (tables, fields, entries, relations, parts) = (
+        of("lens_tables"),
+        of("lens_fields"),
+        of("lens_entries"),
+        of("lens_relations"),
+        of("lens_parts"),
+    );
+    let mine = |rows: &[serde_json::Value], id: &str| -> Vec<serde_json::Value> {
+        rows.iter()
+            .filter(|r| raw(r, "lens").trim() == id)
+            .cloned()
+            .collect()
+    };
+    of("lenses")
         .iter()
         .filter(|row| !raw(row, "id").trim().is_empty() && !raw(row, "says").trim().is_empty())
         .map(|row| {
             let id = raw(row, "id").trim().to_string();
-            let mut theirs: Vec<&serde_json::Value> = parts
-                .iter()
-                .filter(|p| raw(p, "lens").trim() == id)
-                .collect();
-            theirs.sort_by_key(|p| {
-                p.get("part")
-                    .and_then(|n| {
-                        n.as_i64()
-                            .or_else(|| n.as_str().and_then(|s| s.trim().parse().ok()))
+            // its tables, each with its fields in the order they were declared
+            let mut declared = toml::Table::new();
+            for t in mine(&tables, &id) {
+                let name = raw(&t, "name");
+                let mut table = toml::Table::new();
+                table.insert(
+                    "key".into(),
+                    toml::Value::Array(
+                        listed(raw(&t, "key"))
+                            .into_iter()
+                            .map(toml::Value::String)
+                            .collect(),
+                    ),
+                );
+                if yes(&t, "extra_fields") {
+                    table.insert("extra_fields".into(), toml::Value::Boolean(true));
+                }
+                if let Some(dated) = some(raw(&t, "dated")) {
+                    table.insert("dated".into(), toml::Value::String(dated));
+                }
+                let mut its: Vec<serde_json::Value> = mine(&fields, &id)
+                    .into_iter()
+                    .filter(|f| raw(f, "of_table") == name)
+                    .collect();
+                its.sort_by_key(|f| number(f, "at"));
+                let fields = its
+                    .iter()
+                    .map(|f| {
+                        let mut field = toml::Table::new();
+                        field.insert("name".into(), toml::Value::String(raw(f, "name")));
+                        field.insert("type".into(), toml::Value::String(raw(f, "kind")));
+                        if yes(f, "needed") {
+                            field.insert("required".into(), toml::Value::Boolean(true));
+                        }
+                        let allowed = listed(raw(f, "allowed"));
+                        if !allowed.is_empty() {
+                            field.insert(
+                                "enum".into(),
+                                toml::Value::Array(
+                                    allowed.into_iter().map(toml::Value::String).collect(),
+                                ),
+                            );
+                        }
+                        if let Some(pattern) = some(raw(f, "pattern")) {
+                            field.insert("pattern".into(), toml::Value::String(pattern));
+                        }
+                        toml::Value::Table(field)
                     })
+                    .collect();
+                table.insert("fields".into(), toml::Value::Array(fields));
+                declared.insert(name, toml::Value::Table(table));
+            }
+            let mut its_relations = mine(&relations, &id);
+            its_relations.sort_by_key(|r| {
+                raw(r, "id")
+                    .rsplit('/')
+                    .next()
+                    .and_then(|n| n.parse::<i64>().ok())
                     .unwrap_or(0)
             });
+            let mut its_parts = mine(&parts, &id);
+            its_parts.sort_by_key(|p| number(p, "part"));
             Lens {
                 lens: About {
-                    id,
+                    id: id.clone(),
                     says: raw(row, "says"),
                     grew_from: some(raw(row, "grew_from")),
                     reads: listed(raw(row, "reads")),
                 },
-                tables: toml::Table::new(),
-                relation: Vec::new(),
-                glimpse: Vec::new(),
-                focus: theirs
-                    .into_iter()
+                tables: declared,
+                relation: its_relations
+                    .iter()
+                    .map(|r| Relation {
+                        from: raw(r, "from"),
+                        to: listed(raw(r, "to")),
+                        passes_over: listed(raw(r, "passes_over")),
+                        level: some(raw(r, "level")),
+                    })
+                    .collect(),
+                glimpse: mine(&entries, &id)
+                    .iter()
+                    .map(|e| Entry {
+                        entry: raw(e, "entry"),
+                        says: raw(e, "says"),
+                        table: raw(e, "fills"),
+                        asks: listed(raw(e, "asks")),
+                        supplies: raw(e, "supplies")
+                            .split(';')
+                            .filter_map(|s| {
+                                let mut words = s.split_whitespace();
+                                let (field, from) = (words.next()?, words.next()?);
+                                Some(Supply {
+                                    field: field.into(),
+                                    from: from.into(),
+                                    when: words.collect::<Vec<_>>().join(" "),
+                                })
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                focus: its_parts
+                    .iter()
                     .map(|p| Part {
                         title: some(raw(p, "title")),
-                        always: p
-                            .get("always")
-                            .and_then(|a| {
-                                a.as_bool()
-                                    .or_else(|| a.as_str().map(|s| s.trim() == "true"))
-                            })
-                            .unwrap_or(false),
+                        always: yes(p, "always"),
                         sql: raw(p, "query"),
                         line: raw(p, "lays_out"),
                         through: some(raw(p, "through")),
@@ -280,13 +376,7 @@ pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> V
                         chain: Some(listed(raw(p, "chain"))).filter(|c| !c.is_empty()),
                         per: some(raw(p, "per")),
                         named: some(raw(p, "named")),
-                        urgent: p
-                            .get("urgent")
-                            .and_then(|a| {
-                                a.as_bool()
-                                    .or_else(|| a.as_str().map(|s| s.trim() == "true"))
-                            })
-                            .unwrap_or(false),
+                        urgent: yes(p, "urgent"),
                     })
                     .collect(),
             }
@@ -296,12 +386,13 @@ pub fn from_rows(lenses: &[serde_json::Value], parts: &[serde_json::Value]) -> V
 
 /// The tables that hold the lenses themselves as rows. No place keeps them: they are the language, read
 /// as data - so that it can be looked at through a lens like everything it describes.
-pub const OF_THE_LANGUAGE: [&str; 5] = [
+pub const OF_THE_LANGUAGE: [&str; 6] = [
     "lenses",
     "lens_tables",
     "lens_fields",
     "lens_entries",
     "lens_parts",
+    "lens_relations",
 ];
 
 /// The lenses in view, as rows: each lens, each table it defines, each field of each table, each entry it
@@ -332,13 +423,18 @@ pub fn as_rows(
         for (table, declared) in &lens.tables {
             add(
                 "lens_tables",
-                json!({"id": format!("{id}/{table}"), "lens": id, "name": table, "star": star}),
+                json!({"id": format!("{id}/{table}"), "lens": id, "name": table,
+                       "key": declared.get("key").and_then(|k| k.as_array()).map(|k| k.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", ")).unwrap_or_default(),
+                       "extra_fields": declared.get("extra_fields").and_then(|v| v.as_bool()).unwrap_or(false),
+                       "dated": declared.get("dated").and_then(|v| v.as_str()).unwrap_or_default(),
+                       "star": star}),
             );
-            for field in declared
+            for (at, field) in declared
                 .get("fields")
                 .and_then(|f| f.as_array())
                 .into_iter()
                 .flatten()
+                .enumerate()
             {
                 let said = |key: &str| {
                     field
@@ -356,14 +452,22 @@ pub fn as_rows(
                     .collect();
                 add(
                     "lens_fields",
-                    json!({"id": format!("{id}/{table}/{}", said("name")), "lens": id, "of_table": table, "name": said("name"), "kind": said("type"), "needed": field.get("required").and_then(|r| r.as_bool()).unwrap_or(false), "allowed": allowed.join(", "), "star": star}),
+                    json!({"id": format!("{id}/{table}/{}", said("name")), "lens": id, "of_table": table, "at": at + 1, "name": said("name"), "pattern": said("pattern"), "kind": said("type"), "needed": field.get("required").and_then(|r| r.as_bool()).unwrap_or(false), "allowed": allowed.join(", "), "star": star}),
                 );
             }
         }
         for entry in &lens.glimpse {
             add(
                 "lens_entries",
-                json!({"id": format!("{id}/{}", entry.entry), "lens": id, "entry": entry.entry, "fills": entry.table, "asks": entry.asks.join(", "), "star": star}),
+                json!({"id": format!("{id}/{}", entry.entry), "lens": id, "entry": entry.entry, "says": entry.says, "fills": entry.table, "asks": entry.asks.join(", "),
+                       "supplies": entry.supplies.iter().map(|s| format!("{} {} {}", s.field, s.from, s.when)).collect::<Vec<_>>().join("; "), "star": star}),
+            );
+        }
+        for (at, relation) in lens.relation.iter().enumerate() {
+            add(
+                "lens_relations",
+                json!({"id": format!("{id}/{}", at + 1), "lens": id, "from": relation.from, "to": relation.to.join(", "),
+                       "passes_over": relation.passes_over.join(", "), "level": relation.level.clone().unwrap_or_default(), "star": star}),
             );
         }
         for (at, part) in lens.focus.iter().enumerate() {
@@ -642,13 +746,30 @@ mod kept_as_rows {
                 .map(serde_json::Value::Object)
                 .collect()
         };
-        let (back, was) = (from_rows(&of("lenses"), &of("lens_parts")), lenses());
+        let (back, was) = (from_rows(of), lenses());
         assert_eq!(back.len(), was.len(), "every lens is there");
         for (b, w) in back.iter().zip(&was) {
             assert_eq!(
                 format!("{:?}", b.lens),
                 format!("{:?}", w.lens),
                 "what a lens says of itself, grew from and reads"
+            );
+            assert_eq!(
+                b.tables, w.tables,
+                "{}: its tables, every field in order",
+                w.lens.id
+            );
+            assert_eq!(
+                format!("{:?}", b.relation),
+                format!("{:?}", w.relation),
+                "{}: its relations",
+                w.lens.id
+            );
+            assert_eq!(
+                format!("{:?}", b.glimpse),
+                format!("{:?}", w.glimpse),
+                "{}: its entries",
+                w.lens.id
             );
             assert_eq!(b.focus.len(), w.focus.len(), "{}: every part", w.lens.id);
             for (at, (bp, wp)) in b.focus.iter().zip(&w.focus).enumerate() {
