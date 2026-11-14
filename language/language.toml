@@ -133,12 +133,15 @@ table = "lens_relations"
 asks = ["lens", "from", "to", "passes_over", "level"]
 
 [[focus]]
-title = "a field declared again and again ({count})"
+title = "a name that holds different kinds in different tables ({count})"
 sql = """
-SELECT name, count(*) AS times, string_agg(DISTINCT of_table, ', ' ORDER BY of_table) AS tables
-FROM lens_fields GROUP BY name HAVING count(*) > 2 ORDER BY times DESC, name
+WITH each AS (
+  SELECT name, kind, string_agg(DISTINCT of_table, ', ' ORDER BY of_table) AS tables FROM lens_fields GROUP BY name, kind
+)
+SELECT name, count(*) AS kinds, string_agg(kind || ' in ' || tables, '; ' ORDER BY kind) AS how
+FROM each GROUP BY name HAVING count(*) > 1 ORDER BY kinds DESC, name
 """
-line = "{name} - declared in {times} tables: {tables}"
+line = "{name} - {how}"
 
 [[focus]]
 title = "the same line of a query, written more than once ({count})"
