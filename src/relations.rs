@@ -371,6 +371,7 @@ impl Drop for OneLook {
             look.0 = look.0.saturating_sub(1);
             if look.0 == 0 {
                 look.1.clear();
+                crate::focus::forget_what_was_brought();
             }
         });
     }

@@ -428,7 +428,36 @@ pub fn brought(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
+    // within one look a lens is brought into focus once: a lens that places parts of another - a sheet
+    // placing three parts of the lens of signs - is given the same bringing each time, not a new one
     let _one_look = crate::relations::one_look();
+    let key = (lens.to_string(), dirs.to_vec(), today.to_string());
+    if let Some(made) = BROUGHT.with(|brought| brought.borrow().get(&key).cloned()) {
+        return Ok(made);
+    }
+    let made = brought_anew(lens, dirs, today, engine)?;
+    BROUGHT.with(|brought| brought.borrow_mut().insert(key, made.clone()));
+    Ok(made)
+}
+
+/// What was brought into focus in the look under way: which lens, over which places, on which day.
+type WhatWasBrought = std::collections::HashMap<(String, Vec<PathBuf>, String), Vec<Brought>>;
+
+thread_local! {
+    static BROUGHT: std::cell::RefCell<WhatWasBrought> = Default::default();
+}
+
+/// The look has ended: what was brought into focus in it is not kept.
+pub(crate) fn forget_what_was_brought() {
+    BROUGHT.with(|brought| brought.borrow_mut().clear());
+}
+
+fn brought_anew(
+    lens: &str,
+    dirs: &[PathBuf],
+    today: &str,
+    engine: &dyn SqlEngine,
+) -> Result<Vec<Brought>> {
     let all = crate::lenses::with(dirs)?;
     // a lens may be looked through from a thing - lens@thing - as an observatory is looked from somewhere:
     // the lens's {here} is where one stands
