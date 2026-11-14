@@ -769,7 +769,10 @@ fn run() -> Result<()> {
                 (None, None) => harvest::harvest(&found, &gh),
             };
             harvest::observe_runs(&found, &gh, &mut h);
-            harvest::write(&mut h, &out)?;
+            match only {
+                Some(_) => harvest::write_part(&mut h, &out)?,
+                None => harvest::write(&mut h, &out)?,
+            }
             println!(
                 "{} projects, {} tables ({} rows), {} problems -> {}",
                 found.len(),
