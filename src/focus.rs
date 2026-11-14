@@ -16,6 +16,10 @@ use tad::sql::SqlEngine;
 fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration> {
     std::fs::create_dir_all(into)?;
     let mut tables = toml::Table::new();
+    // the routes the lenses in view say: tables whose rows are read from a surface, not kept by a place
+    let routes: Vec<crate::lenses::Route> = crate::lenses::with(dirs)
+        .map(|lenses| lenses.into_iter().flat_map(|l| l.route).collect())
+        .unwrap_or_default();
     // its own tables, and those it reads from other lenses: one lens defines a piece of data, many read it
     let all = crate::lenses::tables();
     let read: Vec<(String, toml::Value)> = lens
@@ -37,16 +41,32 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
         let language = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
         let graph = crate::relations::OF_THE_GRAPH.contains(&table.as_str());
         let kept = crate::kept::OF_THE_KEPT.contains(&table.as_str());
-        let own = language || graph || kept;
+        // and a table a route reads: its rows come from a surface, where each place in view is held
+        let routed = routes.iter().find(|route| route.table == *table);
+        let own = language || graph || kept || routed.is_some();
         if own {
-            let mut made = if language {
-                crate::lenses::as_rows(dirs)?
-            } else if graph {
-                crate::relations::as_graph(dirs)?
+            let made = if let Some(route) = routed {
+                crate::routes::read(route, dirs)
+                    .into_iter()
+                    .map(|(place, mut row)| {
+                        row.insert(
+                            "star".into(),
+                            place.rsplit('/').next().unwrap_or(&place).into(),
+                        );
+                        row
+                    })
+                    .collect()
             } else {
-                crate::kept::as_rows(dirs)?
+                let mut made = if language {
+                    crate::lenses::as_rows(dirs)?
+                } else if graph {
+                    crate::relations::as_graph(dirs)?
+                } else {
+                    crate::kept::as_rows(dirs)?
+                };
+                made.remove(table.as_str()).unwrap_or_default()
             };
-            for row in made.remove(table.as_str()).unwrap_or_default() {
+            for row in made {
                 seq += 1;
                 let mut row = row;
                 row.insert("seq".into(), seq.into());
@@ -380,6 +400,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             reads: Vec::new(),
         },
         keeps_out: Vec::new(),
+        route: Vec::new(),
         tables: toml::Table::from_iter([(table.to_string(), declared)]),
         relation: Vec::new(),
         glimpse: Vec::new(),
@@ -876,6 +897,8 @@ pub fn beam(
                             format!("{t} - {rows} rows made from the links between what is in view, now")
                         } else if crate::kept::OF_THE_KEPT.contains(&t.as_str()) {
                             format!("{t} - {rows} rows made from every row in view, now")
+                        } else if let Some(route) = all.iter().flat_map(|l| l.route.iter()).find(|r| r.table == *t) {
+                            format!("{t} - {rows} rows read from {}, where {places} place(s) are held, now", route.from)
                         } else {
                             // what arrived by each route - and, where the same thing came by more than one, how
                             // many are in view: each once, as it last was

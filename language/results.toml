@@ -1,7 +1,7 @@
 # The lens of results.
 [lens]
 id = "results"
-says = "What the work produced: glimpses of work as it was done, how things work and the evidence, and what was done by hand."
+says = "What the work produced: glimpses of work as it was done, how things work and the evidence, what was done by hand - and what was changed, as git has it."
 
 [tables.glimpses]
 key = ["id"]
@@ -63,6 +63,19 @@ fields = [
     { name = "change", type = "string" },
 ]
 
+# What was changed, as git has it: each change to a place's repository - its name, when, by whom, and
+# what it says of itself. Not kept by a place: read from the history of the repository where the place is
+# held, when it is asked for (the route below).
+[tables.commits]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "at", type = "string" },
+    { name = "by", type = "string" },
+    { name = "says", type = "string" },
+]
+
 [[relation]]
 from = "glimpses.advances"
 to = ["*"]
@@ -87,6 +100,12 @@ nature = "is for"
 
 # The glimpse of the lens of results. The record of work as it is done has its own way in -
 # ocoeco glimpse "what was done" - and work done by hand is recorded by ocoeco manual.
+# A route: the rows of commits are read from a surface - the history of each place's own repository -
+# where the place is held. Nothing is stored; the beam says where they were read and when.
+[[route]]
+table = "commits"
+from = "git history"
+
 [[glimpse]]
 entry = "working"
 says = "How something works, why, and the evidence that it does."
@@ -118,3 +137,20 @@ SELECT (SELECT count(*) FROM glimpses) AS glimpses, (SELECT count(*) FROM workin
        (SELECT count(*) FROM manual_work) AS byhand
 """
 line = "{glimpses} glimpses of work; {workings} workings, {shown} with evidence; {automated} of {byhand} things once done by hand are automated"
+
+# What was changed lately, as git has it - beside what the records of work say was done.
+[[focus]]
+title = "changed lately, as git has it ({count})"
+sql = """
+SELECT star, replace(left("at", 16), 'T', ' ') AS at_, "by" AS who, left(says, 110) AS says
+FROM commits ORDER BY "at" DESC LIMIT 12
+"""
+line = "{at_} {star} - {says} ({who})"
+
+[[focus]]
+always = true
+sql = """
+SELECT count(*) AS changes, count(DISTINCT star) AS places, coalesce(min(left("at", 10)), '-') AS first, coalesce(max(left("at", 10)), '-') AS last
+FROM commits
+"""
+line = "{changes} changes in {places} place(s), {first} to {last}, as git has them"

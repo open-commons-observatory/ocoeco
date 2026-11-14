@@ -72,6 +72,17 @@ fields = [
     { name = "nature", type = "string" },
 ]
 
+# A route a lens says: the table whose rows are read from a surface, and the kind of surface.
+[tables.lens_routes]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "lens", type = "string", required = true },
+    { name = "of_table", type = "string", required = true },
+    { name = "from", type = "string", required = true },
+]
+
 [tables.lens_parts]
 key = ["id"]
 extra_fields = true
@@ -104,6 +115,12 @@ table = "lenses"
 asks = ["says", "reads", "grew_from"]
 
 [[glimpse]]
+entry = "route"
+says = "A route a lens says: a table whose rows are read from a kind of surface where each place is held, when asked for - not kept by a place."
+table = "lens_routes"
+asks = ["lens", "of_table", "from"]
+
+[[glimpse]]
 entry = "part"
 says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
 table = "lens_parts"
@@ -132,6 +149,15 @@ entry = "relation"
 says = "A relation a lens declares: the field whose values are links, the tables they point into, and what is passed over."
 table = "lens_relations"
 asks = ["lens", "from", "to", "passes_over", "level", "nature"]
+
+# The routes: which table's rows are read from which kind of surface. What a place keeps is said by its
+# mark; what is read from a surface when asked for is said here.
+[[focus]]
+title = "a table read from a surface, not kept by a place ({count})"
+sql = """
+SELECT of_table, "from" AS surface, lens FROM lens_routes ORDER BY of_table
+"""
+line = "{of_table} - read from: {surface} (said by the lens {lens})"
 
 [[focus]]
 title = "a name that holds different kinds of value in different tables ({count})"
