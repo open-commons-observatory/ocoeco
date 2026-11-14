@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.17.0...ocoeco-v0.18.0) (2026-11-14)
+
+
+### Features
+
+* the identity: a table looked through as itself; the law between put and get, shown ([#174](https://github.com/open-commons-observatory/ocoeco/issues/174)) ([c7ec845](https://github.com/open-commons-observatory/ocoeco/commit/c7ec8452888ef1951c51e534965bd02ad3ab890c))
+
 ## [0.17.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.2...ocoeco-v0.17.0) (2026-11-14)
 
 
