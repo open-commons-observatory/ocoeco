@@ -428,10 +428,29 @@ impl Dome for Json {
 /// The surfaces a projection can be laid out on, by name - besides the terminal, which is a place to stand.
 pub const SURFACES: [&str; 5] = ["text", "screen", "markdown", "html", "json"];
 
+/// The lines alone, as they are: for a plane whose lines are laid out already - what a surface said by a
+/// lens brings into focus.
+pub struct Lines;
+
+impl Dome for Lines {
+    fn lay_out(&self, parts: &[Brought]) -> String {
+        parts
+            .iter()
+            .flat_map(|part| part.lines.iter())
+            .map(|line| format!("{line}\n"))
+            .collect()
+    }
+
+    fn whole(&self, _scale: &str, plane: &[Brought]) -> String {
+        self.lay_out(plane)
+    }
+}
+
 /// The surface of that name; `width` is the screen's volume, in columns.
 pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
     Ok(match name {
         "text" => Box::new(Text),
+        "lines" => Box::new(Lines),
         "markdown" => Box::new(Markdown),
         "html" => Box::new(Html),
         "json" => Box::new(Json),

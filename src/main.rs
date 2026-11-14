@@ -197,7 +197,7 @@ enum Cmd {
         /// The width of the screen surface, in columns
         #[arg(long, default_value_t = 80)]
         width: usize,
-        /// The surface to lay it out on: text, screen, markdown, html or json
+        /// The surface to lay it out on: text, screen, markdown, html or json - or a lens that says a surface
         #[arg(long, default_value = "text")]
         surface: String,
         /// What was observed: a folder ocoeco observe wrote, every row naming its project
@@ -561,6 +561,21 @@ fn run() -> Result<()> {
             if let Some(surface) = surface {
                 // the whole fulldome, laid out on a surface: the plane-lens that places every lens in view,
                 // each keeping its own shape within it - laid out as any plane is, in the surface's frame
+                // a surface said by a lens lays the whole out itself
+                if !ocoeco::dome::SURFACES.contains(&surface.as_str())
+                    && ocoeco::lenses::with(&places)?
+                        .iter()
+                        .any(|l| l.lens.id == surface && ocoeco::focus::lays_out_a_plane(l))
+                {
+                    let laid = ocoeco::focus::brought(
+                        &format!("{surface}@fulldome"),
+                        &places,
+                        &today,
+                        &engine,
+                    )?;
+                    print!("{}", ocoeco::dome::surface("lines", width)?.lay_out(&laid));
+                    return Ok(());
+                }
                 let plane = ocoeco::focus::brought("fulldome", &places, &today, &engine)?;
                 print!(
                     "{}",
@@ -659,10 +674,27 @@ fn run() -> Result<()> {
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
             let engine = tad::sql::DuckDb::find()?;
-            let parts = if beam {
-                ocoeco::focus::beam(&lens, &places, &today, &engine)?
+            // a surface may be said by a lens: then that lens is looked through, from the lens asked for,
+            // and what it brings is lines laid out already
+            let said_by_a_lens = !ocoeco::dome::SURFACES.contains(&surface.as_str())
+                && ocoeco::lenses::with(&places)?
+                    .iter()
+                    .any(|l| l.lens.id == surface && ocoeco::focus::lays_out_a_plane(l));
+            let (parts, surface) = if beam {
+                (
+                    ocoeco::focus::beam(&lens, &places, &today, &engine)?,
+                    surface,
+                )
+            } else if said_by_a_lens {
+                (
+                    ocoeco::focus::brought(&format!("{surface}@{lens}"), &places, &today, &engine)?,
+                    "lines".to_string(),
+                )
             } else {
-                ocoeco::focus::brought(&lens, &places, &today, &engine)?
+                (
+                    ocoeco::focus::brought(&lens, &places, &today, &engine)?,
+                    surface,
+                )
             };
             // looking through a lens from a thing is a step on the driver's trail: the work, seen where it
             // happens - a record of work reads from it where it was made
