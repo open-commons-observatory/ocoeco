@@ -13,7 +13,74 @@ use tad::sql::SqlEngine;
 
 /// Gathers the lens's tables from the places at `dirs` into `into`, each row with its star and seq -
 /// its place in the order gathered - and returns the declaration of what was gathered.
-fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration> {
+/// The table a surface reads: what another lens brings into focus, as rows.
+pub const OF_A_PLANE: &str = "plane";
+
+/// Whether a lens is a surface: it reads a plane, and lays it out.
+pub fn lays_out_a_plane(lens: &Lens) -> bool {
+    lens.lens.reads.iter().any(|table| table == OF_A_PLANE) || lens.tables.contains_key(OF_A_PLANE)
+}
+
+/// What a lens brings into focus, as rows - a plane, in the order it is laid out: a lens placed within it,
+/// by its name and what it says of itself, or why it brought nothing; a part's heading; and each line,
+/// with how far along it is, its measure of a whole where it has one, and what it is about. A surface
+/// said by a lens reads these, and lays them out its own way.
+pub fn as_plane(parts: &[Brought]) -> Vec<Map<String, Value>> {
+    fn row(kind: &str, says: &str, depth: u64, urgent: bool) -> Map<String, Value> {
+        let mut row = Map::new();
+        row.insert("kind".into(), kind.into());
+        row.insert("says".into(), says.into());
+        row.insert("depth".into(), depth.into());
+        row.insert("urgent".into(), urgent.into());
+        row
+    }
+    fn rows(parts: &[Brought], depth: u64, into: &mut Vec<Map<String, Value>>) {
+        for part in parts {
+            if let Some(about) = &part.about {
+                let mut placed = row("lens", about, depth, part.urgent);
+                placed.insert(
+                    "of_lens".into(),
+                    part.title.clone().unwrap_or_default().into(),
+                );
+                into.push(placed);
+                match &part.nothing_because {
+                    Some(why) => into.push(row("nothing", why, depth, part.urgent)),
+                    None => rows(&part.within, depth + 1, into),
+                }
+                continue;
+            }
+            if let Some(title) = &part.title {
+                into.push(row("heading", title, depth, part.urgent));
+            }
+            for (at, along) in crate::dome::walked(part) {
+                let mut line = row("line", &part.lines[at], depth, part.urgent);
+                line.insert("inset".into(), part.title.is_some().into());
+                line.insert("along".into(), (along as u64).into());
+                if let Some((so_much, of_all)) = part.measures.get(at).copied().flatten() {
+                    line.insert("so_much".into(), so_much.into());
+                    line.insert("of_all".into(), of_all.into());
+                }
+                if let Some(about) = part.keys.get(at) {
+                    line.insert("about".into(), about.clone().into());
+                }
+                into.push(line);
+            }
+        }
+    }
+    let mut all = Vec::new();
+    rows(parts, 0, &mut all);
+    for (nth, row) in all.iter_mut().enumerate() {
+        row.insert("id".into(), (nth + 1).to_string().into());
+    }
+    all
+}
+
+fn gather(
+    lens: &Lens,
+    dirs: &[PathBuf],
+    into: &Path,
+    plane: Option<&[Map<String, Value>]>,
+) -> Result<tad::Declaration> {
     std::fs::create_dir_all(into)?;
     let mut tables = toml::Table::new();
     // the routes the lenses in view say: tables whose rows are read from a surface, not kept by a place
@@ -43,9 +110,13 @@ fn gather(lens: &Lens, dirs: &[PathBuf], into: &Path) -> Result<tad::Declaration
         let kept = crate::kept::OF_THE_KEPT.contains(&table.as_str());
         // and a table a route reads: its rows come from a surface, where each place in view is held
         let routed = routes.iter().find(|route| route.table == *table);
-        let own = language || graph || kept || routed.is_some();
+        // and the plane a surface lays out: the rows of what another lens brings into focus
+        let of_a_plane = table == OF_A_PLANE;
+        let own = language || graph || kept || routed.is_some() || of_a_plane;
         if own {
-            let made = if let Some(route) = routed {
+            let made = if of_a_plane {
+                plane.map(<[_]>::to_vec).unwrap_or_default()
+            } else if let Some(route) = routed {
                 crate::routes::read(route, dirs)
                     .into_iter()
                     .map(|(place, mut row)| {
@@ -478,6 +549,15 @@ fn brought_anew(
     if found.focus.is_empty() {
         bail!("the lens {lens} has no focus yet");
     }
+    // a surface, said by a lens: a lens that reads a plane lays out what another lens brings into focus.
+    // It is looked through from that lens - surface@lens - and the plane it reads is that lens's, as rows;
+    // looked through from nothing, it has nothing to lay out
+    let plane = lays_out_a_plane(found).then(|| match here {
+        Some(of) => brought(of, dirs, today, engine).map(|parts| as_plane(&parts)),
+        None => Ok(Vec::new()),
+    });
+    let plane = plane.transpose()?;
+    let here = here.filter(|_| plane.is_none());
     // a lens that says nothing of where one stands is looked through from a place: what is in view is what
     // is in view from there - a star what it holds, a constellation its stars, an observatory all it looks at
     if let Some(here) = here.filter(|_| !says_here(found)) {
@@ -503,7 +583,7 @@ fn brought_anew(
     let projected = (|| -> Result<(Vec<Brought>, Vec<String>)> {
         let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch, plane.as_deref())?),
             &wide,
             today,
         );
@@ -517,7 +597,9 @@ fn brought_anew(
                 let placing: Vec<&Lens> = if other == "*" {
                     all.iter()
                         .filter(|l| {
+                            // and no surface: a surface lays out a plane, it is not a part of one
                             l.lens.id != lens
+                                && !lays_out_a_plane(l)
                                 && !l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
                         })
                         .collect()
@@ -883,7 +965,7 @@ pub fn beam(
     let traced = (|| -> Result<Vec<Brought>> {
         let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch, None)?),
             &wide,
             today,
         );
@@ -1165,7 +1247,7 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
         // the lens's tables, and those it reads, with nothing in them
         let wide = widened(lens, &crate::lenses::lenses());
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, &[], &scratch)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, &[], &scratch, None)?),
             &wide,
             "2026-01-01",
         );
@@ -1902,5 +1984,45 @@ mod a_table_no_lens_declares {
             identity("plain", &[], std::slice::from_ref(&d)).is_some(),
             "and it is looked through as itself"
         );
+    }
+}
+
+#[cfg(test)]
+mod a_surface_said_by_a_lens {
+    use super::*;
+
+    #[test]
+    fn a_plane_laid_out_by_the_lens_is_what_the_text_surface_gives() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-as-text-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nproblems = \"data/problems.json\"\n").unwrap();
+        std::fs::write(d.join("data/backlog.json"), "{\"id\":\"a\",\"title\":\"A\",\"status\":\"in-progress\",\"driver\":\"x\",\"opened\":\"2026-01-01\"}\n{\"id\":\"b\",\"title\":\"B\",\"status\":\"next\",\"opened\":\"2026-01-01\"}\n").unwrap();
+        std::fs::write(d.join("data/problems.json"), "{\"id\":\"s\",\"kind\":\"lacking\",\"what\":\"it lacks\",\"date\":\"2026-01-01\",\"by\":\"x\"}\n").unwrap();
+        let engine = tad::sql::DuckDb::find().unwrap();
+        let dirs = [d.clone()];
+        let on = |surface: &str, lens: &str| {
+            crate::dome::surface(surface, 80)
+                .unwrap()
+                .lay_out(&brought(lens, &dirs, "2026-01-02", &engine).unwrap())
+        };
+        for lens in ["work", "signs", "graph", "insight", "fulldome"] {
+            let by_the_program = on("text", lens);
+            assert!(
+                !by_the_program.is_empty(),
+                "the lens {lens} brings something"
+            );
+            assert_eq!(
+                on("lines", &format!("as-text@{lens}")),
+                by_the_program,
+                "the lens {lens}, laid out by as-text"
+            );
+        }
+        // looked through from nothing, a surface has nothing to lay out - and that is no failure
+        assert!(on("lines", "as-text").is_empty());
+        // and a surface is not a part of the whole: the fulldome places every lens but the surfaces
+        assert!(!on("text", "fulldome").contains("as-text:"));
     }
 }
