@@ -438,7 +438,7 @@ mod tests {
             "{view}"
         );
         assert!(
-            view.contains("fulldome ·") && !view.contains("problems ·"),
+            view.contains("around ·") && !view.contains("problems ·"),
             "a lens with no focus yet is marked:\n{view}"
         );
     }

@@ -78,6 +78,26 @@ fn ids(dir: &Path, mark: &Mark) -> BTreeMap<String, BTreeSet<String>> {
         .collect()
 }
 
+/// What a row is, in a few words: the first of its fields that says something.
+pub fn in_a_few_words(row: &serde_json::Value) -> String {
+    let said = [
+        "title", "what", "decision", "term", "says", "question", "name", "text", "practice",
+        "over", "summary",
+    ]
+    .iter()
+    .find_map(|f| {
+        row.get(*f)
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+    })
+    .unwrap_or_default();
+    let mut short: String = said.chars().take(70).collect();
+    if said.chars().count() > 70 {
+        short.push_str("...");
+    }
+    short
+}
+
 /// A link as it was written: an id, a table and an id, or a star, a table and an id.
 fn written(link: &Link) -> String {
     match (&link.star, &link.table) {
@@ -237,10 +257,14 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         }
     };
     let mut things = Vec::new();
-    for (id, (_, _, own)) in &places {
-        for (table, rows) in own {
-            for row in rows {
-                things.push(json!({"id": format!("{id}/{table}:{row}"), "of_table": table, "place": id, "star": short(id)}));
+    for (id, (dir, mark, own)) in &places {
+        for table in own.keys() {
+            for row in rows(dir, mark, table) {
+                let Some(of) = row.get("id").and_then(|v| v.as_str()) else {
+                    continue;
+                };
+                things.push(json!({"id": format!("{id}/{table}:{of}"), "of_table": table, "place": id, "star": short(id),
+                                   "says": in_a_few_words(&row)}));
             }
         }
     }
