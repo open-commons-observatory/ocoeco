@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.3](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.2...ocoeco-v0.32.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* the longest line, settled: one line, the same each look ([#234](https://github.com/open-commons-observatory/ocoeco/issues/234)) ([916c046](https://github.com/open-commons-observatory/ocoeco/commit/916c0466191dc6ae5f481897f96b67188c650a5e))
+
 ## [0.32.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.32.1...ocoeco-v0.32.2) (2026-11-14)
 
 
