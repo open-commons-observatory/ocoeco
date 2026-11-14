@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.18.1...ocoeco-v0.19.0) (2026-11-14)
+
+
+### Features
+
+* around: a lens looked through from a thing; how far work can be walked up ([#180](https://github.com/open-commons-observatory/ocoeco/issues/180)) ([d94c22b](https://github.com/open-commons-observatory/ocoeco/commit/d94c22b00b310e54d0b933bc973f54fbab36b5be))
+
 ## [0.18.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.18.0...ocoeco-v0.18.1) (2026-11-14)
 
 
