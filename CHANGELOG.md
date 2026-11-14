@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.24.0...ocoeco-v0.25.0) (2026-11-14)
+
+
+### Features
+
+* any table a place keeps is looked through as itself ([#199](https://github.com/open-commons-observatory/ocoeco/issues/199)) ([2b63e3b](https://github.com/open-commons-observatory/ocoeco/commit/2b63e3b3ca0347db4847b200e07609b3a0be7676))
+
 ## [0.24.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.23.2...ocoeco-v0.24.0) (2026-11-14)
 
 
