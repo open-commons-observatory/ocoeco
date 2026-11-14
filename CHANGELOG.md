@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.0...ocoeco-v0.16.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* places, not through: one word for placing side by side ([#166](https://github.com/open-commons-observatory/ocoeco/issues/166)) ([56d4aba](https://github.com/open-commons-observatory/ocoeco/commit/56d4aba830746327b3c41221bf49ad1cd04da2e0))
+
 ## [0.16.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.15.1...ocoeco-v0.16.0) (2026-11-14)
 
 
