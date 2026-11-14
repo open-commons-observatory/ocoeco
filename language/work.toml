@@ -2,7 +2,7 @@
 [lens]
 id = "work"
 says = "The flow of work: what is in progress and by whom - read off what was done - what is next, what waits and on what, what was finished."
-reads = ["glimpses", "edges", "problems"]
+reads = ["glimpses", "edges", "problems", "things"]
 
 # The backlog is also the board's flow (the board is a view over it, never a list of its own):
 # open -> next -> in-progress -> waiting / parked -> done or dropped. In progress, an item has a driver
@@ -50,13 +50,29 @@ supplies = [
 # - by whom, how often, when last; one said to be done and worked on in the last days is finished
 # lately. Nobody types either, so neither drifts. One question, laid out once for each of the two; an
 # item touched some days ago and not since is neither - it is as it was said to be.
+# Where the work is happening: read off where records of work were made - the things stood on while each
+# was done, supplied by the act of looking, never typed. Of any kind: an item, a decision, a thought. This
+# is the work seen as it happens; what was planned is not its measure.
+[[focus]]
+title = "where the work is happening - read off where it was done ({count})"
+sql = """
+SELECT e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
+       string_agg(DISTINCT lower(g."by"), ', ' ORDER BY lower(g."by")) AS who, count(*) AS stood,
+       substr(max(CAST(g."at" AS VARCHAR)), 12, 5) AS last
+FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id LEFT JOIN things t ON t.id = e."to"
+WHERE e.how = 'where' AND e.from_table = 'glimpses'
+  AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 1 DAY
+GROUP BY 1, 2 ORDER BY max(CAST(g."at" AS VARCHAR)) DESC, 1 LIMIT 20
+"""
+line = "{who}: {thing} - {says} (stood on {stood} time(s), the last at {last})"
+
 [[focus]]
 title = "{state} ({count})"
 sql = """
 WITH done AS (
   SELECT e.to_star AS star, e.to_id AS id, CAST(g."at" AS VARCHAR) AS at_, lower(g."by") AS who
   FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
-  WHERE e.how = 'advances' AND e.from_table = 'glimpses' AND e.to_table = 'backlog'
+  WHERE e.how IN ('advances', 'where') AND e.from_table = 'glimpses' AND e.to_table = 'backlog'
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 2 DAY
 ), each AS (
   SELECT CASE WHEN b.status = 'done' THEN 'finished lately' ELSE 'in progress - read off what was done' END AS state,
@@ -81,7 +97,7 @@ sql = """
 SELECT b.star, b.id, b.title FROM backlog b
 WHERE b.status = 'in-progress' AND NOT EXISTS (
   SELECT 1 FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
-  WHERE e.how = 'advances' AND e.from_table = 'glimpses' AND e.to_table = 'backlog' AND e.to_star = b.star AND e.to_id = b.id
+  WHERE e.how IN ('advances', 'where') AND e.from_table = 'glimpses' AND e.to_table = 'backlog' AND e.to_star = b.star AND e.to_id = b.id
     AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 3 DAY)
 ORDER BY b.seq
 """
