@@ -2,7 +2,6 @@
 //! link holds. Until 2026-11-12 the relations were kept by discipline - about 860 links, a handful
 //! pointing nowhere, and nothing to say so. The fulldome is one sky only if they are true.
 
-use crate::join::rows;
 use crate::mark::Mark;
 use anyhow::{bail, Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
@@ -188,16 +187,19 @@ impl Held {
 /// observed holds many, each row naming the place it is of.
 fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
     let mut places: BTreeMap<String, Held> = BTreeMap::new();
+    // what each place says of itself, and every table there is to read
+    let mut tables: BTreeSet<String> = BTreeSet::new();
     for dir in dirs {
         if let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
             .map_err(anyhow::Error::from)
             .and_then(|t| Mark::parse(&t))
         {
-            let tables = mark
-                .exports
-                .keys()
-                .map(|table| (table.clone(), rows(dir, &mark, table)))
-                .collect();
+            tables.extend(
+                mark.exports
+                    .iter()
+                    .filter(|(_, path)| !path.contains('@'))
+                    .map(|(table, _)| table.clone()),
+            );
             let gathers = mark
                 .place
                 .as_ref()
@@ -209,7 +211,7 @@ fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
                     says: mark.project.name.clone(),
                     also: mark.also.clone(),
                     gathers,
-                    tables,
+                    tables: BTreeMap::new(),
                 },
             );
         } else if dir.join("projects.json").is_file() {
@@ -239,46 +241,36 @@ fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
                             .collect()
                     })
                     .unwrap_or_default();
-                places.insert(
-                    text(&place, "id"),
-                    Held {
-                        says: text(&place, "name"),
-                        also,
-                        gathers,
-                        tables: BTreeMap::new(),
-                    },
-                );
+                places.entry(text(&place, "id")).or_insert(Held {
+                    says: text(&place, "name"),
+                    also,
+                    gathers,
+                    tables: BTreeMap::new(),
+                });
             }
-            for file in std::fs::read_dir(dir)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .map(|f| f.path())
-            {
-                let Some(table) = file
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .and_then(|n| n.strip_suffix(".json"))
-                    .filter(|t| *t != "projects")
-                else {
-                    continue;
-                };
-                for row in crate::harvest::read_rows(&file) {
-                    let Some(of) = row
-                        .get("project")
-                        .and_then(|p| p.as_str())
-                        .map(str::to_string)
-                    else {
-                        continue;
-                    };
-                    if let Some(place) = places.get_mut(&of) {
-                        place
-                            .tables
-                            .entry(table.to_string())
-                            .or_default()
-                            .push(serde_json::Value::Object(row));
-                    }
-                }
+            tables.extend(
+                std::fs::read_dir(dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter_map(|f| {
+                        f.file_name()
+                            .to_str()
+                            .and_then(|n| n.strip_suffix(".json"))
+                            .filter(|t| *t != "projects")
+                            .map(str::to_string)
+                    }),
+            );
+        }
+    }
+    // and the rows of each, as the ways in give them: each once, with the place it is of
+    for table in tables {
+        for (place, row) in crate::routes::rows_by_place(&table, dirs) {
+            if let Some(held) = places.get_mut(&place) {
+                held.tables
+                    .entry(table.clone())
+                    .or_default()
+                    .push(serde_json::Value::Object(row));
             }
         }
     }

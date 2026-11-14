@@ -143,3 +143,134 @@ mod tests {
         assert!(said[1].starts_with("1 rows observed, as of 20"), "{said:?}");
     }
 }
+
+/// The places in view among these folders, by their id: each folder with a mark, and each place a folder of
+/// what was observed tells of.
+pub fn places(dirs: &[PathBuf]) -> std::collections::BTreeSet<String> {
+    let mut known = std::collections::BTreeSet::new();
+    for dir in dirs {
+        if let Some(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|t| crate::mark::Mark::parse(&t).ok())
+        {
+            known.insert(mark.project.id);
+        } else {
+            known.extend(
+                crate::harvest::read_rows(&dir.join("projects.json"))
+                    .iter()
+                    .filter_map(|p| p.get("id").and_then(|i| i.as_str()).map(str::to_string)),
+            );
+        }
+    }
+    known
+}
+
+/// The rows of a table as the places in view have them, each once, with the place each is of. A row is of
+/// the place it names - its project - where that place is in view; else of the place that keeps it. The
+/// same row reached by more than one route - observed by two observatories; held here and observed - is one
+/// row: the one whose own moment (at) is the latest, and where it says none, the one that came first.
+pub fn rows_by_place(
+    table: &str,
+    dirs: &[PathBuf],
+) -> Vec<(String, serde_json::Map<String, serde_json::Value>)> {
+    let known = places(dirs);
+    let mut found: Vec<(String, serde_json::Map<String, serde_json::Value>)> = Vec::new();
+    let mut at: std::collections::BTreeMap<(String, String), usize> = Default::default();
+    let moment = |row: &serde_json::Map<String, serde_json::Value>| {
+        row.get("at")
+            .and_then(|a| a.as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    for dir in dirs {
+        let (keeper, rows): (
+            Option<String>,
+            Vec<serde_json::Map<String, serde_json::Value>>,
+        ) = match std::fs::read_to_string(dir.join("oco.toml"))
+            .ok()
+            .and_then(|t| crate::mark::Mark::parse(&t).ok())
+        {
+            Some(mark) => (
+                Some(mark.project.id.clone()),
+                crate::join::rows(dir, &mark, table)
+                    .into_iter()
+                    .filter_map(|r| r.as_object().cloned())
+                    .collect(),
+            ),
+            None if dir.join("projects.json").is_file() => (
+                None,
+                crate::harvest::read_rows(&dir.join(format!("{table}.json"))),
+            ),
+            None => continue,
+        };
+        for row in rows {
+            let named = row
+                .get("project")
+                .and_then(|p| p.as_str())
+                .filter(|p| !p.is_empty());
+            let Some(place) = named
+                .filter(|p| keeper.is_none() || known.contains(*p))
+                .map(str::to_string)
+                .or_else(|| keeper.clone())
+            else {
+                continue;
+            };
+            // a row with no id is its own row, wherever it came from
+            let Some(id) = row.get("id").and_then(|i| i.as_str()).map(str::to_string) else {
+                found.push((place, row));
+                continue;
+            };
+            match at.get(&(place.clone(), id.clone())) {
+                Some(&index) => {
+                    if moment(&row) > moment(&found[index].1) {
+                        found[index].1 = row;
+                    }
+                }
+                None => {
+                    at.insert((place.clone(), id), found.len());
+                    found.push((place, row));
+                }
+            }
+        }
+    }
+    found
+}
+
+#[cfg(test)]
+mod one_thing_by_two_routes {
+    use super::*;
+
+    #[test]
+    fn a_row_seen_by_two_routes_is_one_row_the_freshest_and_is_of_the_place_it_names() {
+        let base = std::env::temp_dir().join(format!("ocoeco-two-routes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let place = |id: &str, tables: &[(&str, &str)]| {
+            let d = base.join(id);
+            std::fs::create_dir_all(d.join("data")).unwrap();
+            let exports: String = tables
+                .iter()
+                .map(|(t, _)| format!("{t} = \"data/{t}.json\"\n"))
+                .collect();
+            std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"{id}\"\nname = \"N: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n{exports}")).unwrap();
+            for (t, rows) in tables {
+                std::fs::write(d.join(format!("data/{t}.json")), rows).unwrap();
+            }
+            d
+        };
+        let star = place("o/star", &[]);
+        let first = place("o/first", &[("runs", "{\"id\":\"o/star:ci\",\"project\":\"o/star\",\"at\":\"2026-11-13T11:00:00Z\",\"conclusion\":\"failure\"}\n{\"id\":\"x:ci\",\"project\":\"far/away\",\"at\":\"2026-11-13T11:00:00Z\"}\n")]);
+        let second = place("o/second", &[("runs", "{\"id\":\"o/star:ci\",\"project\":\"o/star\",\"at\":\"2026-11-14T10:00:00Z\",\"conclusion\":\"success\"}\n")]);
+        let rows = rows_by_place("runs", &[star, first, second]);
+        let said: Vec<(&str, &str, &str)> = rows
+            .iter()
+            .map(|(place, r)| {
+                (
+                    place.as_str(),
+                    r["id"].as_str().unwrap(),
+                    r.get("conclusion").and_then(|c| c.as_str()).unwrap_or("-"),
+                )
+            })
+            .collect();
+        assert_eq!(said, [("o/star", "o/star:ci", "success"), ("o/first", "x:ci", "-")], "one run, as it last was, of the place it names; a row naming a place not in view stays with its keeper");
+    }
+}
