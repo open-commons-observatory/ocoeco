@@ -104,25 +104,6 @@ ORDER BY b.seq
 """
 line = "{star}/{id} - {title}"
 
-# A next step is an intention, said by a person - and it ages like anything typed: work is done, and the
-# step still names what was to be done first. Read off: work done on an item after its next step was last
-# said. Where it is not known when a step was last said, nothing is shown: not known is not stale.
-[[focus]]
-title = "a next step said before the work that followed it ({count})"
-sql = """
-WITH said AS (SELECT e.to_star AS star, e.to_id AS id, max(CAST(g."at" AS VARCHAR)) AS last
-              FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
-              WHERE e.how = 'touches' AND e.from_table = 'glimpses' AND e.to_table = 'backlog' GROUP BY 1, 2),
-     worked AS (SELECT e.to_star AS star, e.to_id AS id, max(CAST(g."at" AS VARCHAR)) AS last, count(*) AS records
-                FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id
-                WHERE e.how IN ('advances', 'where') AND e.from_table = 'glimpses' AND e.to_table = 'backlog' GROUP BY 1, 2)
-SELECT b.star, b.id, b.title, left(b.next, 90) AS next, left(replace(s.last, 'T', ' '), 16) AS said_at, left(replace(k.last, 'T', ' '), 16) AS worked_at
-FROM backlog b JOIN said s ON s.star = b.star AND s.id = b.id JOIN worked k ON k.star = b.star AND k.id = b.id
-WHERE coalesce(b.next, '') <> '' AND b.status NOT IN ('done', 'dropped') AND k.last > s.last
-ORDER BY k.last DESC
-"""
-line = "{star}/{id} - {title} - next, said {said_at}: {next} - worked on since, {worked_at}"
-
 [[focus]]
 title = "waiting ({count})"
 sql = """
