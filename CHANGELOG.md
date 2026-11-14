@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.18.0...ocoeco-v0.18.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* a field's ordinal; three names that hold two kinds, said ([#179](https://github.com/open-commons-observatory/ocoeco/issues/179)) ([f7a351c](https://github.com/open-commons-observatory/ocoeco/commit/f7a351c954dea443aba220ad077508d6feeacc62))
+* the language asks which names hold different kinds ([#178](https://github.com/open-commons-observatory/ocoeco/issues/178)) ([b2fc08a](https://github.com/open-commons-observatory/ocoeco/commit/b2fc08ac8bbf2ca2ecd002445c6eef9eedf0b3db))
+
 ## [0.18.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.17.0...ocoeco-v0.18.0) (2026-11-14)
 
 
