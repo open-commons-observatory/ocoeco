@@ -628,24 +628,24 @@ fn run() -> Result<()> {
                         ocoeco::entries::enter(entry, &all, &today, &who)
                     })
                 },
-                // the things there are to stand on, each by where it is held, its table and its id
-                || {
-                    ocoeco::relations::as_graph(&places)
-                        .map(|mut graph| graph.remove("things").unwrap_or_default())
-                        .unwrap_or_default()
+                // which lines of what is looked through are about a thing, and which: as the plane says -
+                // the same rows any surface is given - so the window finds nothing by itself
+                |lens| {
+                    let (Ok(parts), Ok(named)) = (
+                        ocoeco::focus::brought(lens, &places, &today, &engine),
+                        ocoeco::focus::Named::of(&places),
+                    ) else {
+                        return Vec::new();
+                    };
+                    let mut line = 0usize;
+                    ocoeco::focus::as_plane(&parts, &named)
                         .iter()
-                        .filter_map(|thing| {
-                            let said = |key: &str| thing.get(key).and_then(|v| v.as_str());
-                            let (id, star, table, place) = (
-                                said("id")?,
-                                said("star")?,
-                                said("of_table")?,
-                                said("place")?,
-                            );
-                            Some(format!(
-                                "{star}/{table}:{}",
-                                id.strip_prefix(&format!("{place}/{table}:"))?
-                            ))
+                        .filter_map(|row| {
+                            // a lens placed within is laid out after an empty line: two lines of the text
+                            line += if row["kind"] == "lens" { 2 } else { 1 };
+                            row.get("thing")
+                                .and_then(|t| t.as_str())
+                                .map(|thing| (line - 1, thing.to_string()))
                         })
                         .collect()
                 },
@@ -674,6 +674,19 @@ fn run() -> Result<()> {
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
             let engine = tad::sql::DuckDb::find()?;
+            // a lens that says where one stands, asked for from nowhere, is looked through from where the
+            // driver stands: the last thing stood on, on whatever surface that was
+            let who = std::env::var("OCOECO_BY")
+                .or_else(|_| std::env::var("USER"))
+                .unwrap_or_else(|_| "someone".into());
+            let lens = match ocoeco::trail::stands(&who) {
+                Some(thing)
+                    if !lens.contains('@') && ocoeco::focus::stands_somewhere(&lens, &places) =>
+                {
+                    format!("{lens}@{thing}")
+                }
+                _ => lens,
+            };
             // a surface may be said by a lens: then that lens is looked through, from the lens asked for,
             // and what it brings is lines laid out already
             let said_by_a_lens = !ocoeco::dome::SURFACES.contains(&surface.as_str())

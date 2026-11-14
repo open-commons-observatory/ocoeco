@@ -39,6 +39,11 @@ pub fn step(who: &str, thing: &str) {
 
 fn step_in(home: Option<PathBuf>, who: &str, thing: &str) {
     let Some(file) = kept(home, who) else { return };
+    // where one stands is kept beside the trail, and stays when the trail begins again
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(file.with_extension("stands"), thing);
     let so_far = std::fs::read_to_string(&file).unwrap_or_default();
     if so_far.lines().last() == Some(thing) {
         return;
@@ -47,6 +52,17 @@ fn step_in(home: Option<PathBuf>, who: &str, thing: &str) {
         let _ = std::fs::create_dir_all(dir);
     }
     let _ = std::fs::write(&file, format!("{so_far}{thing}\n"));
+}
+
+/// Where the driver stands: the last thing stood on, on whatever surface that was. It stays when the
+/// trail begins again - a record of work says where it was made, and one is still standing there after.
+pub fn stands(who: &str) -> Option<String> {
+    stands_in(home(), who)
+}
+
+fn stands_in(home: Option<PathBuf>, who: &str) -> Option<String> {
+    let thing = std::fs::read_to_string(kept(home, who)?.with_extension("stands")).ok()?;
+    Some(thing.trim().to_string()).filter(|thing| !thing.is_empty())
 }
 
 /// The things stood on since the trail began, each once, in the order they were first stood on - and the
@@ -97,6 +113,43 @@ mod tests {
         assert!(
             taken_in(Some(home), "another driver").is_empty(),
             "a trail is one driver's own"
+        );
+    }
+}
+
+#[cfg(test)]
+mod where_one_stands {
+    use super::*;
+
+    #[test]
+    fn where_one_stands_stays_when_the_trail_begins_again() {
+        let home = std::env::temp_dir().join(format!("ocoeco-stands-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        assert_eq!(
+            stands_in(Some(home.clone()), "x"),
+            None,
+            "nowhere, before a first step"
+        );
+        step_in(Some(home.clone()), "x", "r/backlog:a");
+        step_in(Some(home.clone()), "x", "r/decisions:b");
+        assert_eq!(
+            stands_in(Some(home.clone()), "x").as_deref(),
+            Some("r/decisions:b")
+        );
+        assert_eq!(
+            taken_in(Some(home.clone()), "x").len(),
+            2,
+            "a record of work takes the trail"
+        );
+        assert_eq!(
+            stands_in(Some(home.clone()), "x").as_deref(),
+            Some("r/decisions:b"),
+            "and one still stands there"
+        );
+        assert_eq!(
+            stands_in(Some(home), "y"),
+            None,
+            "each driver stands where they stand"
         );
     }
 }

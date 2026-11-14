@@ -255,53 +255,17 @@ impl InTerminal {
         }
     }
 
-    /// Finds the things named in what is shown, among the things there are - each known by where it is
-    /// held, its table and its id. A line names the first thing it speaks of: by its whole name, or with
-    /// the table left out where that names one thing only. The first of them is pointed at, or the one
-    /// pointed at before where it is still there.
-    pub fn name(&mut self, known: &[String]) {
-        let whole: std::collections::BTreeSet<&str> = known.iter().map(String::as_str).collect();
-        // with the table left out: star/id - kept only where it names one thing
-        let mut short: std::collections::BTreeMap<String, Option<&str>> = Default::default();
-        for name in known {
-            if let Some((held, id)) = name.split_once(':') {
-                if let Some((star, _table)) = held.split_once('/') {
-                    short
-                        .entry(format!("{star}/{id}"))
-                        .and_modify(|one| *one = None)
-                        .or_insert(Some(name.as_str()));
-                }
-            }
-        }
-        self.named = self
-            .text
-            .lines()
-            .enumerate()
-            .filter_map(|(at, line)| {
-                line.split_whitespace()
-                    .map(|word| word.trim_matches(|c: char| matches!(c, ',' | ';' | '(' | ')')))
-                    .filter(|word| word.contains('/'))
-                    .find_map(|word| {
-                        whole
-                            .get(word)
-                            .map(|name| (at, name.to_string()))
-                            .or_else(|| {
-                                short
-                                    .get(word)
-                                    .copied()
-                                    .flatten()
-                                    .map(|name| (at, name.to_string()))
-                            })
-                    })
-            })
-            .collect();
+    /// Points among the lines that are about a thing - as the plane says, each line with the thing it is
+    /// about. The first is pointed at, or the one pointed at before where it is still there.
+    pub fn point_among(&mut self, named: Vec<(usize, String)>) {
+        self.named = named;
         self.pointed = match (self.pointed, self.named.len()) {
             (_, 0) => None,
             (Some(at), n) => Some(at.min(n - 1)),
             (None, _) => Some(0),
         };
         if self.pointed.is_none() {
-            self.note = "nothing shown here names a thing to stand on".into();
+            self.note = "nothing shown here is about a thing to stand on".into();
         }
     }
 
@@ -513,18 +477,31 @@ impl InTerminal {
     }
 }
 
+/// The lines of what is looked through that are about a thing: asked of the plane, where a lens is in
+/// focus - a glimpse or a beam is not a plane of things to stand on.
+fn walkable(
+    dome: &InTerminal,
+    about: &mut impl FnMut(&str) -> Vec<(usize, String)>,
+) -> Vec<(usize, String)> {
+    if dome.looking == Looking::InFocus {
+        about(&dome.looked_through())
+    } else {
+        Vec::new()
+    }
+}
+
 /// Opens the dome in the terminal. `load` brings a lens into focus, says what can be glimpsed
 /// through it, or shows its beam, as `Looking` says. `write` makes an entry, as ocoeco glimpse would, and says what it wrote - or why
 /// it did not, which is then shown in the form with nothing lost. `can_enter` is whether one place is
-/// stood in, so that an entry has somewhere to go. `things` says the things there are to stand on, each by
-/// where it is held, its table and its id - asked when a walk begins and at each step of it.
+/// stood in, so that an entry has somewhere to go. `about` says, for what is looked through, which lines
+/// are about a thing, and which - as the plane says, not as the words suggest.
 pub fn open(
     scale: String,
     can_enter: bool,
     all: Vec<crate::lenses::Lens>,
     mut load: impl FnMut(&str, Looking) -> String,
     mut write: impl FnMut(&str, &[String]) -> anyhow::Result<String>,
-    mut things: impl FnMut() -> Vec<String>,
+    mut about: impl FnMut(&str) -> Vec<(usize, String)>,
 ) -> anyhow::Result<()> {
     let mut dome = InTerminal::of(scale, all);
     dome.can_enter = can_enter;
@@ -545,7 +522,8 @@ pub fn open(
                     let text = load(&dome.looked_through(), dome.looking);
                     dome.text = text;
                     if dome.pointed.is_some() {
-                        dome.name(&things());
+                        let named = walkable(&dome, &mut about);
+                        dome.point_among(named);
                     }
                 }
                 // a step of a walk: what is now looked through is brought into focus, and the things it
@@ -553,7 +531,8 @@ pub fn open(
                 Asked::Walk => {
                     let text = load(&dome.looked_through(), dome.looking);
                     dome.text = text;
-                    dome.name(&things());
+                    let named = walkable(&dome, &mut about);
+                    dome.point_among(named);
                 }
                 Asked::Write(entry, args) => match write(&entry, &args) {
                     Ok(written) => {
@@ -774,26 +753,19 @@ mod a_walk {
     fn one_walks_from_what_is_shown_standing_on_a_thing_and_stepping_back() {
         let mut dome = InTerminal::new("this place".into());
         dome.text = "in progress (1)\n  claude: r/backlog:a - A\nshowing (1)\n  r/the-sign - held back by r/people:someone".into();
-        let known = vec![
-            "r/backlog:a".to_string(),
-            "r/problems:the-sign".to_string(),
-            "r/people:someone".to_string(),
-            "r/decisions:the-sign".to_string(),
-        ];
+        // what each line is about is given, as the plane says it - the window finds nothing by itself
+        let about = || {
+            vec![
+                (1, "r/backlog:a".to_string()),
+                (3, "r/problems:the-sign".to_string()),
+            ]
+        };
         assert_eq!(
             dome.key(KeyCode::Right),
             Asked::Walk,
-            "to walk is to ask for the things named in what is shown"
+            "to walk is to ask which lines are about a thing"
         );
-        dome.name(&known[..3]);
-        assert_eq!(
-            dome.named,
-            [
-                (1, "r/backlog:a".to_string()),
-                (3, "r/problems:the-sign".to_string())
-            ],
-            "a line names the first thing it speaks of - whole, or with the table left out"
-        );
+        dome.point_among(about());
         assert_eq!(dome.pointed, Some(0));
         assert!(
             seen(&dome).contains("right, enter: stand on it"),
@@ -815,7 +787,10 @@ mod a_walk {
             "standing on a thing is the lens of around, from it"
         );
         dome.text = "standing on (1)\n  r/problems:the-sign - it does not fit\nto here - what points at it (1)\n  r/people:someone halted this".into();
-        dome.name(&known[..3]);
+        dome.point_among(vec![
+            (1, "r/problems:the-sign".to_string()),
+            (3, "r/people:someone".to_string()),
+        ]);
         assert!(
             seen(&dome).contains("around: standing on r/problems:the-sign"),
             "where one stands is said:\n{}",
@@ -836,11 +811,10 @@ mod a_walk {
             Asked::Leave,
             "and only then leaves the dome"
         );
-        // with the table left out, a name that could be two things names neither
-        dome.text = "  r/the-sign - which of two".into();
-        dome.name(&known);
+        // where nothing shown is about a thing, there is nothing to point at - and that is said
+        dome.point_among(Vec::new());
         assert!(
-            dome.named.is_empty() && dome.pointed.is_none() && dome.note.contains("names a thing")
+            dome.named.is_empty() && dome.pointed.is_none() && dome.note.contains("about a thing")
         );
     }
 }
