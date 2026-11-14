@@ -7,6 +7,11 @@
 
 * the identity: a table looked through as itself; the law between put and get, shown ([#174](https://github.com/open-commons-observatory/ocoeco/issues/174)) ([c7ec845](https://github.com/open-commons-observatory/ocoeco/commit/c7ec8452888ef1951c51e534965bd02ad3ab890c))
 
+
+### Bug Fixes
+
+* the lens of language gets what it puts: it counts the relations ([#176](https://github.com/open-commons-observatory/ocoeco/issues/176)) ([3b9b16f](https://github.com/open-commons-observatory/ocoeco/commit/3b9b16f0308c204951a9afaec2707d4b104a0861))
+
 ## [0.17.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.16.2...ocoeco-v0.17.0) (2026-11-14)
 
 
