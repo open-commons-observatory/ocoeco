@@ -6,4 +6,4 @@ id = "fulldome"
 says = "Every lens in view, placed side by side: a plane of planes, each lens keeping its own shape within it."
 
 [[focus]]
-through = "*"
+places = "*"

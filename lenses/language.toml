@@ -82,7 +82,7 @@ fields = [
     { name = "always", type = "boolean" },
     { name = "query", type = "string" },
     { name = "lays_out", type = "string" },
-    { name = "through", type = "string" },
+    { name = "places", type = "string" },
     { name = "only", type = "string" },
     { name = "measure", type = "string" },
     { name = "of", type = "string" },
@@ -106,7 +106,7 @@ asks = ["says", "reads", "grew_from"]
 entry = "part"
 says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
 table = "lens_parts"
-asks = ["lens", "part", "title", "named", "urgent", "query", "lays_out", "through", "only", "measure", "whole", "chain", "per"]
+asks = ["lens", "part", "title", "named", "urgent", "query", "lays_out", "places", "only", "measure", "whole", "chain", "per"]
 
 [[glimpse]]
 entry = "table"
@@ -181,10 +181,10 @@ line = "{what}: {names} names, {with_meaning} given a meaning as a word - {which
 [[focus]]
 title = "a part placed from another lens ({count})"
 sql = """
-SELECT lens, through, CASE WHEN coalesce("only", '') <> '' THEN ' - only ' || "only" ELSE ' - all of it' END AS which
-FROM lens_parts WHERE coalesce(through, '') <> '' ORDER BY lens, part
+SELECT lens, places, CASE WHEN coalesce("only", '') <> '' THEN ' - only ' || "only" ELSE ' - all of it' END AS which
+FROM lens_parts WHERE coalesce(places, '') <> '' ORDER BY lens, part
 """
-line = "{lens} places what {through} brings into focus{which}"
+line = "{lens} places what {places} brings into focus{which}"
 
 [[focus]]
 title = "a lens that takes nothing, or brings nothing into focus ({count})"
