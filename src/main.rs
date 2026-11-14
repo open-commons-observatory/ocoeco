@@ -612,9 +612,9 @@ fn run() -> Result<()> {
             } else {
                 words
             };
-            // a shell splits a word at a colon: it is answered with what comes after the last one typed
+            // a shell splits a word at a colon and at an @: it is answered with what comes after the last one typed
             let typing = words.last().cloned().unwrap_or_default();
-            let cut = typing.rfind(':').map_or(0, |at| at + 1);
+            let cut = typing.rfind([':', '@']).map_or(0, |at| at + 1);
             for f in ocoeco::fits::after(&words, &dir, &commands) {
                 match (shell, f.is.is_empty()) {
                     (true, _) if f.word.is_empty() => {}

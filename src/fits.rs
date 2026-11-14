@@ -33,23 +33,9 @@ fn fit(word: impl Into<String>, is: impl Into<String>) -> Fit {
     }
 }
 
-/// What a row is, in a few words: the first of its fields that says something.
+/// What a row is, in a few words - as the graph says it of every thing.
 fn about(row: &serde_json::Value) -> String {
-    let said = [
-        "title", "what", "decision", "term", "says", "question", "name", "text", "practice",
-    ]
-    .iter()
-    .find_map(|f| {
-        row.get(*f)
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.trim().is_empty())
-    })
-    .unwrap_or_default();
-    let mut short: String = said.chars().take(70).collect();
-    if said.chars().count() > 70 {
-        short.push_str("...");
-    }
-    short
+    crate::relations::in_a_few_words(row)
 }
 
 /// What may come next after `words` - what is typed after `ocoeco`, the last being the word being typed
@@ -162,6 +148,30 @@ fn command_fits(c: &Command, rest: &[String], dir: &Path) -> Vec<Fit> {
     let mut offered = Vec::new();
     if !typing.starts_with('-') {
         if let Some(positional) = c.positionals.get(given) {
+            // after lens@: the things one can stand on - the kind of thing first, then the thing
+            if let (true, Some((lens, at))) = (positional == "lens", typing.split_once('@')) {
+                let things = crate::relations::as_graph(&crate::board::in_view(dir).0)
+                    .map(|mut g| g.remove("things").unwrap_or_default())
+                    .unwrap_or_default();
+                let named = |t: &serde_json::Map<String, serde_json::Value>| -> Option<(String, String, String)> {
+                    let (id, star, table) = (t.get("id")?.as_str()?, t.get("star")?.as_str()?, t.get("of_table")?.as_str()?);
+                    Some((format!("{star}/{table}:"), id.rsplit_once(':')?.1.to_string(), t.get("says").and_then(|s| s.as_str()).unwrap_or_default().to_string()))
+                };
+                let mut kinds = std::collections::BTreeMap::new();
+                for (kind, id, says) in things.iter().filter_map(named) {
+                    if at.contains(':') {
+                        offered.push(fit(format!("{lens}@{kind}{id}"), says));
+                    } else {
+                        *kinds.entry(kind).or_insert(0usize) += 1;
+                    }
+                }
+                offered.extend(
+                    kinds
+                        .into_iter()
+                        .map(|(kind, n)| fit(format!("{lens}@{kind}"), format!("{n} things"))),
+                );
+                return offered;
+            }
             offered.extend(value_named(positional, dir));
         }
     }

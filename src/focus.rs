@@ -216,6 +216,16 @@ pub struct Brought {
 }
 
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
+/// The lens as looked through from a thing: wherever it says {here}, the thing stood on.
+fn standing(lens: &Lens, here: &str) -> Lens {
+    let mut stood = lens.clone();
+    for part in &mut stood.focus {
+        part.sql = part.sql.replace("{here}", &here.replace('\'', "''"));
+        part.title = part.title.as_ref().map(|t| t.replace("{here}", here));
+    }
+    stood
+}
+
 /// The identity: a table looked through with nothing declared but its name - every row passed through,
 /// each field as it is. A table is the passthrough lens over what a place keeps, so it needs no lens file;
 /// it is looked through only where no lens has that name.
@@ -261,6 +271,11 @@ pub fn brought(
     engine: &dyn SqlEngine,
 ) -> Result<Vec<Brought>> {
     let all = crate::lenses::with(dirs)?;
+    // a lens may be looked through from a thing - lens@thing - as an observatory is looked from somewhere:
+    // the lens's {here} is where one stands
+    let (lens, here) = lens
+        .split_once('@')
+        .map_or((lens, None), |(lens, here)| (lens, Some(here)));
     // a lens of that name - or else a table of that name, looked through as itself
     let itself = identity(lens, &all);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
@@ -275,6 +290,14 @@ pub fn brought(
     if found.focus.is_empty() {
         bail!("the lens {lens} has no focus yet");
     }
+    let stood;
+    let found = match here {
+        Some(here) => {
+            stood = standing(found, here);
+            &stood
+        }
+        None => found,
+    };
     static CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let scratch = std::env::temp_dir().join(format!(
         "ocoeco-focus-{}-{}",
@@ -1597,5 +1620,24 @@ mod the_identity {
         .unwrap_err()
         .to_string()
         .contains("no lens or table is called"));
+    }
+}
+
+#[cfg(test)]
+mod from_a_thing {
+    use super::*;
+
+    #[test]
+    fn a_lens_looked_through_from_a_thing_says_where_it_stands() {
+        let lens: Lens = toml::from_str("[lens]\nid = \"around\"\nsays = \"From one thing.\"\n[[focus]]\ntitle = \"from {here} ({count})\"\nsql = \"SELECT 1 FROM edges WHERE \\\"from\\\" = '{here}'\"\nline = \"x\"\n").unwrap();
+        let stood = standing(&lens, "o/r/notes:it's");
+        assert_eq!(
+            stood.focus[0].sql, "SELECT 1 FROM edges WHERE \"from\" = 'o/r/notes:it''s'",
+            "where one stands, said safely"
+        );
+        assert_eq!(
+            stood.focus[0].title.as_deref(),
+            Some("from o/r/notes:it's ({count})")
+        );
     }
 }
