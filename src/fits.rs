@@ -114,7 +114,9 @@ pub fn after(words: &[String], dir: &Path, commands: &[(String, String)]) -> Vec
         .collect()
 }
 
-/// What a field of an entry may hold, standing in the place at `dir`.
+/// What a field of an entry may hold, standing in the place at `dir`. A link may point into this place or
+/// into another star in view - every place kept beside it - and each stroke narrows: the star, then its
+/// kind of row, then the row.
 fn values(
     field: &str,
     table: &str,
@@ -123,9 +125,12 @@ fn values(
     dir: &Path,
     typing: &str,
 ) -> Vec<Fit> {
-    let mark = std::fs::read_to_string(dir.join("oco.toml"))
-        .ok()
-        .and_then(|t| Mark::parse(&t).ok());
+    let read = |d: &Path| {
+        std::fs::read_to_string(d.join("oco.toml"))
+            .ok()
+            .and_then(|t| Mark::parse(&t).ok())
+    };
+    let mark = read(dir);
     let kept = |t: &str| mark.as_ref().map(|m| rows(dir, m, t)).unwrap_or_default();
     // the id: the rows a change would be made to - or a new one
     if field == "id" {
@@ -150,38 +155,93 @@ fn values(
         return vec![fit("", "your own words")];
     };
     let anywhere = relation.to.iter().any(|t| t == "*");
-    let tables: Vec<String> = match (&mark, anywhere) {
-        (Some(m), true) => m.exports.keys().cloned().collect(),
-        _ => relation.to.clone(),
+    let kinds = |m: &Mark| -> Vec<String> {
+        if anywhere {
+            m.exports.keys().cloned().collect()
+        } else {
+            relation.to.clone()
+        }
     };
-    // where it may point into many kinds, the kind is chosen first, then the row
-    match typing.split_once(':') {
+    // the other stars in view: every place kept beside this one, as the lab keeps them
+    let here = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    let others: Vec<(String, std::path::PathBuf, Mark)> = here
+        .parent()
+        .and_then(Path::parent)
+        .map(crate::board::projects)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|d| std::fs::canonicalize(d).ok().as_deref() != Some(here.as_path()))
+        .filter_map(|d| read(&d).map(|m| (m.project.id.clone(), d, m)))
+        .collect();
+    let rows_of = |prefix: &str, d: &Path, m: &Mark, t: &str| -> Vec<Fit> {
+        rows(d, m, t)
+            .into_iter()
+            .filter_map(|r| {
+                Some(fit(
+                    format!("{prefix}{t}:{}", r.get("id")?.as_str()?),
+                    about(&r),
+                ))
+            })
+            .collect()
+    };
+    // typed into another star: its kinds of row, then its rows
+    if let Some((star, d, m)) = others
+        .iter()
+        .find(|(id, _, _)| typing.starts_with(&format!("{id}/")))
+    {
+        let prefix = format!("{star}/");
+        let rest = &typing[prefix.len()..];
+        return match rest.split_once(':') {
+            None => kinds(m)
+                .iter()
+                .filter(|t| !rows(d, m, t).is_empty())
+                .map(|t| {
+                    fit(
+                        format!("{prefix}{t}:"),
+                        format!("{} rows", rows(d, m, t).len()),
+                    )
+                })
+                .collect(),
+            Some((t, _)) => rows_of(&prefix, d, m, t),
+        };
+    }
+    // the stars themselves, to go into
+    let stars: Vec<Fit> = others
+        .iter()
+        .map(|(id, _, m)| fit(format!("{id}/"), m.project.name.clone()))
+        .collect();
+    if typing.contains('/') {
+        return stars;
+    }
+    // this place: where it may point into many kinds, the kind is chosen first, then the row; a link into
+    // one kind of row is written as the id alone, as the language writes it - with a kind named, kind:id
+    let tables = mark
+        .as_ref()
+        .map(kinds)
+        .unwrap_or_else(|| relation.to.clone());
+    let local: Vec<Fit> = match typing.split_once(':') {
         None if anywhere || tables.len() > 1 => tables
             .iter()
             .map(|t| fit(format!("{t}:"), format!("{} rows", kept(t).len())))
             .filter(|f| f.is != "0 rows")
             .collect(),
-        _ => {
-            let wanted = typing.split_once(':').map(|(t, _)| t.to_string());
-            // a link into one kind of row is written as the id alone, as the language writes it; with a kind
-            // named, as kind:id
-            let bare = wanted.is_none();
-            tables
-                .iter()
-                .filter(|t| wanted.as_deref().is_none_or(|w| w == t.as_str()))
-                .flat_map(|t| {
-                    kept(t).into_iter().filter_map(move |r| {
-                        let id = r.get("id")?.as_str()?;
-                        let word = if bare {
-                            id.to_string()
-                        } else {
-                            format!("{t}:{id}")
-                        };
-                        Some(fit(word, about(&r)))
-                    })
-                })
-                .collect()
-        }
+        None => tables
+            .iter()
+            .flat_map(|t| {
+                kept(t)
+                    .into_iter()
+                    .filter_map(|r| Some(fit(r.get("id")?.as_str()?.to_string(), about(&r))))
+            })
+            .collect(),
+        Some((t, _)) => mark
+            .as_ref()
+            .map(|m| rows_of("", dir, m, t))
+            .unwrap_or_default(),
+    };
+    if typing.contains(':') {
+        local
+    } else {
+        local.into_iter().chain(stars).collect()
     }
 }
 
@@ -210,7 +270,11 @@ mod tests {
 
     #[test]
     fn from_a_blank_what_may_come_next_is_read_off_the_language_and_the_rows_that_exist() {
-        let d = std::env::temp_dir().join(format!("ocoeco-fits-{}", std::process::id()));
+        // a place kept as the lab keeps places, owner/repository under one root, so that a star beside it is in view
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-fits-{}", std::process::id()))
+            .join("o")
+            .join("a");
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(d.join("data")).unwrap();
         std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nmilestones = \"data/milestones.json\"\ndecisions = \"data/decisions.json\"\n").unwrap();
@@ -299,6 +363,40 @@ mod tests {
             )),
             [""],
             "free words: nothing to offer"
+        );
+        // a link into another star in view: the star, then its kind of row, then the row
+        let other = d.parent().unwrap().join("other-star");
+        std::fs::create_dir_all(other.join("data")).unwrap();
+        std::fs::write(other.join("oco.toml"), "schema = 1\n[project]\nid = \"o/other\"\nname = \"Other: a star beside\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\ndecisions = \"data/decisions.json\"\n").unwrap();
+        std::fs::write(
+            other.join("data/decisions.json"),
+            "{\"id\":\"d9\",\"decision\":\"Over there\"}\n",
+        )
+        .unwrap();
+        assert!(
+            words(after(
+                &line(&["glimpse", "decision", "--refines", ""]),
+                &d,
+                &commands
+            ))
+            .contains(&"o/other/".to_string()),
+            "the stars in view"
+        );
+        assert_eq!(
+            words(after(
+                &line(&["glimpse", "decision", "--refines", "o/other/"]),
+                &d,
+                &commands
+            )),
+            ["o/other/decisions:"]
+        );
+        assert_eq!(
+            words(after(
+                &line(&["glimpse", "decision", "--refines", "o/other/decisions:d"]),
+                &d,
+                &commands
+            )),
+            ["o/other/decisions:d9"]
         );
         // a link into one kind of row: the id alone, as the language writes it
         std::fs::write(
