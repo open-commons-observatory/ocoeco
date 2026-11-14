@@ -62,22 +62,6 @@ pub fn links(value: &str) -> Vec<Link> {
         .collect()
 }
 
-/// The ids of every table a star keeps here.
-fn ids(dir: &Path, mark: &Mark) -> BTreeMap<String, BTreeSet<String>> {
-    mark.exports
-        .keys()
-        .map(|table| {
-            (
-                table.clone(),
-                rows(dir, mark, table)
-                    .iter()
-                    .filter_map(|r| r["id"].as_str().map(str::to_string))
-                    .collect(),
-            )
-        })
-        .collect()
-}
-
 /// What a row is, in a few words: the first of its fields that says something.
 pub fn in_a_few_words(row: &serde_json::Value) -> String {
     let said = [
@@ -181,8 +165,125 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
 /// them from the links the places hold, as it fills the language's own from the lenses.
 pub const OF_THE_GRAPH: [&str; 2] = ["things", "edges"];
 
-/// A place in view: where it is, its mark, and the ids each of its tables holds.
-type Held = (PathBuf, Mark, BTreeMap<String, BTreeSet<String>>);
+/// A place in view, by whatever route what it keeps arrived - a folder with a mark, or what an observatory
+/// observed of it: what it says it is for, the other names its tables go by, what it gathers, and the
+/// rows of each table it keeps. The graph is made of these, and does not ask how they came.
+#[derive(Default)]
+struct Held {
+    says: String,
+    also: BTreeMap<String, String>,
+    gathers: Vec<String>,
+    tables: BTreeMap<String, Vec<serde_json::Value>>,
+}
+
+impl Held {
+    fn has(&self, table: &str, id: &str) -> bool {
+        self.tables
+            .get(table)
+            .is_some_and(|rows| rows.iter().any(|r| r["id"].as_str() == Some(id)))
+    }
+}
+
+/// The places among these folders, by their id: each folder with a mark is one; a folder of what was
+/// observed holds many, each row naming the place it is of.
+fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
+    let mut places: BTreeMap<String, Held> = BTreeMap::new();
+    for dir in dirs {
+        if let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+            .map_err(anyhow::Error::from)
+            .and_then(|t| Mark::parse(&t))
+        {
+            let tables = mark
+                .exports
+                .keys()
+                .map(|table| (table.clone(), rows(dir, &mark, table)))
+                .collect();
+            let gathers = mark
+                .place
+                .as_ref()
+                .map(|p| p.gathers.clone())
+                .unwrap_or_default();
+            places.insert(
+                mark.project.id.clone(),
+                Held {
+                    says: mark.project.name.clone(),
+                    also: mark.also.clone(),
+                    gathers,
+                    tables,
+                },
+            );
+        } else if dir.join("projects.json").is_file() {
+            let text = |v: &serde_json::Value, key: &str| {
+                v.get(key)
+                    .and_then(|s| s.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            for place in crate::harvest::read_rows(&dir.join("projects.json")) {
+                let place = serde_json::Value::Object(place);
+                let also = place
+                    .get("also")
+                    .and_then(|a| a.as_object())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let gathers = place
+                    .get("gathers")
+                    .and_then(|g| g.as_array())
+                    .map(|g| {
+                        g.iter()
+                            .filter_map(|v| v.as_str().map(str::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                places.insert(
+                    text(&place, "id"),
+                    Held {
+                        says: text(&place, "name"),
+                        also,
+                        gathers,
+                        tables: BTreeMap::new(),
+                    },
+                );
+            }
+            for file in std::fs::read_dir(dir)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|f| f.path())
+            {
+                let Some(table) = file
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .and_then(|n| n.strip_suffix(".json"))
+                    .filter(|t| *t != "projects")
+                else {
+                    continue;
+                };
+                for row in crate::harvest::read_rows(&file) {
+                    let Some(of) = row
+                        .get("project")
+                        .and_then(|p| p.as_str())
+                        .map(str::to_string)
+                    else {
+                        continue;
+                    };
+                    if let Some(place) = places.get_mut(&of) {
+                        place
+                            .tables
+                            .entry(table.to_string())
+                            .or_default()
+                            .push(serde_json::Value::Object(row));
+                    }
+                }
+            }
+        }
+    }
+    places
+}
 
 /// Every row of every place in view as a thing, and every link between them as an edge: this, how, that.
 /// A link a row holds in a declared relation is an edge named by its field (serves, refines, advances); a
@@ -197,17 +298,7 @@ pub fn as_graph(dirs: &[PathBuf]) -> Result<Graph> {
 /// place holds, followed into the others. The check and the guard on writes read it this way.
 pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     use serde_json::json;
-    let mut places: BTreeMap<String, Held> = BTreeMap::new();
-    for dir in dirs {
-        let Ok(mark) = std::fs::read_to_string(dir.join("oco.toml"))
-            .map_err(anyhow::Error::from)
-            .and_then(|t| Mark::parse(&t))
-        else {
-            continue;
-        };
-        let own = ids(dir, &mark);
-        places.insert(mark.project.id.clone(), (dir.clone(), mark, own));
-    }
+    let places = held(dirs);
     let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
     // where a link points, from the place that holds it, and whether that is there
     let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
@@ -215,15 +306,14 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         let named = |place: &str, table: &str| -> String {
             places
                 .get(place)
-                .and_then(|(_, mark, _)| mark.also.get(table))
+                .and_then(|place| place.also.get(table))
                 .cloned()
                 .unwrap_or_else(|| table.to_string())
         };
         let has = |place: &str, table: &str| {
-            places.get(place).map(|(_, _, own)| {
-                own.get(&named(place, table))
-                    .is_some_and(|ids| ids.contains(&link.id))
-            })
+            places
+                .get(place)
+                .map(|held| held.has(&named(place, table), &link.id))
         };
         match (&link.star, &link.table) {
             (Some(star), Some(table)) => (
@@ -235,12 +325,12 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 has(here, table),
             ),
             (_, None) => {
-                let own = places.get(here).map(|(_, _, own)| own);
                 let any = to.iter().any(|t| t == "*");
-                let found = own.and_then(|own| {
-                    own.iter()
-                        .find(|(table, ids)| (any || to.contains(table)) && ids.contains(&link.id))
-                        .map(|(table, _)| table.clone())
+                let found = places.get(here).and_then(|held| {
+                    held.tables
+                        .keys()
+                        .find(|table| (any || to.contains(*table)) && held.has(table, &link.id))
+                        .cloned()
                 });
                 match found {
                     Some(table) => (format!("{here}/{table}:{}", link.id), Some(true)),
@@ -257,21 +347,21 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         }
     };
     let mut things = Vec::new();
-    for (id, (dir, mark, own)) in &places {
-        for table in own.keys() {
-            for row in rows(dir, mark, table) {
+    for (id, held) in &places {
+        for (table, rows) in &held.tables {
+            for row in rows {
                 let Some(of) = row.get("id").and_then(|v| v.as_str()) else {
                     continue;
                 };
                 things.push(json!({"id": format!("{id}/{table}:{of}"), "of_table": table, "place": id, "star": short(id),
-                                   "says": in_a_few_words(&row)}));
+                                   "says": in_a_few_words(row)}));
             }
         }
     }
     // every place is a thing too, and what it says of itself is what it is for: so a walk arrives at it
-    for (id, (_, mark, _)) in &places {
+    for (id, held) in &places {
         things.push(json!({"id": format!("{id}/places:{}", short(id)), "of_table": "places", "place": id, "star": short(id),
-                           "says": mark.project.name}));
+                           "says": held.says}));
     }
     let mut edges: BTreeMap<String, serde_json::Value> = BTreeMap::new();
     // an edge: from where, how, to where and whether that holds; the link as written at its far end; and,
@@ -307,7 +397,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                    "level": level}),
         );
     };
-    for (here, (dir, mark, _)) in places
+    for (here, held) in places
         .iter()
         .filter(|(here, _)| only.is_none_or(|o| o == here.as_str()))
     {
@@ -319,7 +409,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             if table == "connections" {
                 continue;
             }
-            for row in rows(dir, mark, table) {
+            for row in held.tables.get(table).into_iter().flatten() {
                 let (Some(value), Some(id)) = (row[field].as_str(), row["id"].as_str()) else {
                     continue;
                 };
@@ -362,7 +452,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
         // what a place gathers, as its mark says: a constellation its stars, an observatory what it looks at
-        for pattern in mark.place.iter().flat_map(|p| p.gathers.iter()) {
+        for pattern in &held.gathers {
             let gathered = |other: &&String| match pattern.strip_suffix("/*") {
                 Some(owner) => other.starts_with(&format!("{owner}/")),
                 None => *other == pattern,
@@ -385,7 +475,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
         let anywhere = ["*".to_string()];
-        for row in rows(dir, mark, "connections") {
+        for row in held.tables.get("connections").into_iter().flatten() {
             let (Some(from), Some(to), Some(how), Some(id)) = (
                 row["from"].as_str(),
                 row["to"].as_str(),
@@ -722,5 +812,71 @@ mod the_top {
             .filter_map(|e| e["to"].as_str())
             .collect();
         assert_eq!(gathered, BTreeSet::from(["o/star/places:star", "p/other/places:other"]), "the one it names, and every one under the owner it names - not what it does not gather");
+    }
+}
+
+#[cfg(test)]
+mod by_any_route {
+    use super::*;
+
+    #[test]
+    fn the_graph_is_made_of_what_was_observed_as_of_what_is_held() {
+        let base = std::env::temp_dir().join(format!("ocoeco-any-route-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        // what an observatory observed of two places: each row names the place it is of
+        std::fs::write(base.join("projects.json"), "{\"id\":\"o/a\",\"name\":\"A: what a is for\",\"also\":{\"feature\":\"features\"},\"gathers\":[\"o/b\"]}\n{\"id\":\"o/b\",\"name\":\"B: what b is for\"}\n").unwrap();
+        std::fs::write(
+            base.join("backlog.json"),
+            "{\"id\":\"a1\",\"project\":\"o/a\",\"serves\":\"o/b/decisions:x\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            base.join("decisions.json"),
+            "{\"id\":\"x\",\"project\":\"o/b\",\"decision\":\"Decided there\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            base.join("features.json"),
+            "{\"id\":\"calls\",\"project\":\"o/a\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            base.join("milestones.json"),
+            "{\"id\":\"m\",\"project\":\"o/a\",\"criteria\":\"feature:calls@best\"}\n",
+        )
+        .unwrap();
+        let graph = as_graph(&[base]).unwrap();
+        let edge = |how: &str| {
+            graph["edges"]
+                .iter()
+                .find(|e| e["how"] == how)
+                .cloned()
+                .unwrap_or_else(|| panic!("no edge {how}"))
+        };
+        assert_eq!(
+            (
+                edge("serves")["to"].as_str(),
+                edge("serves")["holds"].as_bool()
+            ),
+            (Some("o/b/decisions:x"), Some(true)),
+            "a link between two observed places holds"
+        );
+        assert_eq!(
+            (
+                edge("criteria")["to"].as_str(),
+                edge("criteria")["holds"].as_bool()
+            ),
+            (Some("o/a/features:calls"), Some(true)),
+            "by the other name the place says its table goes by"
+        );
+        assert_eq!(
+            edge("gathers")["to"].as_str(),
+            Some("o/b/places:b"),
+            "and what a place gathers is drawn"
+        );
+        assert!(graph["things"]
+            .iter()
+            .any(|t| t["id"] == "o/b/decisions:x" && t["says"] == "Decided there"));
     }
 }
