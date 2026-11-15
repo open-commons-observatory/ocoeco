@@ -40,6 +40,7 @@
 {"id":"decision","term":"decision","means":"A choice taken, with why, and with what was rejected.","not":"A plan or a wish.","see":"concept","decided":"2026-11-11-word-decision"}
 {"id":"decisions","term":"decisions","means":"What was decided, each with why, and what was weighed and not chosen."}
 {"id":"depth","term":"depth","means":"How deep a row is among lenses placed within lenses."}
+{"id":"description","term":"description","means":"What a named thing is or asks, in a sentence: of a practice of the canon, what it says to do.","not":"A field nothing says: the canon's practices say it, and the lens of practices shows them beside the observatory's own."}
 {"id":"documents","term":"documents","means":"What a place has written down, as files meant to be read."}
 {"id":"dome","term":"dome","means":"What a star's shine can be focused onto: the one thing every surface must be able to do - lay out what a lens brought into focus. The core term; plain text, a terminal, Markdown, HTML and CSS, and whatever someone makes later are surfaces - each a dome made real. A lens knows of no surface.","not":"surface (a surface is one dome made real: the dome is what they share); screen, page, output (each names one surface); renderer (a graphics word, and it names a doer where this names what is done upon)","see":"surface, fulldome, lens","decided":"2026-11-12-the-dome-is-the-port"}
 {"id":"done","term":"done","means":"What was done."}
