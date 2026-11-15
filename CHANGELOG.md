@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.1...ocoeco-v0.48.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* where one stands is read as it stands: a place's own lens, beside what it observed ([#300](https://github.com/open-commons-observatory/ocoeco/issues/300)) ([a97b251](https://github.com/open-commons-observatory/ocoeco/commit/a97b251ada4ac468bbdd171ed982d14877b43747))
+
 ## [0.48.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.0...ocoeco-v0.48.1) (2026-11-15)
 
 
