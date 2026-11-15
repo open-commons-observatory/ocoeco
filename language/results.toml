@@ -74,7 +74,15 @@ fields = [
     { name = "at", type = "string" },
     { name = "by", type = "string" },
     { name = "says", type = "string" },
+    { name = "record", type = "string" },
 ]
+
+# a change made through ocoeco is part of the record of work it says the same as: so one walks from why
+# something was decided, to the work, to what changed - and on to the code
+[[relation]]
+from = "commits.record"
+to = ["glimpses"]
+nature = "is part of"
 
 [[relation]]
 from = "glimpses.advances"
