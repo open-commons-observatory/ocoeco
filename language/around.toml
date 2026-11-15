@@ -94,6 +94,26 @@ ORDER BY e.nature, e.how, thing
 """
 line = "{thing} {nature} this{said_as} - {says}"
 
+# and in time: what came just before it and just after, in the same place - a step along the flow, as the
+# parts above are steps along what points at what
+[[focus]]
+title = "in time - what came just before and after it, in the same place ({count})"
+sql = """
+WITH flow AS (
+  SELECT t.id, t.star, t.of_table, t.place, t.says, t."at",
+         row_number() OVER (PARTITION BY t.place ORDER BY t."at", t.id) AS nth
+  FROM things t WHERE t."at" IS NOT NULL
+), me AS (
+  SELECT f.place, f.nth FROM flow f JOIN here h ON f.id = h.id
+)
+SELECT CASE WHEN f.nth < me.nth THEN 'before' ELSE 'after' END AS side,
+       f.star || '/' || f.of_table || ':' || substr(f.id, length(f.place) + length(f.of_table) + 3) AS thing,
+       replace(left(f."at", 16), 'T', ' ') AS at_when, coalesce(f.says, '') AS says
+FROM flow f JOIN me ON f.place = me.place AND f.nth BETWEEN me.nth - 2 AND me.nth + 2 AND f.nth <> me.nth
+ORDER BY f.nth
+"""
+line = "{side}: {at_when} {thing} - {says}"
+
 [[focus]]
 always = true
 sql = """

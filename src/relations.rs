@@ -67,6 +67,43 @@ pub fn links(value: &str) -> Vec<Link> {
 }
 
 /// What a row is, in a few words: the first of its fields that says something.
+/// When a row happened, in words that sort in time: the field its table says dates it, or else its `at`,
+/// or else its `date` - where that is shaped like a day or a moment. A moment kept as a whole number of
+/// seconds is said as a moment. A row that says nothing of when has none.
+pub fn when(row: &serde_json::Value, dated: Option<&str>) -> Option<String> {
+    let shaped = |value: &serde_json::Value| -> Option<String> {
+        match value {
+            serde_json::Value::String(text) => {
+                let (text, b) = (text.trim(), text.trim().as_bytes());
+                (b.len() >= 10
+                    && b[..4].iter().all(u8::is_ascii_digit)
+                    && b[4] == b'-'
+                    && b[5..7].iter().all(u8::is_ascii_digit)
+                    && b[7] == b'-'
+                    && b[8..10].iter().all(u8::is_ascii_digit))
+                .then(|| text.to_string())
+            }
+            serde_json::Value::Number(n) => n
+                .as_i64()
+                .filter(|secs| (1_000_000_000..100_000_000_000).contains(secs))
+                .map(|secs| {
+                    format!(
+                        "{}T{:02}:{:02}:{:02}Z",
+                        crate::gather::day(secs / 86_400),
+                        secs % 86_400 / 3_600,
+                        secs % 3_600 / 60,
+                        secs % 60
+                    )
+                }),
+            _ => None,
+        }
+    };
+    dated
+        .into_iter()
+        .chain(["at", "date"])
+        .find_map(|field| row.get(field).and_then(shaped))
+}
+
 pub fn in_a_few_words(row: &serde_json::Value) -> String {
     let said = [
         "title", "what", "decision", "term", "says", "question", "name", "text", "practice",
@@ -388,6 +425,14 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         .map(|lenses| lenses.into_iter().flat_map(|lens| lens.relation).collect())
         .unwrap_or_else(|_| relations().to_vec());
     let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
+    // which field dates a row of each table, where the lens that defines the table says so: a thing says
+    // when by it, so that what is in view has time in it - before and after, not only what points at what
+    let dated: BTreeMap<String, String> = crate::lenses::with(dirs)
+        .unwrap_or_default()
+        .iter()
+        .flat_map(|lens| lens.tables.iter())
+        .filter_map(|(name, table)| Some((name.clone(), table.get("dated")?.as_str()?.to_string())))
+        .collect();
     // where a link points, from the place that holds it, and whether that is there
     let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
         // a table may be written by another name its place knows it by: a name is not the place
@@ -442,7 +487,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     continue;
                 };
                 things.push(json!({"id": format!("{id}/{table}:{of}"), "of_table": table, "place": id, "star": short(id),
-                                   "says": in_a_few_words(row)}));
+                                   "says": in_a_few_words(row), "at": when(row, dated.get(table).map(String::as_str))}));
             }
         }
     }
@@ -1249,5 +1294,85 @@ mod once_in_a_look {
             2,
             "and where no look is under way, nothing is kept"
         );
+    }
+}
+
+#[cfg(test)]
+mod a_thing_says_when {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_row_says_when_by_what_dates_it_or_its_moment_or_its_day() {
+        // the field its table says dates it comes first; then its moment; then its day
+        assert_eq!(
+            when(
+                &json!({"opened": "2026-01-02", "at": "2026-03-04T05:06:07Z"}),
+                Some("opened")
+            )
+            .as_deref(),
+            Some("2026-01-02")
+        );
+        assert_eq!(
+            when(
+                &json!({"at": "2026-03-04T05:06:07Z", "date": "2026-01-01"}),
+                None
+            )
+            .as_deref(),
+            Some("2026-03-04T05:06:07Z")
+        );
+        assert_eq!(
+            when(&json!({"date": "2026-01-01"}), None).as_deref(),
+            Some("2026-01-01")
+        );
+        // a moment kept as seconds is said as a moment, so that all of them sort as one
+        assert_eq!(
+            when(&json!({"at": 1_700_000_000}), None).as_deref(),
+            Some("2023-11-14T22:13:20Z")
+        );
+        // what is not shaped like a day or a moment is not when: a field may be called at and say where
+        assert_eq!(when(&json!({"at": "the lab, and GitHub"}), None), None);
+        assert_eq!(when(&json!({"at": 7}), None), None);
+        assert_eq!(
+            when(&json!({"title": "no word of when"}), Some("opened")),
+            None
+        );
+    }
+
+    #[test]
+    fn the_things_of_a_place_say_when_and_so_can_be_told_in_order() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-when-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nglimpses = \"data/glimpses.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/backlog.json"),
+            "{\"id\":\"a\",\"title\":\"A\",\"status\":\"next\",\"opened\":\"2026-01-02\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("data/glimpses.json"), "{\"id\":\"g1\",\"at\":\"2026-01-03T10:00:00Z\",\"summary\":\"did it\",\"kind\":\"feat\",\"by\":\"x\"}\n").unwrap();
+        let graph = as_graph(std::slice::from_ref(&d)).unwrap();
+        let at = |id: &str| {
+            graph["things"]
+                .iter()
+                .find(|t| t["id"] == id)
+                .unwrap()
+                .get("at")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null)
+        };
+        assert_eq!(
+            at("o/p/backlog:a"),
+            "2026-01-02",
+            "an item, by when it was opened - what its table says dates it"
+        );
+        assert_eq!(
+            at("o/p/glimpses:g1"),
+            "2026-01-03T10:00:00Z",
+            "a record of work, by its moment"
+        );
+        assert!(at("o/p/places:p").is_null(), "a place says nothing of when");
     }
 }

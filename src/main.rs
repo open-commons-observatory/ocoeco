@@ -221,6 +221,10 @@ enum Cmd {
         /// Say only what is new in view since the focus kept in FILE, and keep this one there
         #[arg(long)]
         since: Option<std::path::PathBuf>,
+        /// Do not end: show it again as what it shows changes - on a screen the whole anew, elsewhere
+        /// only what newly came into view. Idle, it waits without load
+        #[arg(long)]
+        follow: bool,
     },
     /// Lay a site out: every page the lens says there is, each on the surface, written under OUT. A site
     /// is said by a lens - each row of what it brings names a page: where it is written (path), what it
@@ -708,6 +712,7 @@ fn run() -> Result<()> {
             observed,
             since,
             beam,
+            follow,
         } => {
             let places = match (observed, root) {
                 (Some(observed), _) => vec![observed],
@@ -716,6 +721,42 @@ fn run() -> Result<()> {
                 )),
                 (None, None) => ocoeco::board::in_view(&dir).0,
             };
+            // a look that does not end: the same look, asked again whenever what is in view has changed -
+            // the files the places keep, what git has of them, where the drivers stand. On a screen the
+            // whole is shown anew; elsewhere, only the lines that newly came into view. Idle, it only waits
+            if follow {
+                use std::io::{IsTerminal, Write};
+                let again: Vec<String> = std::env::args()
+                    .skip(1)
+                    .filter(|a| a != "--follow")
+                    .collect();
+                let on_a_screen = std::io::stdout().is_terminal();
+                let (mut seen, mut shown): (Option<u128>, String) = (None, String::new());
+                loop {
+                    let now = Some(as_it_stands(&places));
+                    if now != seen {
+                        seen = now;
+                        let asked = std::process::Command::new(std::env::current_exe()?)
+                            .args(&again)
+                            .output()?;
+                        let said = String::from_utf8_lossy(&asked.stdout).to_string();
+                        if said != shown {
+                            if on_a_screen {
+                                print!("\x1b[2J\x1b[H{said}");
+                            } else {
+                                let before: std::collections::BTreeSet<&str> =
+                                    shown.lines().collect();
+                                for line in said.lines().filter(|line| !before.contains(line)) {
+                                    println!("{line}");
+                                }
+                            }
+                            std::io::stdout().flush()?;
+                            shown = said;
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            }
             let today = std::process::Command::new("date")
                 .arg("+%F")
                 .output()
@@ -1159,4 +1200,58 @@ fn run() -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// What is in view, as it stands now, in one number: every file the places keep their tables in, what git
+/// has of each place, and where the drivers stand - each by when it last changed and how long it is. Two
+/// numbers that differ mean something in view has changed; reading it is cheap, so waiting costs nothing.
+fn as_it_stands(places: &[std::path::PathBuf]) -> u128 {
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for place in places {
+        match std::fs::read_to_string(place.join("oco.toml"))
+            .ok()
+            .and_then(|text| ocoeco::mark::Mark::parse(&text).ok())
+        {
+            Some(mark) => {
+                files.extend(
+                    mark.exports
+                        .values()
+                        .map(|path| place.join(path.split('@').next().unwrap_or(path))),
+                );
+                files.extend(
+                    ["oco.toml", ".git/HEAD", ".git/index", ".git/FETCH_HEAD"]
+                        .map(|f| place.join(f)),
+                );
+            }
+            // what was observed: a folder of tables
+            None => files.extend(
+                std::fs::read_dir(place)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|e| e.ok().map(|e| e.path())),
+            ),
+        }
+    }
+    if let Some(home) = std::env::var_os("HOME") {
+        let trail = std::path::Path::new(&home).join(".local/share/ocoeco/trail");
+        files.extend(
+            std::fs::read_dir(trail)
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e.ok().map(|e| e.path())),
+        );
+    }
+    files
+        .iter()
+        .filter_map(|file| std::fs::metadata(file).ok())
+        .fold(0u128, |all, meta| {
+            let changed = meta
+                .modified()
+                .ok()
+                .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+                .map_or(0, |d| d.as_nanos());
+            all.wrapping_mul(1_000_003)
+                .wrapping_add(changed)
+                .wrapping_add(meta.len() as u128)
+        })
 }

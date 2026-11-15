@@ -742,6 +742,7 @@ mod tests {
                 "around",
                 "as-page",
                 "as-text",
+                "flow",
                 "fulldome",
                 "graph",
                 "insight",
