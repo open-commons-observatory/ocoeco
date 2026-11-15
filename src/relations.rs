@@ -226,6 +226,32 @@ impl Held {
     }
 }
 
+/// Since when the stretch under way has run, and how long each stretch before it took.
+type Stretches = (Option<std::time::Instant>, Vec<(&'static str, u128)>);
+
+thread_local! {
+    /// While the graph is being made, its stretches: so that a look can say where the graph's time went.
+    static STRETCHES: std::cell::RefCell<Stretches> = Default::default();
+}
+
+/// A stretch of the graph's making has ended: how long it took is kept under its name, and the next
+/// begins. Says nothing where no graph is being made.
+fn stretch(name: &'static str) {
+    STRETCHES.with(|kept| {
+        let mut kept = kept.borrow_mut();
+        let now = std::time::Instant::now();
+        if let Some(since) = kept.0.replace(now) {
+            kept.1.push((name, now.duration_since(since).as_millis()));
+        }
+    });
+}
+
+/// How long each stretch of making the graph took, the last time it was made in this run: by name, in
+/// thousandths of a second, in the order they came.
+pub fn stretches() -> Vec<(&'static str, u128)> {
+    STRETCHES.with(|kept| kept.borrow().1.clone())
+}
+
 /// The places among these folders, by their id: each folder with a mark is one; a folder of what was
 /// observed holds many, each row naming the place it is of.
 pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
@@ -303,6 +329,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             );
         }
     }
+    stretch("the marks read");
     // and the rows of each, as the ways in give them: each once, with the place it is of
     for table in tables {
         for (place, row) in crate::routes::rows_by_place(&table, dirs) {
@@ -314,6 +341,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             }
         }
     }
+    stretch("what the places keep, read");
     // and the language: the rows the program makes of every lens in view are kept where the lens is - a
     // lens a place brings, in that place; a lens built into the program, in the program's own place where
     // that is in view. So a lens is a thing to point at as it is a thing to stand on.
@@ -338,6 +366,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             }
         }
     }
+    stretch("the language, as rows");
     // and what a route reads - a commit, a guard, a file of source: things like any other, read where the
     // place is held. Of what was observed they are among its tables already, and are not added twice.
     let routes: Vec<crate::lenses::Route> = crate::lenses::with(dirs)
@@ -365,6 +394,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             );
         }
     }
+    stretch("what the routes read");
     // what each place has, by table and id - made once, now that all its rows are read
     for held in places.values_mut() {
         held.ids = held
@@ -380,6 +410,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
             })
             .collect();
     }
+    stretch("kept by id");
     places
 }
 
@@ -436,6 +467,8 @@ impl Drop for OneLook {
 /// place holds, followed into the others. The check and the guard on writes read it this way.
 pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     use serde_json::json;
+    // the making of the graph is timed, stretch by stretch, from here
+    STRETCHES.with(|kept| *kept.borrow_mut() = (Some(std::time::Instant::now()), Vec::new()));
     let places = held(dirs);
     // the relations of every lens in view - those built in, and those a place brings: a relation is a
     // relation whoever declares it
@@ -497,6 +530,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
     };
+    stretch("the lenses in view, for their relations and what dates a row");
     let mut things = Vec::new();
     for (id, held) in &places {
         for (table, rows) in &held.tables {
@@ -514,6 +548,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         things.push(json!({"id": format!("{id}/places:{}", short(id)), "of_table": "places", "place": id, "star": short(id),
                            "says": held.says}));
     }
+    stretch("the things");
     let mut edges: BTreeMap<String, serde_json::Value> = BTreeMap::new();
     // an edge: from where, how, to where and whether that holds; the link as written at its far end; and,
     // for a connection, the one it came through and whether its near end holds as well
@@ -661,6 +696,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
     // links: a part is part of its lens, rests on the tables and shapes it asks of, and places another
     // lens; an entry is for the table it fills; a lens rests on what it reads. So one stands on a lens
     // as on anything, and walks from what is laid out back to all it was made of.
+    stretch("the links");
     if only.is_none() {
         type Row = serde_json::Map<String, serde_json::Value>;
         let language = crate::lenses::as_rows(dirs).unwrap_or_default();
@@ -817,16 +853,21 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
     }
+    stretch("the language, as things and links");
     let rows_of = |values: Vec<serde_json::Value>| {
         values
             .into_iter()
             .filter_map(|v| v.as_object().cloned())
             .collect::<Vec<_>>()
     };
-    Ok(BTreeMap::from([
+    let made = BTreeMap::from([
         ("things", rows_of(things)),
         ("edges", rows_of(edges.into_values().collect())),
-    ]))
+    ]);
+    stretch("laid out as rows");
+    // the timing ends here: what is read afterwards is not the graph's making
+    STRETCHES.with(|kept| kept.borrow_mut().0 = None);
+    Ok(made)
 }
 
 /// Runs `write` on the place at `dir`, refusing what it wrote if it adds a link that points nowhere: the
