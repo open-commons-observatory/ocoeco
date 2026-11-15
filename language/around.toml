@@ -7,8 +7,20 @@
 # it is held, its table, its id - the place in full, or by its star.
 [lens]
 id = "around"
-says = "From one thing: where it is held, what it points at and what points at it, each by how - a step away in every direction; from a place, what it holds and reaches for. Looked through from a thing: around@star/table:id."
-reads = ["edges", "things"]
+says = "From one thing: the thing itself, in full; where it is held, what it points at and what points at it, each by how - a step away in every direction; from a place, what it holds and reaches for. Looked through from a thing: around@star/table:id."
+reads = ["edges", "things", "in_full", "lens_fields"]
+
+# The thing one stands on, in full: a row for each field it carries, as it is kept. Given by the program
+# for the thing stood on, by whatever route its rows come: no place keeps it.
+[tables.in_full]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "of_table", type = "string" },
+    { name = "field", type = "string" },
+    { name = "value", type = "string" },
+]
 
 # Where one stands: the thing of that name. One shape, named, that the parts below ask of.
 [[focus]]
@@ -25,6 +37,20 @@ sql = """
 SELECT thing, says FROM here ORDER BY thing
 """
 line = "{thing} - {says}"
+
+# The thing itself, in full: each field it carries, as it is kept - in the order its table declares them;
+# fields that hold the same are said together. What it points at is said again below, by the nature of the
+# pointing: here are its own words.
+[[focus]]
+title = "itself, in full ({count})"
+sql = """
+SELECT string_agg(i.field, ', ' ORDER BY coalesce(f.ordinal, 1000), i.field) AS field, i.value
+FROM in_full i
+LEFT JOIN (SELECT of_table, name, min(ordinal) AS ordinal FROM lens_fields GROUP BY of_table, name) f
+     ON f.of_table = i.of_table AND f.name = i.field
+GROUP BY i.value ORDER BY min(coalesce(f.ordinal, 1000)), min(i.field)
+"""
+line = "{field}: {value}"
 
 # Every thing is held in a place, and a place says what it is for: one step up from anything.
 [[focus]]

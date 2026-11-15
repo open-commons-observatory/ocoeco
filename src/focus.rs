@@ -120,6 +120,10 @@ pub fn pages_are(pages: std::collections::BTreeMap<String, String>) {
 /// The table a surface reads: what another lens brings into focus, as rows.
 pub const OF_A_PLANE: &str = "plane";
 
+/// The table that holds the thing one stands on, in full: a row for each field it carries, as it is kept.
+/// No place keeps it: it is made for a lens looked through from a thing, of that thing alone.
+pub const IN_FULL: &str = "in_full";
+
 /// Whether a lens is a surface: it reads a plane, and lays it out.
 pub fn lays_out_a_plane(lens: &Lens) -> bool {
     lens.lens.reads.iter().any(|table| table == OF_A_PLANE) || lens.tables.contains_key(OF_A_PLANE)
@@ -228,6 +232,7 @@ fn gather(
     dirs: &[PathBuf],
     into: &Path,
     plane: Option<&[Map<String, Value>]>,
+    here: Option<&str>,
 ) -> Result<tad::Declaration> {
     std::fs::create_dir_all(into)?;
     let mut tables = toml::Table::new();
@@ -281,10 +286,15 @@ fn gather(
         let routed = routes.iter().find(|route| route.table == *table);
         // and the plane a surface lays out: the rows of what another lens brings into focus
         let of_a_plane = table == OF_A_PLANE;
-        let own = language || graph || kept || routed.is_some() || of_a_plane;
+        // and the thing one stands on, in full: the rows of what it carries, where one stands on a thing
+        let of_here = table == IN_FULL;
+        let own = language || graph || kept || routed.is_some() || of_a_plane || of_here;
         if own {
             let made = if of_a_plane {
                 plane.map(<[_]>::to_vec).unwrap_or_default()
+            } else if of_here {
+                here.map(|here| in_full(here, among, dirs))
+                    .unwrap_or_default()
             } else if let Some(route) = routed {
                 crate::routes::read(route, dirs)
                     .into_iter()
@@ -515,9 +525,86 @@ pub struct Brought {
 /// What the lens `lens` brings into focus of the places at `dirs`, as of `today` (YYYY-MM-DD): its parts.
 /// Whether a lens says anything of where one stands.
 pub fn says_here(lens: &Lens) -> bool {
-    lens.focus.iter().any(|p| {
-        p.sql.contains("{here}") || p.title.as_deref().is_some_and(|t| t.contains("{here}"))
-    })
+    // a lens that reads the thing stood on, in full, is looked through from a thing too
+    lens.lens.reads.iter().any(|read| read == IN_FULL)
+        || lens.focus.iter().any(|p| {
+            p.sql.contains("{here}") || p.title.as_deref().is_some_and(|t| t.contains("{here}"))
+        })
+}
+
+/// Every answer a focus holds: those of its own parts, and of every part of a lens placed in it - so that
+/// what a lens of lenses places is read as its own.
+pub fn every_answer(parts: &[Brought]) -> Vec<&Map<String, Value>> {
+    parts
+        .iter()
+        .flat_map(|part| part.values.iter().chain(every_answer(&part.within)))
+        .collect()
+}
+
+/// The thing of that name in full - where it is held, its table, its id; the place in full or by its
+/// star: each field its row carries that says something, as it is kept. By whatever route its rows come:
+/// read from a surface, said by the lenses, or kept by a place. Nothing where the name is the name of no
+/// one thing in view.
+fn in_full(here: &str, among: &[Lens], dirs: &[PathBuf]) -> Vec<Map<String, Value>> {
+    let Some((held, id)) = here.split_once(':') else {
+        return Vec::new();
+    };
+    let Some((place, table)) = held.rsplit_once('/') else {
+        return Vec::new();
+    };
+    let star = |name: &str| name.rsplit('/').next().unwrap_or(name).to_string();
+    let rows: Vec<(String, Map<String, Value>)> = if let Some(route) = among
+        .iter()
+        .flat_map(|l| l.route.iter())
+        .find(|r| r.table == table)
+    {
+        crate::routes::read(route, dirs)
+    } else if crate::lenses::OF_THE_LANGUAGE.contains(&table) {
+        crate::lenses::as_rows(dirs)
+            .ok()
+            .and_then(|mut rows| rows.remove(table))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|row| {
+                let at = row
+                    .get("star")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                (at, row)
+            })
+            .collect()
+    } else {
+        crate::routes::rows_by_place(table, dirs)
+    };
+    // the one row so named: by its place in full, or by its star where that is how it was named
+    let mut found = rows.into_iter().filter(|(at, row)| {
+        (at == place || (star(at) == star(place) && !(at.contains('/') && place.contains('/'))))
+            && row.get("id").and_then(Value::as_str) == Some(id)
+    });
+    let (Some((_, row)), None) = (found.next(), found.next()) else {
+        return Vec::new();
+    };
+    row.iter()
+        .filter(|(field, value)| {
+            !matches!(field.as_str(), "id" | "star" | "seq" | "project")
+                && !value.is_null()
+                && value.as_str() != Some("")
+        })
+        .enumerate()
+        .map(|(at, (field, value))| {
+            let said = value
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| value.to_string());
+            Map::from_iter([
+                ("id".to_string(), Value::from((at + 1).to_string())),
+                ("of_table".to_string(), Value::from(table)),
+                ("field".to_string(), Value::from(field.as_str())),
+                ("value".to_string(), Value::from(said)),
+            ])
+        })
+        .collect()
 }
 
 /// The place of that name among those in view: by its id, by its star, or as the graph names it as a thing.
@@ -830,7 +917,7 @@ fn brought_anew(
         let load = with_shapes(
             &tad::sql::load_script(
                 &scratch,
-                &gather(&wide, &all, dirs, &scratch, plane.as_deref())?,
+                &gather(&wide, &all, dirs, &scratch, plane.as_deref(), here)?,
             ),
             &wide,
             today,
@@ -1267,7 +1354,7 @@ pub fn beam(
     let traced = (|| -> Result<Vec<Brought>> {
         let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, &all, dirs, &scratch, None)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, &all, dirs, &scratch, None, here)?),
             &wide,
             today,
         );
@@ -1312,6 +1399,8 @@ pub fn beam(
                             format!("{t} - {rows} rows made from the links between what is in view, now")
                         } else if crate::kept::OF_THE_KEPT.contains(&t.as_str()) {
                             format!("{t} - {rows} rows made from every row in view, now")
+                        } else if t.as_str() == IN_FULL {
+                            format!("{t} - {rows} rows: the thing stood on, each field as it is kept")
                         } else if let Some(route) = all.iter().flat_map(|l| l.route.iter()).find(|r| r.table == *t) {
                             // read where the places are held, now - or, of what was observed, when it was
                             match dirs.iter().map(|dir| crate::routes::route(dir)).find(|(by, _)| *by == crate::routes::OBSERVED) {
@@ -1579,7 +1668,7 @@ pub fn shape_among(lens: &Lens, among: &[Lens], engine: &dyn SqlEngine) -> Resul
         // the lens's tables, and those it reads, with nothing in them
         let wide = widened(lens, among);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, among, &[], &scratch, None)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, among, &[], &scratch, None, None)?),
             &wide,
             "2026-01-01",
         );
@@ -2059,6 +2148,84 @@ mod tests {
             lacking.contains("reads kept-nowhere") && lacking.contains("no lens in view"),
             "{lacking}"
         );
+    }
+
+    #[test]
+    fn a_lens_looked_through_from_a_thing_is_given_that_thing_in_full() {
+        /// An engine that answers nothing: what is looked at here is what the lens is given.
+        struct Nothing;
+        impl SqlEngine for Nothing {
+            fn run(&self, _script: &str, _format: &str) -> Result<String> {
+                Ok("[]".into())
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-in-full-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"x\",\"why\":\"for a reason\",\"left\":\"\"}\n{\"id\":\"b\",\"n\":\"y\"}\n",
+        )
+        .unwrap();
+        std::fs::write(d.join("lenses/keeper.toml"), "[lens]\nid = \"keeper\"\nsays = \"Declares the notes.\"\n[tables.notes]\nkey = [\"id\"]\nextra_fields = true\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n[[focus]]\ntitle = \"kept ({count})\"\nsql = \"SELECT n FROM notes\"\nline = \"{n}\"\n").unwrap();
+        std::fs::write(d.join("lenses/whole.toml"), "[lens]\nid = \"whole\"\nsays = \"The thing stood on, in full.\"\nreads = [\"in_full\"]\n[[focus]]\ntitle = \"itself ({count})\"\nsql = \"SELECT field, value FROM in_full\"\nline = \"{field}: {value}\"\n").unwrap();
+        let places = [d.clone()];
+        let all = crate::lenses::with(&places).unwrap();
+        // named by its place in full or by its star: each field that says something, as it is kept
+        for name in ["o/r/notes:a", "r/notes:a"] {
+            let said: Vec<(String, String)> = in_full(name, &all, &places)
+                .iter()
+                .map(|row| {
+                    (
+                        row["field"].as_str().unwrap().to_string(),
+                        row["value"].as_str().unwrap().to_string(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                said,
+                [
+                    ("n".to_string(), "x".to_string()),
+                    ("why".to_string(), "for a reason".to_string())
+                ],
+                "{name}"
+            );
+        }
+        assert!(in_full("r/notes:nothing-so-called", &all, &places).is_empty());
+        // a lens that reads it is looked through from a thing, and is given that thing
+        let whole = all.iter().find(|l| l.lens.id == "whole").unwrap();
+        assert!(says_here(whole));
+        let light = beam("whole@r/notes:a", &places, "2026-11-15", &Nothing).unwrap();
+        assert_eq!(
+            light[0].lines,
+            ["in_full - 2 rows: the thing stood on, each field as it is kept"]
+        );
+    }
+
+    #[test]
+    fn every_answer_of_a_focus_is_its_own_and_those_of_what_is_placed_in_it() {
+        let answer = |n: &str| Map::from_iter([("n".to_string(), Value::from(n))]);
+        let placed = Brought {
+            values: vec![answer("placed")],
+            ..Default::default()
+        };
+        let parts = [
+            Brought {
+                values: vec![answer("own")],
+                ..Default::default()
+            },
+            Brought {
+                within: vec![placed],
+                ..Default::default()
+            },
+        ];
+        let said: Vec<&str> = every_answer(&parts)
+            .iter()
+            .filter_map(|a| a["n"].as_str())
+            .collect();
+        assert_eq!(said, ["own", "placed"]);
     }
 
     #[test]
