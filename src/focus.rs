@@ -877,6 +877,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             line: "*".into(),
             places: None,
             only: None,
+            through: None,
             measure: None,
             of: None,
             whole: None,
@@ -1062,6 +1063,19 @@ fn brought_anew(
                     }
                     continue;
                 }
+                // the lens behind: one in view that reads a plane - said where it is not, and the rest shown
+                if let Some(behind) = part.through.as_deref().filter(|behind| {
+                    !all.iter()
+                        .any(|l| l.lens.id == *behind && lays_out_a_plane(l))
+                }) {
+                    parts.push(Brought {
+                        title: Some(format!(
+                            "{other}, through {behind}: {behind} is no lens in view that reads a plane"
+                        )),
+                        ..Default::default()
+                    });
+                    continue;
+                }
                 for placed in placing {
                     thread_local!(static DEEP: std::cell::Cell<u8> = const { std::cell::Cell::new(0) });
                     if DEEP.get() > 8 {
@@ -1072,6 +1086,13 @@ fn brought_anew(
                     let from = match here {
                         Some(here) if says_here(placed) => format!("{}@{here}", placed.lens.id),
                         _ => placed.lens.id.clone(),
+                    };
+                    // seen through the lens behind it, where the part names one: that lens is given what
+                    // the placed one brings into focus, as its plane, and lays out - or leaves out - what
+                    // it will
+                    let from = match &part.through {
+                        Some(behind) => format!("{behind}@{from}"),
+                        None => from,
                     };
                     let theirs = brought(&from, dirs, today, engine);
                     DEEP.set(DEEP.get() - 1);
@@ -1110,7 +1131,12 @@ fn brought_anew(
                             }
                             parts.push(Brought {
                                 title: Some(placed.lens.id.clone()),
-                                about: Some(placed.lens.says.clone()),
+                                about: Some(match &part.through {
+                                    Some(behind) => {
+                                        format!("{} - seen through {behind}", placed.lens.says)
+                                    }
+                                    None => placed.lens.says.clone(),
+                                }),
                                 within,
                                 nothing_because,
                                 of_every: other == "*",
@@ -2318,6 +2344,82 @@ mod tests {
             light[0].lines,
             ["in_full - 2 rows: the thing stood on, each field as it is kept"]
         );
+    }
+
+    #[test]
+    fn a_placed_lens_is_seen_through_the_lens_behind_it() {
+        let d = std::env::temp_dir().join(format!("ocoeco-through-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"kept\"}\n{\"id\":\"b\",\"n\":\"left out\"}\n",
+        )
+        .unwrap();
+        // a lens that shows the notes; a lens behind it, that leaves out some of what it shows; a third
+        // that places the first, seen through the second - and one that names a lens that reads no plane
+        std::fs::write(d.join("lenses/notes.toml"), "[lens]\nid = \"notes\"\nsays = \"The notes.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n[[focus]]\ntitle = \"notes ({count})\"\nsql = \"SELECT id, n FROM notes ORDER BY id\"\nline = \"{id} - {n}\"\n").unwrap();
+        std::fs::write(d.join("lenses/behind.toml"), "[lens]\nid = \"behind\"\nsays = \"What a lens shows, but for what is left out.\"\nreads = [\"plane\"]\n[[focus]]\ntitle = \"still shown ({count})\"\nsql = \"SELECT says, thing FROM plane WHERE kind = 'line' AND says NOT LIKE '%left out%' ORDER BY seq\"\nline = \"{says}\"\n").unwrap();
+        std::fs::write(d.join("lenses/both.toml"), "[lens]\nid = \"both\"\nsays = \"The notes, seen through the lens behind them.\"\n[[focus]]\nplaces = \"notes\"\nthrough = \"behind\"\n").unwrap();
+        std::fs::write(d.join("lenses/astray.toml"), "[lens]\nid = \"astray\"\nsays = \"The notes, through a lens that reads no plane.\"\n[[focus]]\nplaces = \"notes\"\nthrough = \"notes\"\n").unwrap();
+        let dirs = [d.clone()];
+        // the arrangement is in the graph, engine or none: the part places one lens, and is seen through
+        // another
+        let graph = crate::relations::as_graph(&dirs).unwrap();
+        let links: Vec<(String, String)> = graph["edges"]
+            .iter()
+            .filter(|e| e.get("from").and_then(|v| v.as_str()) == Some("o/r/lens_parts:both/1"))
+            .map(|e| {
+                let said = |key: &str| {
+                    e.get(key)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string()
+                };
+                (said("nature"), said("to"))
+            })
+            .collect();
+        assert!(
+            links.contains(&("places".to_string(), "o/r/lenses:notes".to_string()))
+                && links.contains(&(
+                    "is seen through".to_string(),
+                    "o/r/lenses:behind".to_string()
+                )),
+            "{links:?}"
+        );
+        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: a lens behind a lens is held where there is one");
+            return;
+        };
+        let parts = brought("both", &dirs, "2026-01-02", &engine).unwrap();
+        let shown: Vec<&str> = parts[0]
+            .within
+            .iter()
+            .flat_map(|p| p.lines.iter().map(String::as_str))
+            .collect();
+        assert_eq!(
+            shown,
+            ["a - kept"],
+            "what the lens behind leaves out is not shown"
+        );
+        assert_eq!(parts[0].title.as_deref(), Some("notes"));
+        assert!(parts[0]
+            .about
+            .as_deref()
+            .is_some_and(|about| about.ends_with("seen through behind")));
+        let astray = brought("astray", &dirs, "2026-01-02", &engine).unwrap();
+        assert!(
+            astray[0]
+                .title
+                .as_deref()
+                .is_some_and(|said| said.contains("reads a plane")),
+            "{:?}",
+            astray[0].title
+        );
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

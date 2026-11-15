@@ -849,6 +849,16 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             if !placed.is_empty() && placed != "*" {
                 link(from.clone(), "places", lens_thing(&placed), "places");
             }
+            // and the lens it is seen through: the lens behind what it places
+            let behind = said(part, "through");
+            if !behind.is_empty() {
+                link(
+                    from.clone(),
+                    "through",
+                    lens_thing(&behind),
+                    "is seen through",
+                );
+            }
             let query = said(part, "query");
             for table in of_kind("lens_tables") {
                 if crate::focus::names_table(&query, &said(&table, "name")) {
