@@ -248,6 +248,8 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
         let Some(thing) = row.get("thing").and_then(Value::as_str).map(str::to_string) else {
             continue;
         };
+        // one mark for one thing, by whichever of its names a line says it
+        let thing = named.names_of(&thing).into_iter().next().unwrap_or(thing);
         let at = match marked.iter().position(|one| *one == thing) {
             Some(at) => at,
             None => {
