@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.41.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.1...ocoeco-v0.41.2) (2026-11-15)
+
+
+### Performance Improvements
+
+* git is asked once for a commit; the graph says where its making went ([#264](https://github.com/open-commons-observatory/ocoeco/issues/264)) ([8f6da51](https://github.com/open-commons-observatory/ocoeco/commit/8f6da5135da67d9e056ca9ff8d645a014944dba6))
+* the parts of a lens ask the engine in one go: what it gathered is loaded once ([#266](https://github.com/open-commons-observatory/ocoeco/issues/266)) ([5e5cf63](https://github.com/open-commons-observatory/ocoeco/commit/5e5cf63dc64aaa7d731da749e8b706b53556d4a9))
+
 ## [0.41.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.0...ocoeco-v0.41.1) (2026-11-15)
 
 
