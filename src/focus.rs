@@ -164,6 +164,24 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
                 // and what it is laid out once for each of, where it is one of several parts of one kind
                 if let Some(per) = &part.per {
                     heading.insert("per".into(), per.clone().into());
+                    // and the thing it is laid out for, where its value names one - the thing of that
+                    // name, or the place of that star: so that a surface can lead there from the heading
+                    let value = part
+                        .values
+                        .first()
+                        .and_then(|answer| answer.get(per))
+                        .and_then(|v| v.as_str());
+                    if let Some(thing) = value.and_then(|v| {
+                        named
+                            .known(v)
+                            .or_else(|| named.known(&format!("{v}/places:{v}")))
+                    }) {
+                        if let Some(page) = PAGES.with(|pages| pages.borrow().get(&thing).cloned())
+                        {
+                            heading.insert("page".into(), page.into());
+                        }
+                        heading.insert("thing".into(), thing.into());
+                    }
                 }
                 into.push(heading);
             }
@@ -2595,6 +2613,50 @@ mod how_a_part_came_to_be_placed {
                 Value::Null
             ],
             "a part laid out once for each star says so; a part laid out once says nothing of it"
+        );
+    }
+}
+
+#[cfg(test)]
+mod a_heading_leads_to_what_it_is_for {
+    use super::*;
+
+    #[test]
+    fn a_part_laid_out_for_each_star_is_headed_by_that_star_and_leads_to_its_page() {
+        let mut named = Named::default();
+        named
+            .whole
+            .insert("o/a/places:a".into(), "a/places:a".into());
+        named
+            .short
+            .insert("a/places:a".into(), Some("o/a/places:a".into()));
+        let laid_for = |column: &str, value: &str| Brought {
+            title: Some(value.into()),
+            lines: vec!["a line".into()],
+            values: vec![Map::from_iter([(column.to_string(), Value::from(value))])],
+            per: Some(column.into()),
+            ..Default::default()
+        };
+        pages_are(std::collections::BTreeMap::from([(
+            "a/places:a".to_string(),
+            "places/o/a.html".to_string(),
+        )]));
+        let plane = as_plane(&[laid_for("star", "a"), laid_for("status", "next")], &named);
+        pages_are(Default::default());
+        let headings: Vec<(Option<&str>, Option<&str>)> = plane
+            .iter()
+            .filter(|row| row["kind"] == "heading")
+            .map(|row| {
+                (
+                    row.get("thing").and_then(|t| t.as_str()),
+                    row.get("page").and_then(|p| p.as_str()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            headings,
+            [(Some("a/places:a"), Some("places/o/a.html")), (None, None)],
+            "a star's part is headed by its place, and leads to its page; a state names no thing"
         );
     }
 }
