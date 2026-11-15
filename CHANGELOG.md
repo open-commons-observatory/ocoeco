@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.51.0...ocoeco-v0.52.0) (2026-11-15)
+
+
+### Features
+
+* a lens reads what any lens in view declares; a change says when in one clock ([#310](https://github.com/open-commons-observatory/ocoeco/issues/310)) ([c84d737](https://github.com/open-commons-observatory/ocoeco/commit/c84d737109da0adbef1fc5d487337eaa02a75edb))
+
 ## [0.51.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.50.0...ocoeco-v0.51.0) (2026-11-15)
 
 
