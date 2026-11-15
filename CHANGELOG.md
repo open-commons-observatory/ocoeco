@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.52.0...ocoeco-v0.53.0) (2026-11-15)
+
+
+### Features
+
+* a thing in full where one stands on it; a site places the pages a place offers ([#312](https://github.com/open-commons-observatory/ocoeco/issues/312)) ([5f8690b](https://github.com/open-commons-observatory/ocoeco/commit/5f8690bc2a4eb509b6a356412627cb91faae41c9))
+
 ## [0.52.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.51.0...ocoeco-v0.52.0) (2026-11-15)
 
 
