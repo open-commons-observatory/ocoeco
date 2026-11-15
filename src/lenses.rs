@@ -142,6 +142,23 @@ pub struct Part {
     /// voice that carries what is new reads it, and decides nothing itself.
     #[serde(default)]
     pub urgent: bool,
+    /// The id it is known by - what a record of work points at. A lens kept as rows names each part by the
+    /// id its row is kept as; a lens read from its file, by where the part stands in it (lens/2). Never
+    /// written in a file: a file's order is its parts' names.
+    #[serde(skip)]
+    pub id: String,
+}
+
+/// A lens read from its file knows each part by where it stands: its own id and the part's place among
+/// its parts. A lens kept as rows knows each by the id its row is kept as, and is not renamed here.
+fn named_by_where_they_stand(mut lens: Lens) -> Lens {
+    let id = lens.lens.id.clone();
+    for (at, part) in lens.focus.iter_mut().enumerate() {
+        if part.id.is_empty() {
+            part.id = format!("{id}/{}", at + 1);
+        }
+    }
+    lens
 }
 
 /// Every lens, in the order of their files.
@@ -164,7 +181,7 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
                 std::fs::read_to_string(&file).with_context(|| format!("{}", file.display()))?;
             let lens: Lens = toml::from_str(&text)
                 .with_context(|| format!("{} is not a lens", file.display()))?;
-            Ok((text, lens))
+            Ok((text, named_by_where_they_stand(lens)))
         })
         .collect::<Result<_>>()?;
     // and the lenses the place keeps as rows: entered like anything else, looked through like any lens
@@ -535,6 +552,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         per: some(raw(p, "per")),
                         named: some(raw(p, "named")),
                         urgent: yes(p, "urgent"),
+                        id: raw(p, "id").trim().to_string(),
                     })
                     .collect(),
             }
@@ -640,7 +658,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": format!("{id}/{}", at + 1), "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
+                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
             );
         }
     }
@@ -693,7 +711,11 @@ pub fn meanings(dirs: &[PathBuf]) -> std::collections::BTreeMap<String, String> 
 pub fn lenses() -> Vec<Lens> {
     LENSES
         .iter()
-        .map(|(name, text)| toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")))
+        .map(|(name, text)| {
+            named_by_where_they_stand(
+                toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")),
+            )
+        })
         .collect()
 }
 
