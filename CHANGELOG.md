@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.54.0...ocoeco-v0.55.0) (2026-11-15)
+
+
+### Features
+
+* an entry is made from where one stands: its name, and what it asks beneath it ([#319](https://github.com/open-commons-observatory/ocoeco/issues/319)) ([3a4b86b](https://github.com/open-commons-observatory/ocoeco/commit/3a4b86bd49322ae24127b299228a59c8edf4fe82))
+
 ## [0.54.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.53.1...ocoeco-v0.54.0) (2026-11-15)
 
 
