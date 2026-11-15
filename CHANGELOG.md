@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.0...ocoeco-v0.48.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* a part of a lens is known by the id it is kept as, not by where it stands ([#298](https://github.com/open-commons-observatory/ocoeco/issues/298)) ([3bf5eb0](https://github.com/open-commons-observatory/ocoeco/commit/3bf5eb00db93d7ce163101830cb2174a96949076))
+
 ## [0.48.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.47.2...ocoeco-v0.48.0) (2026-11-15)
 
 
