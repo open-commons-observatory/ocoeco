@@ -380,10 +380,19 @@ fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
     // what git says of a history depends only on the commit it is asked from, and a commit does not
     // change: so it is asked once for each commit, and found again while the place stands at it
     let ask = || {
+        // when a change was made is said in one clock, whatever clock its maker kept: UTC, as every
+        // other moment in the records is - so two moments are told apart by what they say alone
         let out = std::process::Command::new("git")
             .arg("-C")
             .arg(dir)
-            .args(["log", "-n", "2000", "--format=%h%x1f%cI%x1f%an%x1f%s"])
+            .env("TZ", "UTC")
+            .args([
+                "log",
+                "-n",
+                "2000",
+                "--date=format-local:%Y-%m-%dT%H:%M:%SZ",
+                "--format=%h%x1f%cd%x1f%an%x1f%s",
+            ])
             .output()
             .ok()?;
         out.status
@@ -392,7 +401,7 @@ fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
     };
     let Some(said) = crate::join::answered_for(
         dir,
-        "history",
+        "history in one clock",
         crate::join::commit_at(dir, "HEAD").as_deref(),
         ask,
     ) else {
@@ -612,6 +621,8 @@ mod a_route {
                 .env("GIT_AUTHOR_EMAIL", "s@x")
                 .env("GIT_COMMITTER_NAME", "someone")
                 .env("GIT_COMMITTER_EMAIL", "s@x")
+                .env("GIT_AUTHOR_DATE", "2026-11-15T00:08:46+01:00")
+                .env("GIT_COMMITTER_DATE", "2026-11-15T00:08:46+01:00")
                 .output()
                 .unwrap()
         };
@@ -628,12 +639,9 @@ mod a_route {
             ),
             ("o/held", Some("feat: a first change"), Some("someone"))
         );
-        assert!(
-            rows[0].1["at"]
-                .as_str()
-                .is_some_and(|at| at.starts_with("20"))
-                && rows[0].1["id"].as_str().is_some_and(|id| id.len() >= 7)
-        );
+        // when it was made is said in UTC, whatever clock its maker kept
+        assert_eq!(rows[0].1["at"].as_str(), Some("2026-11-14T23:08:46Z"));
+        assert!(rows[0].1["id"].as_str().is_some_and(|id| id.len() >= 7));
         assert!(read(
             &crate::lenses::Route {
                 table: "x".into(),
