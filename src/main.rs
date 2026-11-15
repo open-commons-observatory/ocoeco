@@ -336,6 +336,34 @@ fn run() -> Result<()> {
             return Ok(());
         }
     }
+    // said with no command - nothing at all, or words that name none: the window, where there is no
+    // terminal to move in. One is shown where one stands, and says a mark, a lens, back or up
+    {
+        use clap::CommandFactory;
+        let names_a_command = |word: &str| {
+            word.starts_with('-')
+                || word == "help"
+                || Cli::command()
+                    .get_subcommands()
+                    .any(|c| c.get_name() == word)
+        };
+        if !said.get(1).is_some_and(|word| names_a_command(word)) {
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            let who = std::env::var("OCOECO_BY")
+                .or_else(|_| std::env::var("USER"))
+                .unwrap_or_else(|_| "someone".into());
+            let engine = tad::sql::DuckDb::find()?;
+            print!(
+                "{}",
+                ocoeco::window::said(&said[1..], std::path::Path::new("."), &who, &today, &engine)?
+            );
+            return Ok(());
+        }
+    }
     let gh = discover::GitHub::new();
     match Cli::parse().cmd {
         Cmd::Init {

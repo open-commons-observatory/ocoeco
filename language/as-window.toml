@@ -1,0 +1,24 @@
+# The window, where there is no terminal to move in: a plane as plain text, with a mark before every line
+# about a thing. The lens one looks through is laid out whole; what it places - a whole lens, placed - is
+# laid out one step up, by its name, what it says of itself and its headings: one says its name to look
+# through it. Beneath, what can be said next. What was marked is kept by the program beside the trail.
+[lens]
+id = "as-window"
+says = "A surface, said by a lens: the window for whoever has no terminal to move in - a plane as text, a mark before every line about a thing one can stand on; a lens placed in it one step up, by its name and its headings; and beneath, what can be said next. Looked through from the lens whose plane it lays out: as-window@a-lens."
+reads = ["plane"]
+
+[[focus]]
+always = true
+sql = """
+SELECT text FROM (
+  SELECT seq AS ordinal,
+         repeat('  ', CAST(coalesce(depth, 0) AS INTEGER) + CASE WHEN kind = 'line' THEN 1 ELSE 0 END)
+         || CASE WHEN kind = 'line' AND mark IS NOT NULL THEN '[' || CAST(mark AS VARCHAR) || '] ' ELSE '' END
+         || CASE WHEN kind = 'lens' THEN coalesce(of_lens, '') || ' - ' || coalesce(says, '') ELSE coalesce(says, '') END AS text
+  FROM plane
+  WHERE coalesce(depth, 0) = 0 OR kind <> 'line'
+  UNION ALL
+  SELECT 9223372036854775807, '- say a mark to stand on what it marks, a lens by its name to look through it from where you stand, back, or up'
+) ORDER BY ordinal
+"""
+line = "{text}"

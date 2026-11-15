@@ -220,6 +220,22 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
     for (nth, row) in all.iter_mut().enumerate() {
         row.insert("id".into(), (nth + 1).to_string().into());
     }
+    // a mark for every thing a line is about, in the order the things first appear: what one says to
+    // stand there, on a surface where one cannot point
+    let mut marked: Vec<String> = Vec::new();
+    for row in all.iter_mut() {
+        let Some(thing) = row.get("thing").and_then(Value::as_str).map(str::to_string) else {
+            continue;
+        };
+        let at = match marked.iter().position(|one| *one == thing) {
+            Some(at) => at,
+            None => {
+                marked.push(thing);
+                marked.len() - 1
+            }
+        };
+        row.insert("mark".into(), ((at + 1) as u64).into());
+    }
     all
 }
 
@@ -958,7 +974,10 @@ fn brought_anew(
                             // may say what comes first, and then every other
                             l.lens.id != lens
                                 && !lays_out_a_plane(l)
-                                && !says_here(l)
+                                // from a thing, every lens is every lens that looks from a thing;
+                                // and from nowhere a lens that looks from a thing places none
+                                && says_here(l) == here.is_some()
+                                && (here.is_some() || !says_here(found))
                                 && !l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
                                 && !found.focus[..at]
                                     .iter()
@@ -971,10 +990,13 @@ fn brought_anew(
                 // a lens that is not in view from here cannot be placed: said, and the rest is shown - what
                 // is in view depends on where one looks from, and that is not a fault of the lens
                 if placing.is_empty() {
-                    parts.push(Brought {
-                        title: Some(format!("{other}: not in view from here")),
-                        ..Default::default()
-                    });
+                    // every lens, where there is none to place, is nothing missing
+                    if other != "*" {
+                        parts.push(Brought {
+                            title: Some(format!("{other}: not in view from here")),
+                            ..Default::default()
+                        });
+                    }
                     continue;
                 }
                 for placed in placing {
@@ -983,7 +1005,12 @@ fn brought_anew(
                         bail!("the lens {lens} places {other}, which comes back to it: lenses placed in a ring");
                     }
                     DEEP.set(DEEP.get() + 1);
-                    let theirs = brought(&placed.lens.id, dirs, today, engine);
+                    // a lens that looks from a thing, placed by one that stands on a thing, stands there
+                    let from = match here {
+                        Some(here) if says_here(placed) => format!("{}@{here}", placed.lens.id),
+                        _ => placed.lens.id.clone(),
+                    };
+                    let theirs = brought(&from, dirs, today, engine);
                     DEEP.set(DEEP.get() - 1);
                     match &part.only {
                         // one shape of it, placed among this lens's own
@@ -1007,6 +1034,17 @@ fn brought_anew(
                                 }
                                 Err(why) => (Vec::new(), Some(format!("{why:#}"))),
                             };
+                            // from a thing, a lens that brings nothing from there has nothing to say
+                            // of it, and is left out
+                            if other == "*"
+                                && here.is_some()
+                                && nothing_because.is_none()
+                                && within
+                                    .iter()
+                                    .all(|p| p.lines.is_empty() && p.within.is_empty())
+                            {
+                                continue;
+                            }
                             parts.push(Brought {
                                 title: Some(placed.lens.id.clone()),
                                 about: Some(placed.lens.says.clone()),
@@ -2749,6 +2787,13 @@ mod what_a_line_is_about {
             [None, Some("p/problems:s"), None],
             "a heading, a line about a thing, a line about none"
         );
+        // and a mark for each thing, in the order they first appear: what one says to stand there, where
+        // one cannot point
+        let marks: Vec<Option<u64>> = plane
+            .iter()
+            .map(|row| row.get("mark").and_then(|m| m.as_u64()))
+            .collect();
+        assert_eq!(marks, [None, Some(1), None]);
     }
 }
 

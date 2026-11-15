@@ -7,8 +7,8 @@
 # it is held, its table, its id - the place in full, or by its star.
 [lens]
 id = "around"
-says = "From one thing: the thing itself, in full; where it is held, what it points at and what points at it, each by how - a step away in every direction; from a place, what it holds and reaches for. Looked through from a thing: around@star/table:id."
-reads = ["edges", "things", "in_full", "lens_fields"]
+says = "From one thing: the thing itself, in full; what every lens that looks from a thing says from it; which entries can say something of it; where it is held, what it points at and what points at it, each by how - a step away in every direction; from a place, what it holds and reaches for. Looked through from a thing: around@star/table:id."
+reads = ["edges", "things", "in_full", "lens_fields", "lens_relations", "lens_entries"]
 
 # The thing one stands on, in full: a row for each field it carries, as it is kept. Given by the program
 # for the thing stood on, by whatever route its rows come: no place keeps it.
@@ -51,6 +51,27 @@ LEFT JOIN (SELECT of_table, name, min(ordinal) AS ordinal FROM lens_fields GROUP
 GROUP BY i.value ORDER BY min(coalesce(f.ordinal, 1000)), min(i.field)
 """
 line = "{field}: {value}"
+
+# What every lens that looks from a thing says from here - what followed a thing the author said, where one
+# stands on one of his turns: each placed where it brings something, and left out where it brings nothing.
+[[focus]]
+places = "*"
+
+# What can be entered from here: the entries of the language that can say something of a thing of this
+# kind - read off the relations the lenses declare, never listed. Each is a thing, and can be stood on.
+[[focus]]
+title = "what can be entered from here ({count})"
+sql = """
+SELECT e.entry, coalesce(e.says, '') AS says,
+       string_agg(DISTINCT split_part(r."from", '.', 2), ', ') AS saying, min(t.id) AS thing
+FROM here h
+JOIN lens_relations r ON r."to" = '*' OR list_contains(string_split(replace(r."to", ' ', ''), ','), h.of_table)
+JOIN lens_entries e ON e.fills = split_part(r."from", '.', 1)
+     AND list_contains(string_split(replace(coalesce(e.asks, ''), ' ', ''), ','), split_part(r."from", '.', 2))
+LEFT JOIN things t ON t.of_table = 'lens_entries' AND t.id LIKE '%/lens_entries:' || e.id
+GROUP BY e.entry, e.says ORDER BY e.entry
+"""
+line = "{entry} - {says} (it would say this by its {saying})"
 
 # Every thing is held in a place, and a place says what it is for: one step up from anything.
 [[focus]]
