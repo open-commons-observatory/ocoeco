@@ -71,6 +71,24 @@ line = "{of_table} - {alone} of {kept} have nothing pointing at them"
 measure = "alone"
 whole = "kept"
 
+# What is joined to nothing: it points at nothing and nothing points at it - an island. A gap is what is not
+# yet seen in the whole: a kind of thing that is all islands has been taken in and joined to nothing yet.
+# What nothing points at, above, counts the leaves of the whole as well - a change is part of its record,
+# a guard of its file: they point, and are joined.
+[[focus]]
+title = "joined to nothing, by kind ({count})"
+sql = """
+SELECT t.of_table, count(*) AS kept,
+       count(*) FILTER (WHERE p.id IS NULL AND f.id IS NULL) AS islands
+FROM things t LEFT JOIN pointed p ON p.id = t.id
+LEFT JOIN (SELECT DISTINCT "from" AS id FROM edges WHERE holds) f ON f.id = t.id
+GROUP BY t.of_table HAVING count(*) FILTER (WHERE p.id IS NULL AND f.id IS NULL) > 0
+ORDER BY islands DESC, t.of_table
+"""
+line = "{of_table} - {islands} of {kept} are joined to nothing"
+measure = "islands"
+whole = "kept"
+
 [[focus]]
 title = "how things point, by the nature of the pointing ({count})"
 sql = """
@@ -150,6 +168,8 @@ always = true
 sql = """
 SELECT (SELECT count(*) FROM things) AS things, (SELECT count(*) FROM edges) AS edges,
        (SELECT count(*) FROM things t WHERE t.id NOT IN (SELECT id FROM pointed)) AS alone,
+       (SELECT count(*) FROM things t WHERE t.id NOT IN (SELECT id FROM pointed)
+          AND t.id NOT IN (SELECT "from" FROM edges WHERE holds)) AS islands,
        (SELECT count(*) FROM edges WHERE holds IS NULL) AS unseen
 """
-line = "{things} things in view, {edges} links between them; {alone} things nothing points at; {unseen} links point where this place cannot see"
+line = "{things} things in view, {edges} links between them; {alone} things nothing points at, {islands} of them joined to nothing; {unseen} links point where this place cannot see"

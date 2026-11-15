@@ -402,16 +402,28 @@ fn run() -> Result<()> {
                 secs % 3_600 / 60,
                 secs % 60
             );
-            // no action given: choose it from the list in the terminal, so it is never typed twice
-            let chosen = match action {
-                Some(a) => Some(pick::Pick {
+            // no action given: a record named by its id is counted as it is; with neither, it is chosen
+            // from the list in the terminal, so it is never typed twice - and where there is no terminal
+            // to choose in, that is said, not left to a window that cannot open
+            let chosen = match (action, id.is_some()) {
+                (Some(a), _) => Some(pick::Pick {
                     id: id.clone(),
                     action: a,
                     new,
                     minutes,
                     load,
                 }),
-                None => pick::run(&dir)?,
+                (None, true) => Some(pick::Pick {
+                    id: id.clone(),
+                    action: String::new(),
+                    new,
+                    minutes,
+                    load,
+                }),
+                (None, false) if !std::io::IsTerminal::is_terminal(&std::io::stdout()) => {
+                    anyhow::bail!("say what was done by hand - ocoeco manual \"ACTION\" - or which record to count, --id ID: the list to choose from needs a terminal, and there is none here")
+                }
+                (None, false) => pick::run(&dir)?,
             };
             match chosen {
                 Some(p) => println!(
