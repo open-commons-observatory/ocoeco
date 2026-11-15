@@ -2,7 +2,8 @@
 # of the web: quiet, readable in light and dark, nothing fetched from anywhere. It is the page the program
 # has always written, said in the language: the two give the same, byte for byte. Its frame says {scale},
 # which whoever asks for the page fills with what is looked at, and when. How the page looks - its style -
-# is here, in what the lens says, and no longer in the program.
+# is here, in what the lens says, and no longer in the program. Where a line is about a thing that has a
+# page - while a site is laid out - its words lead there.
 
 [lens]
 id = "as-page"
@@ -15,13 +16,17 @@ reads = ["plane"]
 [[focus]]
 always = true
 sql = """
-WITH said AS (
+WITH made AS (
   SELECT seq, kind, coalesce(nth, 0) AS nth, coalesce(of_part, 0) AS of_part, coalesce(inset, false) AS inset, coalesce(along, 0) AS along, of_all,
-         replace(replace(replace(replace(coalesce(says, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS says,
+         replace(replace(replace(replace(coalesce(says, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS words,
+         coalesce(page, '') AS page,
          replace(replace(replace(replace(coalesce(of_lens, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS of_lens,
          CASE WHEN so_much = floor(so_much) THEN CAST(CAST(so_much AS BIGINT) AS VARCHAR) ELSE CAST(so_much AS VARCHAR) END AS so,
          CASE WHEN of_all = floor(of_all) THEN CAST(CAST(of_all AS BIGINT) AS VARCHAR) ELSE CAST(of_all AS VARCHAR) END AS of_it
   FROM plane
+), said AS (
+  -- a line about a thing that has a page leads to it: the words are the way there
+  SELECT *, CASE WHEN page <> '' AND kind = 'line' THEN '<a style="color:inherit" href="/' || page || '">' || words || '</a>' ELSE words END AS says FROM made
 ), laid AS (
   SELECT seq, CASE kind
     WHEN 'lens' THEN '<h2 id="' || of_lens || '">' || of_lens || '</h2>' || chr(10) || '<p class="says">' || says || '</p>'
