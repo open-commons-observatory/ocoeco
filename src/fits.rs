@@ -96,6 +96,7 @@ pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
                     _ => {
                         let given: Vec<&str> =
                             rest.iter().filter_map(|w| w.strip_prefix("--")).collect();
+                        let meanings = crate::lenses::meanings(&crate::board::in_view(dir).0);
                         std::iter::once(("id".to_string(), true, Vec::new()))
                             .chain(e.asks.iter().map(|a| {
                                 declared
@@ -114,6 +115,23 @@ pub fn after(words: &[String], dir: &Path, commands: &[Command]) -> Vec<Fit> {
                                     (_, _, false) => format!("one of: {}", allowed.join(", ")),
                                     (_, true, true) => "needed for a new one".to_string(),
                                     _ => String::new(),
+                                };
+                                // and what the name means, where a word says so: a field says what it
+                                // is where one is about to say it - the first sentence of its meaning
+                                let means = meanings
+                                    .get(name.as_str())
+                                    .map(|means| {
+                                        means
+                                            .split(". ")
+                                            .next()
+                                            .unwrap_or(means)
+                                            .trim_end_matches('.')
+                                    })
+                                    .unwrap_or_default();
+                                let is = match (is.is_empty(), means.is_empty()) {
+                                    (_, true) => is,
+                                    (true, false) => means.to_string(),
+                                    (false, false) => format!("{is} - {means}"),
                                 };
                                 fit(format!("--{name}"), is)
                             })

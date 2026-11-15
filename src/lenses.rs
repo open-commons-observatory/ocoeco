@@ -640,6 +640,33 @@ pub fn differing(dir: &Path) -> Vec<String> {
         .collect()
 }
 
+/// What the names of the shared language mean: the words ocoeco's own place keeps, carried by the
+/// program as they were when it was built - so that a name says what it means wherever the program is.
+fn carried_words() -> impl Iterator<Item = (String, String)> {
+    include_str!("../data/vocabulary.json")
+        .lines()
+        .filter_map(|line| {
+            let row: serde_json::Value = serde_json::from_str(line).ok()?;
+            Some((
+                row.get("term")?.as_str()?.to_lowercase(),
+                row.get("means")?.as_str()?.to_string(),
+            ))
+        })
+}
+
+/// What each word means: the words the program carries, and over them the words of the places in view -
+/// a place's own word for a name is the one said there.
+pub fn meanings(dirs: &[PathBuf]) -> std::collections::BTreeMap<String, String> {
+    let mut all: std::collections::BTreeMap<String, String> = carried_words().collect();
+    for (_, row) in crate::routes::rows_by_place("vocabulary", dirs) {
+        let said = |key: &str| row.get(key).and_then(|v| v.as_str());
+        if let (Some(term), Some(means)) = (said("term"), said("means")) {
+            all.insert(term.to_lowercase(), means.to_string());
+        }
+    }
+    all
+}
+
 pub fn lenses() -> Vec<Lens> {
     LENSES
         .iter()
