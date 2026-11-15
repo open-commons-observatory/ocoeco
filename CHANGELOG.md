@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.44.0...ocoeco-v0.45.0) (2026-11-15)
+
+
+### Features
+
+* from why to the code in one step; a look cut short ends quietly ([#282](https://github.com/open-commons-observatory/ocoeco/issues/282)) ([e7e87e2](https://github.com/open-commons-observatory/ocoeco/commit/e7e87e29a025e5c4f620925ce407bdea81794e3b))
+
 ## [0.44.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.43.1...ocoeco-v0.44.0) (2026-11-15)
 
 
