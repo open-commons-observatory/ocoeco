@@ -325,8 +325,16 @@ pub fn enter(name: &str, args: &[String], today: &str, who: &str) -> Result<Stri
         if due {
             let value = match supply.from.as_str() {
                 "today" => today.to_string(),
+                // the moment, to the second: what is said, or done, at a moment says it - not only its day
+                "now" => {
+                    let secs = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs() as i64)
+                        .unwrap_or_default();
+                    crate::glimpse::now_and_id(secs).0
+                }
                 "who" => who.to_string(),
-                other => bail!("the computer cannot supply {other:?}: it knows today and who"),
+                other => bail!("the computer cannot supply {other:?}: it knows today, now and who"),
             };
             changes.push(Change {
                 field: supply.field.clone(),

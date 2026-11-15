@@ -806,10 +806,17 @@ fn brought_anew(
                 let placing: Vec<&Lens> = if other == "*" {
                     all.iter()
                         .filter(|l| {
-                            // and no surface: a surface lays out a plane, it is not a part of one
+                            // and no surface: a surface lays out a plane, it is not a part of one. Nor
+                            // a lens that looks from a thing, which from nowhere has only how to stand
+                            // to say. Nor a lens a part before this one has placed already: so a lens
+                            // may say what comes first, and then every other
                             l.lens.id != lens
                                 && !lays_out_a_plane(l)
+                                && !says_here(l)
                                 && !l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
+                                && !found.focus[..at]
+                                    .iter()
+                                    .any(|p| p.places.as_deref() == Some(l.lens.id.as_str()))
                         })
                         .collect()
                 } else {

@@ -646,6 +646,7 @@ fn run() -> Result<()> {
                                 "{scale}",
                                 &ocoeco::dome::escaped(&format!("{scale}, {today}"))
                             )
+                            .replace("{title}", "The fulldome")
                     );
                     return Ok(());
                 }
@@ -851,6 +852,7 @@ fn run() -> Result<()> {
                                 "{scale}",
                                 &ocoeco::dome::escaped(&format!("{lens}, {today}")),
                             )
+                            .replace("{title}", &ocoeco::dome::escaped(&lens))
                         } else {
                             laid
                         }
@@ -939,6 +941,14 @@ fn run() -> Result<()> {
                     "two pages of the site are written at {path}: each page has a place of its own"
                 );
             }
+            // and what each page is headed by: what its row calls its title - or, saying none, the whole
+            let titles: std::collections::BTreeMap<String, String> =
+                ocoeco::focus::brought(&lens, &places, &today, &engine)?
+                    .iter()
+                    .flat_map(|part| part.values.iter())
+                    .map(|row| (said(row, "path"), said(row, "title")))
+                    .filter(|(_, title)| !title.is_empty())
+                    .collect();
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
                     &format!("{surface}@{looks}"),
@@ -950,6 +960,10 @@ fn run() -> Result<()> {
                 let text = ocoeco::dome::surface("lines", 80)?.lay_out(&laid).replace(
                     "{scale}",
                     &ocoeco::dome::escaped(&format!("{what}, {today}")),
+                );
+                let text = text.replace(
+                    "{title}",
+                    &ocoeco::dome::escaped(titles.get(path).map_or("The fulldome", String::as_str)),
                 );
                 let file = out.join(path);
                 if let Some(folder) = file.parent() {
