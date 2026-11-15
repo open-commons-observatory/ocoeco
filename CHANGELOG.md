@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.46.1...ocoeco-v0.47.0) (2026-11-15)
+
+
+### Features
+
+* the window opens on what a place shows first, as the page does ([#288](https://github.com/open-commons-observatory/ocoeco/issues/288)) ([8e7a803](https://github.com/open-commons-observatory/ocoeco/commit/8e7a803b4faa9d0dc04dd70ec50b35e2ec0ceef8))
+
 ## [0.46.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.46.0...ocoeco-v0.46.1) (2026-11-15)
 
 
