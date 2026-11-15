@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.51.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.50.0...ocoeco-v0.51.0) (2026-11-15)
+
+
+### Features
+
+* what is joined to nothing, by kind: the islands of the whole; a record named is counted ([#308](https://github.com/open-commons-observatory/ocoeco/issues/308)) ([ca9643f](https://github.com/open-commons-observatory/ocoeco/commit/ca9643f1dad8d55197d9b6354906ca6b59518574))
+
 ## [0.50.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.49.0...ocoeco-v0.50.0) (2026-11-15)
 
 
