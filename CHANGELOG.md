@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.56.0...ocoeco-v0.57.0) (2026-11-15)
+
+
+### Features
+
+* entering is said by a lens: what an entry asks, and the row it would keep ([#325](https://github.com/open-commons-observatory/ocoeco/issues/325)) ([cf940c7](https://github.com/open-commons-observatory/ocoeco/commit/cf940c73497b39fe5fc637f12a27c97c54728f7d))
+
 ## [0.56.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.55.1...ocoeco-v0.56.0) (2026-11-15)
 
 
