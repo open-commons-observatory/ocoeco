@@ -115,6 +115,10 @@ pub struct Part {
     /// Of what that lens brings into focus, only the part under this heading.
     #[serde(default)]
     pub only: Option<String>,
+    /// The lens what is placed is seen through: one that reads a plane, and lays out - or leaves out -
+    /// what the placed lens brings into focus. A lens behind a lens, kept in the lens that places them.
+    #[serde(default)]
+    pub through: Option<String>,
     /// The answer's column that is a measure of a whole, if its lines are such: meaning a surface may
     /// show in its own way - a meter on a page, a bar in a terminal.
     #[serde(default)]
@@ -575,6 +579,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         line: raw(p, "lays_out"),
                         places: some(raw(p, "places")),
                         only: some(raw(p, "only")),
+                        through: some(raw(p, "through")),
                         measure: some(raw(p, "measure")),
                         of: raw(p, "of").trim().parse().ok(),
                         whole: some(raw(p, "whole")),
@@ -688,7 +693,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
+                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "through": part.through.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
             );
         }
     }

@@ -118,7 +118,7 @@
 {"id":"moment","term":"moment","means":"When something happened, to the second. A day is when to the day; both are words that sort in time."}
 {"id":"name","term":"name","means":"What something is called by people. A place's name says what it is for, after its own name and a colon."}
 {"id":"named","term":"named","means":"The name a part's shape goes by, for other parts and other lenses to ask of."}
-{"id":"nature","term":"nature","means":"What a pointing is, whatever its field is called: rests on, is for, follows, is about, places, gathers, is part of, fills."}
+{"id":"nature","term":"nature","means":"What a pointing is, whatever its field is called: rests on, is for, follows, is about, places, is seen through, gathers, is part of, fills."}
 {"id":"needed","term":"needed","means":"Whether a row must say it."}
 {"id":"next","term":"next","means":"The next step toward an item, in words: what to look at when it is taken up.","not":"A promise, or a state: working toward a step is not the step done."}
 {"id":"not","term":"not","means":"What a word does not mean here, where it could be taken for it."}
@@ -206,6 +206,7 @@
 {"id":"thing","term":"thing","means":"Anything one can stand on - a row, a place, a lens and what it is made of - known by where it is held, its table and its id."}
 {"id":"things","term":"things","means":"Everything in view that one can stand on."}
 {"id":"thread","term":"thread","means":"The line of thought a connection belongs to: one name for all that follow one another."}
+{"id":"through","term":"through","means":"The lens what a part places is seen through: one that reads a plane, and lays out - or leaves out - what the placed lens brings into focus. A lens behind a lens.","decided":"decisions:2026-11-16-a-lens-behind-a-lens"}
 {"id":"times","term":"times","means":"How many times something is found in the thing it was found in."}
 {"id":"title","term":"title","means":"The few words a row is known by where many are listed."}
 {"id":"titles","term":"titles","means":"How each document begins, where it begins by saying what it is."}
