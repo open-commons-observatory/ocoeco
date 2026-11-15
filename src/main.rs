@@ -616,6 +616,10 @@ fn run() -> Result<()> {
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_default();
             let engine = tad::sql::DuckDb::find()?;
+            // the whole looked through: the one the place one looks from says for itself, and where it
+            // says none, every lens in view as they come
+            let whole =
+                ocoeco::lenses::whole_said_at(&dir).unwrap_or_else(|| "fulldome".to_string());
             if let Some(surface) = surface {
                 // the whole fulldome, laid out on a surface: the plane-lens that places every lens in view,
                 // each keeping its own shape within it - laid out as any plane is, in the surface's frame
@@ -632,7 +636,7 @@ fn run() -> Result<()> {
                         .any(|l| l.lens.id == surface && ocoeco::focus::lays_out_a_plane(l))
                 {
                     let laid = ocoeco::focus::brought(
-                        &format!("{surface}@fulldome"),
+                        &format!("{surface}@{whole}"),
                         &places,
                         &today,
                         &engine,
@@ -650,7 +654,7 @@ fn run() -> Result<()> {
                     );
                     return Ok(());
                 }
-                let plane = ocoeco::focus::brought("fulldome", &places, &today, &engine)?;
+                let plane = ocoeco::focus::brought(&whole, &places, &today, &engine)?;
                 print!(
                     "{}",
                     ocoeco::dome::surface(&surface, width)?
@@ -662,6 +666,7 @@ fn run() -> Result<()> {
                 scale,
                 single,
                 ocoeco::lenses::with(&places)?,
+                ocoeco::lenses::whole_said_at(&dir),
                 |lens, looking| {
                     // standing on a thing in the dome is a step on the driver's trail, as it is from a shell
                     if let Some(thing) = ocoeco::focus::stood_on(lens, &places) {
