@@ -335,6 +335,15 @@ pub fn read(
         }
         rows.push((place, row));
     }
+    // the same row reached by two routes - a place held here, and observed - is one row: the first to
+    // arrive, which is the place as it stands where one looks from it
+    let mut seen = std::collections::BTreeSet::new();
+    rows.retain(
+        |(place, row)| match row.get("id").and_then(|id| id.as_str()) {
+            Some(id) => seen.insert((place.clone(), id.to_string())),
+            None => true,
+        },
+    );
     rows
 }
 
@@ -707,5 +716,67 @@ mod a_shape_carved_from_files {
             "a place reads its own files"
         );
         assert_eq!(as_a_shape("src/*.rs"), r"^src/[^/]*\.rs$");
+    }
+}
+
+#[cfg(test)]
+mod held_and_observed {
+    use super::*;
+
+    #[test]
+    fn what_a_route_reads_of_a_place_held_and_observed_is_read_once() {
+        let base = std::env::temp_dir().join(format!("ocoeco-route-once-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let here = base.join("o/here");
+        std::fs::create_dir_all(&here).unwrap();
+        std::fs::write(here.join("oco.toml"), "schema = 1\n[project]\nid = \"o/here\"\nname = \"Here: an observatory\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\n").unwrap();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(&here)
+                .args(args)
+                .env("GIT_AUTHOR_NAME", "someone")
+                .env("GIT_AUTHOR_EMAIL", "s@x")
+                .env("GIT_COMMITTER_NAME", "someone")
+                .env("GIT_COMMITTER_EMAIL", "s@x")
+                .output()
+                .unwrap()
+        };
+        git(&["init", "-q"]);
+        git(&["add", "oco.toml"]);
+        git(&["commit", "-q", "-m", "feat: a first change"]);
+        let route = crate::lenses::Route {
+            table: "commits".into(),
+            from: "git history".into(),
+            which: None,
+            shape: None,
+        };
+        let held = read(&route, std::slice::from_ref(&here));
+        assert_eq!(held.len(), 1, "the place as it stands has one change");
+        // what it observed: that same change of its own, and one of a place far away
+        let seen = base.join("seen");
+        std::fs::create_dir_all(&seen).unwrap();
+        std::fs::write(
+            seen.join("projects.json"),
+            "{\"id\":\"o/here\"}\n{\"id\":\"o/far\"}\n",
+        )
+        .unwrap();
+        let mut own = held[0].1.clone();
+        own.insert("project".into(), "o/here".into());
+        std::fs::write(
+            seen.join("commits.json"),
+            format!(
+                "{}\n{{\"id\":\"abc1234\",\"project\":\"o/far\",\"says\":\"feat: far away\"}}\n",
+                serde_json::Value::Object(own)
+            ),
+        )
+        .unwrap();
+        let both = read(&route, &[here.clone(), seen]);
+        let of = |place: &str| both.iter().filter(|(p, _)| p == place).count();
+        assert_eq!(
+            (of("o/here"), of("o/far")),
+            (1, 1),
+            "a change of the place one stands in is one row; what was observed of another is there"
+        );
     }
 }

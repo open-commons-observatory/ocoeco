@@ -1,0 +1,42 @@
+# A surface, said by a lens: the outline. A plane - as rows, in the order it is laid out - one step up:
+# what is there, and how much of it, without the lines themselves. It is the way up from a look: from the
+# lines of a part to the parts of a lens, from the parts of a lens to the lenses of a whole - and the way
+# back down is the name each row says, looked through by itself.
+#
+#   a lens placed in the plane   its name, and what it says of itself
+#   what it says under no        as it is said: a lens's figures are its own outline
+#   heading
+#   a part                       its heading, which says how many lines it has
+#   parts laid out once for      one line: for each of what, how many, and which
+#   each of something
+#   a lens that brought nothing  why
+[lens]
+id = "as-outline"
+says = "A surface, said by a lens: a plane one step up - each lens placed in it by its name and what it says of itself, its figures, and each part by its heading alone; parts laid out once for each of something as one line, how many and which. No line of any part: the way down is to look through what a row names. Looked through from the lens whose plane it lays out: as-outline@a-lens."
+reads = ["plane"]
+
+[[focus]]
+always = true
+sql = """
+WITH kept AS (
+  SELECT seq, kind, coalesce(depth, 0) AS depth, coalesce(says, '') AS says, coalesce(of_lens, '') AS of_lens,
+         coalesce(per, '') AS per, row_number() OVER (ORDER BY seq) AS n
+  FROM plane WHERE kind <> 'line' OR NOT coalesce(inset, false)
+), run AS (
+  -- headings laid out once for each of something, one after another, are one stretch
+  SELECT *, (kind = 'heading' AND per <> '') AS each,
+         n - row_number() OVER (PARTITION BY (kind = 'heading' AND per <> ''), per, depth ORDER BY seq) AS stretch
+  FROM kept
+), said AS (
+  SELECT seq AS ordinal,
+         repeat('  ', CAST(depth AS INTEGER))
+         || CASE WHEN kind = 'lens' THEN of_lens || ' - ' || says ELSE says END AS text
+  FROM run WHERE NOT each
+  UNION ALL
+  SELECT min(seq), repeat('  ', CAST(min(depth) AS INTEGER)) || 'for each ' || per || ' (' || count(*) || '): '
+         || string_agg(says, ', ' ORDER BY seq)
+  FROM run WHERE each GROUP BY stretch, per, depth
+)
+SELECT text FROM said ORDER BY ordinal
+"""
+line = "{text}"
