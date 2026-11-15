@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.45.0...ocoeco-v0.46.0) (2026-11-15)
+
+
+### Features
+
+* what looking at the page showed: what comes first, what a page is, a way back ([#284](https://github.com/open-commons-observatory/ocoeco/issues/284)) ([e9f99f7](https://github.com/open-commons-observatory/ocoeco/commit/e9f99f73743ff9b6316f9500b0ee04e8c322e8d3))
+
 ## [0.45.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.44.0...ocoeco-v0.45.0) (2026-11-15)
 
 
