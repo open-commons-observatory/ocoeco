@@ -285,6 +285,15 @@ enum Cmd {
 }
 
 fn main() -> Result<()> {
+    // a look cut short by whoever reads it - piped to something that takes its first lines and stops -
+    // ends there, quietly: that the reader stopped reading is no failure of the look
+    let as_before = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |why| {
+        if why.to_string().contains("failed printing to stdout") {
+            std::process::exit(0);
+        }
+        as_before(why);
+    }));
     // what writes rows - glimpse, in both its forms, and note - is guarded: a write that would add a link
     // pointing nowhere is refused, and the place's tables are put back as they were
     let said: Vec<String> = std::env::args().collect();
