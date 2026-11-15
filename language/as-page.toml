@@ -1,0 +1,50 @@
+# A surface, said by a lens: the page. A plane - as rows, in the order it is laid out - laid out as a page
+# of the web: quiet, readable in light and dark, nothing fetched from anywhere. It is the page the program
+# has always written, said in the language: the two give the same, byte for byte. Its frame says {scale},
+# which whoever asks for the page fills with what is looked at, and when. How the page looks - its style -
+# is here, in what the lens says, and no longer in the program.
+
+[lens]
+id = "as-page"
+says = "A surface, said by a lens: a plane laid out as a page of the web - each part a section, its heading and its lines as a list, a measure as a meter. Looked through from the lens whose plane it lays out: as-page@a-lens."
+reads = ["plane"]
+
+# first what is said, made safe for a page and its numbers written as a page writes them; then each row
+# as its piece of the page - a part opens with its heading and closes after its last line; then the frame
+# around them all
+[[focus]]
+always = true
+sql = """
+WITH said AS (
+  SELECT seq, kind, coalesce(nth, 0) AS nth, coalesce(of_part, 0) AS of_part, coalesce(inset, false) AS inset, coalesce(along, 0) AS along, of_all,
+         replace(replace(replace(replace(coalesce(says, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS says,
+         replace(replace(replace(replace(coalesce(of_lens, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS of_lens,
+         CASE WHEN so_much = floor(so_much) THEN CAST(CAST(so_much AS BIGINT) AS VARCHAR) ELSE CAST(so_much AS VARCHAR) END AS so,
+         CASE WHEN of_all = floor(of_all) THEN CAST(CAST(of_all AS BIGINT) AS VARCHAR) ELSE CAST(of_all AS VARCHAR) END AS of_it
+  FROM plane
+), laid AS (
+  SELECT seq, CASE kind
+    WHEN 'lens' THEN '<h2 id="' || of_lens || '">' || of_lens || '</h2>' || chr(10) || '<p class="says">' || says || '</p>'
+    WHEN 'nothing' THEN '<p class="none">' || says || '</p>'
+    WHEN 'heading' THEN '<section>' || chr(10) || '<h3>' || says || '</h3>' || chr(10)
+         || CASE WHEN of_part = 0 THEN '<p class="none">Nothing.</p>' || chr(10) || '</section>' ELSE '<ul>' END
+    ELSE CASE WHEN inset THEN
+           CASE WHEN of_all IS NOT NULL THEN '<li><meter value="' || so || '" max="' || of_it || '">' || so || ' of ' || of_it || '</meter> ' || says || '</li>'
+                WHEN along = 0 THEN '<li>' || says || '</li>'
+                ELSE '<li style="margin-left:' || CASE WHEN along % 2 = 0 THEN CAST(along * 3 // 2 AS VARCHAR) ELSE CAST(along * 1.5 AS VARCHAR) END || 'rem">' || says || '</li>' END
+           || CASE WHEN nth = of_part THEN chr(10) || '</ul>' || chr(10) || '</section>' ELSE '' END
+         ELSE CASE WHEN nth = 1 THEN '<section>' || chr(10) ELSE '' END || '<p>' || says || '</p>'
+           || CASE WHEN nth = of_part THEN chr(10) || '</section>' ELSE '' END
+         END
+  END AS text FROM said
+)
+SELECT text FROM (
+  SELECT 0 AS ordinal, '<!doctype html>' || chr(10) || '<html lang="en">' || chr(10) || '<head>' || chr(10) || '<meta charset="utf-8">' || chr(10)
+    || '<meta name="viewport" content="width=device-width, initial-scale=1">' || chr(10) || '<title>The fulldome</title>' || chr(10)
+    || '<style>body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#1c1c1c;background:#fcfcfa}h1{font-size:1.6rem}h2{margin-top:2.2rem;border-bottom:1px solid #8884;padding-bottom:.2rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}ul{margin:.2rem 0;padding-left:1.2rem}li{margin:.15rem 0}.says,.scale,.none{color:#555}.none{font-style:italic}@media(prefers-color-scheme:dark){body{color:#e8e8e4;background:#16171a}.says,.scale,.none{color:#a0a0a0}}</style>' || chr(10)
+    || '</head>' || chr(10) || '<body>' || chr(10) || '<h1>The fulldome</h1>' || chr(10) || '<p class="scale">{scale}</p>' AS text
+  UNION ALL SELECT seq, text FROM laid
+  UNION ALL SELECT 2000000000, '</body>' || chr(10) || '</html>'
+) ORDER BY ordinal
+"""
+line = "{text}"
