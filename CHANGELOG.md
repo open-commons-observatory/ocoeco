@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.43.0...ocoeco-v0.43.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* a lens looked through from a place is no one's address: the shape lets it be ([#278](https://github.com/open-commons-observatory/ocoeco/issues/278)) ([29457a0](https://github.com/open-commons-observatory/ocoeco/commit/29457a01e8eab5f1aa44443e2b90e2a331ceb7fa))
+
 ## [0.43.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.42.0...ocoeco-v0.43.0) (2026-11-15)
 
 
