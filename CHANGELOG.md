@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.2...ocoeco-v0.49.0) (2026-11-15)
+
+
+### Features
+
+* a heading leads to what its part is laid out for: a star's card, to the star ([#302](https://github.com/open-commons-observatory/ocoeco/issues/302)) ([5914291](https://github.com/open-commons-observatory/ocoeco/commit/591429185157c8cbbb86abd444e310b9403d338a))
+
 ## [0.48.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.1...ocoeco-v0.48.2) (2026-11-15)
 
 
