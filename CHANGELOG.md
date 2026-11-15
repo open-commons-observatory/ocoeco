@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.0...ocoeco-v0.41.1) (2026-11-15)
+
+
+### Performance Improvements
+
+* what a place has is kept to be found: a link holds without a search ([#261](https://github.com/open-commons-observatory/ocoeco/issues/261)) ([79d7087](https://github.com/open-commons-observatory/ocoeco/commit/79d7087eb13038128d795c12d653dab16f9a939c))
+
 ## [0.41.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.40.0...ocoeco-v0.41.0) (2026-11-15)
 
 
