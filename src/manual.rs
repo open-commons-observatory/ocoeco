@@ -179,6 +179,9 @@ pub fn manual(
             if rid.is_empty() {
                 bail!("a record needs an action");
             }
+            if action.trim().is_empty() {
+                bail!("manual work keeps no record called {rid}: say what was done, in words, to add it");
+            }
             let (per, l) = (minutes.unwrap_or(1), load.unwrap_or(5));
             event = Some((rid.clone(), per, l));
             rows.push((
@@ -389,6 +392,39 @@ mod tests {
         )
         .unwrap()
         .contains("to 2"));
+    }
+
+    #[test]
+    fn a_record_named_by_its_id_is_counted_as_it_is_and_one_not_kept_is_not_made_of_nothing() {
+        let d = repo("by-id");
+        manual(
+            &d,
+            "lift a box",
+            None,
+            false,
+            None,
+            None,
+            "2026-01-01T00:00:00Z",
+        )
+        .unwrap();
+        assert!(
+            manual(
+                &d,
+                "",
+                Some("lift-a-box"),
+                false,
+                None,
+                None,
+                "2026-01-02T00:00:00Z"
+            )
+            .unwrap()
+            .contains("bumped manual_work/lift-a-box to 2"),
+            "named by its id, a record is counted without its words said again"
+        );
+        assert!(manual(&d, "", Some("never-said"), false, None, None, "x")
+            .unwrap_err()
+            .to_string()
+            .contains("no record called never-said"));
     }
 
     #[test]
