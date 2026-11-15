@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.46.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.46.0...ocoeco-v0.46.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* a row is taken back only when nothing in view points at it ([#286](https://github.com/open-commons-observatory/ocoeco/issues/286)) ([cafa1a4](https://github.com/open-commons-observatory/ocoeco/commit/cafa1a42b7bc752d1775eeccc1fe31a0c226d3a7))
+
 ## [0.46.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.45.0...ocoeco-v0.46.0) (2026-11-15)
 
 
