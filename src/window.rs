@@ -59,6 +59,7 @@ pub fn said(
                 word,
                 &given(),
                 crate::trail::stands(who).as_deref(),
+                &crate::trail::marked(who),
                 &dirs,
                 today,
             )? {
@@ -147,11 +148,13 @@ fn place_called(name: &str, dirs: &[PathBuf]) -> Option<(String, PathBuf)> {
 
 /// An entry by its name, said standing on a thing: with nothing given, what it asks, from there; with
 /// what it asks given, it is made - by the entry itself, as it is made anywhere - where the thing stood
-/// on is held, or in the place given. A field that points at things takes `here` for where one stands.
+/// on is held, or in the place given. A field that points at things takes `here` for where one stands,
+/// and a mark for what it marks in what was last shown.
 fn an_entry(
     name: &str,
     given: &str,
     stands: Option<&str>,
+    marked: &[String],
     dirs: &[PathBuf],
     today: &str,
 ) -> Result<Came> {
@@ -197,7 +200,7 @@ fn an_entry(
             .filter(|field| *field != "id" && !entry.asks.iter().any(|a| a == field))
             .collect();
         return Ok(Came::Shown(format!(
-            "{name} - {}\n  it asks: {}\n  it may also carry: {}\n  of these, what points at things: {} - there, here names where you stand{}\n  it would be kept in {place}\n- say {name} again with what it asks beneath it, each as FIELD: words on lines of its own; in: PLACE keeps it elsewhere, id: NAME names it\n",
+            "{name} - {}\n  it asks: {}\n  it may also carry: {}\n  of these, what points at things: {} - there, here names where you stand{}, and a mark what it marks\n  it would be kept in {place}\n- say {name} again with what it asks beneath it, each as FIELD: words on lines of its own; in: PLACE keeps it elsewhere, id: NAME names it\n",
             entry.says,
             entry.asks.join(", "),
             also.join(", "),
@@ -267,25 +270,44 @@ fn an_entry(
     ];
     for (field, words) in fields.iter().filter(|(f, _)| f != "in" && f != "id") {
         asked.push(format!("--{field}"));
-        asked.push(match stands {
-            // where one stands, said as here in a field that points at things
-            Some(thing) if pointing.contains(field) => words
+        asked.push(if pointing.contains(field) {
+            // in a field that points at things, here names where one stands, and a mark what it marks
+            // in what was last shown: a thing is pointed at, never named from memory
+            words
                 .split_whitespace()
-                .map(|word| if word == "here" { thing } else { word })
+                .map(|word| {
+                    let marks = word
+                        .parse::<usize>()
+                        .ok()
+                        .and_then(|n| n.checked_sub(1))
+                        .and_then(|at| marked.get(at));
+                    match (word, stands, marks) {
+                        ("here", Some(thing), _) => thing,
+                        (_, _, Some(thing)) => thing.as_str(),
+                        _ => word,
+                    }
+                })
                 .collect::<Vec<_>>()
-                .join(" "),
-            _ => words.clone(),
+                .join(" ")
+        } else {
+            words.clone()
         });
     }
     // made by the entry itself, as it is made anywhere: asked, guarded and supplied the same
+    // - and standing in the place it is kept in: an entry a place's own lens declares is known there
     let made = std::process::Command::new(std::env::current_exe()?)
         .args(&asked)
+        .current_dir(&dir)
         .output()?;
     if !made.status.success() {
         let why = String::from_utf8_lossy(&made.stderr);
         bail!(
             "the {name} was not entered: {}",
-            why.lines().last().unwrap_or_default()
+            why.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" - ")
         );
     }
     let words = id
