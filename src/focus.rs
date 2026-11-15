@@ -682,6 +682,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             per: None,
             named: None,
             urgent: false,
+            id: format!("{table}/1"),
         }],
     })
 }

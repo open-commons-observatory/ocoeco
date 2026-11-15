@@ -1458,3 +1458,55 @@ mod a_thing_says_when {
         assert!(at("o/p/places:p").is_null(), "a place says nothing of when");
     }
 }
+
+#[cfg(test)]
+mod a_part_by_its_name {
+    use super::*;
+
+    #[test]
+    fn a_part_of_a_lens_kept_as_rows_is_known_by_the_id_it_is_kept_as() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-part-named-{}", std::process::id()))
+            .join("o/a");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/a\"\nname = \"A: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nlenses = \"data/lenses.json\"\nlens_parts = \"data/lens_parts.json\"\nglimpses = \"data/glimpses.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/lenses.json"),
+            "{\"id\":\"sheet\",\"says\":\"What goes together.\"}\n",
+        )
+        .unwrap();
+        // two parts, kept as sheet/5 and sheet/9: what stood between them was taken back
+        std::fs::write(d.join("data/lens_parts.json"), "{\"id\":\"sheet/5\",\"lens\":\"sheet\",\"part\":1,\"places\":\"work\"}\n{\"id\":\"sheet/9\",\"lens\":\"sheet\",\"part\":2,\"places\":\"signs\"}\n").unwrap();
+        std::fs::write(d.join("data/glimpses.json"), "{\"id\":\"g1\",\"summary\":\"a part made\",\"touches\":\"lens_parts:sheet/5 lens_parts:sheet/2\"}\n").unwrap();
+        let graph = as_graph(std::slice::from_ref(&d)).unwrap();
+        let touched = |part: &str| {
+            graph["edges"]
+                .iter()
+                .find(|e| {
+                    e["from"] == "o/a/glimpses:g1" && e["to"] == format!("o/a/lens_parts:{part}")
+                })
+                .map(|e| e["holds"].as_bool())
+        };
+        assert_eq!(
+            touched("sheet/5"),
+            Some(Some(true)),
+            "a part is found by the id it is kept as"
+        );
+        assert_eq!(
+            touched("sheet/2"),
+            Some(Some(false)),
+            "and not by where it stands: the second part is sheet/9, and nothing is kept as sheet/2"
+        );
+        let parts: Vec<&str> = graph["things"]
+            .iter()
+            .filter(|t| t["of_table"] == "lens_parts" && t["place"] == "o/a")
+            .filter_map(|t| t["id"].as_str())
+            .collect();
+        assert_eq!(
+            parts,
+            ["o/a/lens_parts:sheet/5", "o/a/lens_parts:sheet/9"],
+            "each part is one thing, by one name"
+        );
+    }
+}
