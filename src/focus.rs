@@ -219,8 +219,12 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
     all
 }
 
+/// What a lens gathers: its own tables and those it reads, each with what the places in view hold of it.
+/// `among` are the lenses in view - the program's own and those the places bring: a table is read
+/// whichever of them declares it.
 fn gather(
     lens: &Lens,
+    among: &[Lens],
     dirs: &[PathBuf],
     into: &Path,
     plane: Option<&[Map<String, Value>]>,
@@ -228,16 +232,35 @@ fn gather(
     std::fs::create_dir_all(into)?;
     let mut tables = toml::Table::new();
     // the routes the lenses in view say: tables whose rows are read from a surface, not kept by a place
-    let routes: Vec<crate::lenses::Route> = crate::lenses::with(dirs)
-        .map(|lenses| lenses.into_iter().flat_map(|l| l.route).collect())
-        .unwrap_or_default();
-    // its own tables, and those it reads from other lenses: one lens defines a piece of data, many read it
+    let routes: Vec<crate::lenses::Route> =
+        among.iter().flat_map(|l| l.route.iter().cloned()).collect();
+    // its own tables, and those it reads from other lenses: one lens defines a piece of data, many read
+    // it - whichever lens in view declares it, one built into the program or one a place brings
     let all = crate::lenses::tables();
+    let declared_by = |table: &str| {
+        all.get(table)
+            .or_else(|| among.iter().find_map(|l| l.tables.get(table)))
+    };
+    // what it reads and nothing in view declares or names is said here, in words: not left for the engine
+    // to say in its own, as a table that does not exist
+    if let Some(unknown) = lens.lens.reads.iter().find(|read| {
+        declared_by(read).is_none()
+            && !among.iter().any(|l| {
+                l.focus
+                    .iter()
+                    .any(|p| p.named.as_deref() == Some(read.as_str()))
+            })
+    }) {
+        bail!(
+            "the lens {} reads {unknown}, and no lens in view from here declares a table of that name or names a shape so",
+            lens.lens.id
+        );
+    }
     let read: Vec<(String, toml::Value)> = lens
         .lens
         .reads
         .iter()
-        .filter_map(|t| all.get(t).map(|d| (t.clone(), d.clone())))
+        .filter_map(|t| declared_by(t).map(|d| (t.clone(), d.clone())))
         .collect();
     for (table, declared) in lens
         .tables
@@ -805,7 +828,10 @@ fn brought_anew(
     let projected = (|| -> Result<(Vec<Brought>, Vec<String>)> {
         let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch, plane.as_deref())?),
+            &tad::sql::load_script(
+                &scratch,
+                &gather(&wide, &all, dirs, &scratch, plane.as_deref())?,
+            ),
             &wide,
             today,
         );
@@ -1241,7 +1267,7 @@ pub fn beam(
     let traced = (|| -> Result<Vec<Brought>> {
         let wide = widened(found, &all);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, dirs, &scratch, None)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, &all, dirs, &scratch, None)?),
             &wide,
             today,
         );
@@ -1537,6 +1563,12 @@ pub fn focus(lens: &str, dirs: &[PathBuf], today: &str, engine: &dyn SqlEngine) 
 /// what it projects - that is the data's to be sound in, and observing's to have gathered whole - only
 /// the shape it is projected in; so this is checked in the making, and need not be watched after.
 pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
+    shape_among(lens, &crate::lenses::lenses(), engine)
+}
+
+/// The same, of a lens a place brings: its shape is told among the lenses in view from that place - so
+/// that it may read a table, or ask of a shape, another lens of the place gives.
+pub fn shape_among(lens: &Lens, among: &[Lens], engine: &dyn SqlEngine) -> Result<Vec<String>> {
     static CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let scratch = std::env::temp_dir().join(format!(
         "ocoeco-shape-{}-{}",
@@ -1545,9 +1577,9 @@ pub fn shape(lens: &Lens, engine: &dyn SqlEngine) -> Result<Vec<String>> {
     ));
     let doubts = (|| -> Result<Vec<String>> {
         // the lens's tables, and those it reads, with nothing in them
-        let wide = widened(lens, &crate::lenses::lenses());
+        let wide = widened(lens, among);
         let load = with_shapes(
-            &tad::sql::load_script(&scratch, &gather(&wide, &[], &scratch, None)?),
+            &tad::sql::load_script(&scratch, &gather(&wide, among, &[], &scratch, None)?),
             &wide,
             "2026-01-01",
         );
@@ -1672,7 +1704,7 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
         .iter()
         .filter(|l| l.focus.iter().any(|p| p.places.is_none()))
     {
-        match shape(lens, engine) {
+        match shape_among(lens, &all, engine) {
             Err(e) => problems.push(format!(
                 "the shape of the lens {} cannot be told: {}",
                 lens.lens.id,
@@ -1972,6 +2004,60 @@ mod tests {
             beam[0].lines,
             ["given - 0 rows, shaped by the lens giver"],
             "light in: the shape, said as shaped by the lens that names it"
+        );
+    }
+
+    #[test]
+    fn a_lens_reads_a_table_another_lens_in_view_declares() {
+        /// An engine that tells the columns of the part that asks of the notes, and answers it.
+        struct One;
+        impl SqlEngine for One {
+            fn run(&self, script: &str, _format: &str) -> Result<String> {
+                Ok(if script.contains("DESCRIBE") {
+                    r#"[{"column_name":"n"}]"#.into()
+                } else if script.contains("-- read") {
+                    r#"[{"n":"one"}]"#.into()
+                } else {
+                    "[]".into()
+                })
+            }
+        }
+        let d = std::env::temp_dir().join(format!("ocoeco-read-of-another-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"x\"}\n{\"id\":\"b\",\"n\":\"y\"}\n",
+        )
+        .unwrap();
+        // one lens of the place declares the table, another only reads it, a third reads what nothing declares
+        std::fs::write(d.join("lenses/keeper.toml"), "[lens]\nid = \"keeper\"\nsays = \"Declares the notes.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"n\", type = \"string\" }]\n[[focus]]\ntitle = \"kept ({count})\"\nsql = \"SELECT n FROM notes\"\nline = \"{n}\"\n").unwrap();
+        std::fs::write(d.join("lenses/reader.toml"), "[lens]\nid = \"reader\"\nsays = \"Reads the notes another lens declares.\"\nreads = [\"notes\"]\n[[focus]]\ntitle = \"read ({count})\"\nsql = \"SELECT n FROM notes -- read\"\nline = \"{n}\"\n").unwrap();
+        std::fs::write(d.join("lenses/lost.toml"), "[lens]\nid = \"lost\"\nsays = \"Reads what nothing in view declares.\"\nreads = [\"kept-nowhere\"]\n[[focus]]\ntitle = \"read ({count})\"\nsql = \"SELECT 1 AS n\"\nline = \"{n}\"\n").unwrap();
+        let places = [d.clone()];
+        let light = beam("reader", &places, "2026-11-15", &One).unwrap();
+        assert_eq!(
+            light[0].lines,
+            ["notes - 2 rows from 1 place(s) held here, as it is now"],
+            "the table another lens declares comes in"
+        );
+        let parts = brought("reader", &places, "2026-11-15", &One).unwrap();
+        assert_eq!(parts[0].lines, ["one"]);
+        // its shape is told among the lenses in view from its place - among the program's own alone
+        // nothing declares what it reads
+        let all = crate::lenses::with(&places).unwrap();
+        let reader = all.iter().find(|l| l.lens.id == "reader").unwrap();
+        assert!(shape_among(reader, &all, &One).unwrap().is_empty());
+        assert!(shape(reader, &One).is_err());
+        let lacking = format!(
+            "{:#}",
+            brought("lost", &places, "2026-11-15", &One).unwrap_err()
+        );
+        assert!(
+            lacking.contains("reads kept-nowhere") && lacking.contains("no lens in view"),
+            "{lacking}"
         );
     }
 
