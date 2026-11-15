@@ -217,8 +217,16 @@ pub fn manual(
     let when = match (event, mark.exports.get("manual_events")) {
         (Some((rid, per, l)), Some(ep)) if !ep.contains('@') => {
             let ef = dir.join(ep);
+            let mut t = std::fs::read_to_string(&ef).unwrap_or_default();
+            // each time is a row of its own: a second time within the same second is told apart
+            let mut id = format!("{now}-{rid}");
+            let mut nth = 1;
+            while t.contains(&format!("\"id\":\"{id}\"")) {
+                nth += 1;
+                id = format!("{now}-{rid}-{nth}");
+            }
             let mut ev = Row(vec![
-                ("id".into(), Value::String(format!("{now}-{rid}"))),
+                ("id".into(), Value::String(id)),
                 ("record".into(), Value::String(rid)),
                 ("at".into(), Value::String(now.into())),
                 ("minutes".into(), Value::from(per)),
@@ -233,7 +241,6 @@ pub fn manual(
             if let Some(p) = ef.parent() {
                 std::fs::create_dir_all(p)?;
             }
-            let mut t = std::fs::read_to_string(&ef).unwrap_or_default();
             if !t.is_empty() && !t.ends_with('\n') {
                 t.push('\n');
             }
@@ -477,8 +484,31 @@ mod tests {
             "2026-11-12T09:30:00Z",
         )
         .unwrap();
+        // and once more within the same second: a time of its own, told apart from the one before
+        manual(
+            &d,
+            "flash the phone by hand",
+            None,
+            false,
+            None,
+            None,
+            "2026-11-12T09:30:00Z",
+        )
+        .unwrap();
         let ev = std::fs::read_to_string(d.join("oco/manual_events.json")).unwrap();
-        assert_eq!(ev.lines().count(), 2, "{ev}");
+        assert_eq!(ev.lines().count(), 3, "{ev}");
+        assert!(
+            ev.lines()
+                .nth(1)
+                .unwrap()
+                .contains("\"id\":\"2026-11-12T09:30:00Z-flash-the-phone-by-hand\"")
+                && ev
+                    .lines()
+                    .nth(2)
+                    .unwrap()
+                    .contains("\"id\":\"2026-11-12T09:30:00Z-flash-the-phone-by-hand-2\""),
+            "{ev}"
+        );
         assert!(
             ev.contains("\"at\":\"2026-11-11T10:00:00Z\"")
                 && ev.contains("\"record\":\"flash-the-phone-by-hand\"")
