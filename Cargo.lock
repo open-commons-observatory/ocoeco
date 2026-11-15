@@ -697,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "ocoeco"
-version = "0.41.2"
+version = "0.41.3"
 dependencies = [
  "anyhow",
  "argenv-resolve",
