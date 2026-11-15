@@ -1,9 +1,10 @@
 //! The trail: where a driver stood, as it happens. Looking through a lens from a thing leaves a step; a
 //! record of work says where it was made - the things stood on since the last one - and the trail begins
 //! again. Nothing is typed: the act of looking supplies it. The trail is the driver's own, kept on the
-//! machine beside what ocoeco keeps there, and is no part of any place.
+//! machine beside what ocoeco keeps there. Each step is kept too, as a row that says who stood where and
+//! when: where the trail is kept is a place of this machine, in view from an observatory standing there.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn home() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
@@ -43,7 +44,15 @@ fn step_in(home: Option<PathBuf>, who: &str, thing: &str) {
     if let Some(dir) = file.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
+    let stood = std::fs::read_to_string(file.with_extension("stands")).unwrap_or_default();
     let _ = std::fs::write(file.with_extension("stands"), thing);
+    // and a step is kept as a row - who stood where, and when - of a place this machine holds: the act
+    // of looking, as data. A step is a move: standing again where one stands is not one
+    if stood.trim() != thing {
+        if let Some(dir) = file.parent() {
+            keep_step(dir, who, thing);
+        }
+    }
     let so_far = std::fs::read_to_string(&file).unwrap_or_default();
     if so_far.lines().last() == Some(thing) {
         return;
@@ -52,6 +61,55 @@ fn step_in(home: Option<PathBuf>, who: &str, thing: &str) {
         let _ = std::fs::create_dir_all(dir);
     }
     let _ = std::fs::write(&file, format!("{so_far}{thing}\n"));
+}
+
+/// How many steps are kept: when there are more, the earliest are let go.
+const STEPS_KEPT: usize = 2000;
+
+/// Keeps a step as a row of the table of steps, beside the trail, and says - once - that where the trail
+/// is kept is a place of this machine: its mark, so that standing in an observatory there the steps are
+/// in view. Never gathered, never leaving the machine.
+fn keep_step(trail: &Path, who: &str, thing: &str) {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or_default();
+    let at = format!(
+        "{}T{:02}:{:02}:{:02}Z",
+        crate::gather::day(secs / 86_400),
+        secs % 86_400 / 3_600,
+        secs % 3_600 / 60,
+        secs % 60
+    );
+    // a thing is said without its owner where it is spoken of: place, table and id
+    let short = thing.split_once('/').map_or(thing, |(_, rest)| rest);
+    let step = serde_json::json!({"id": format!("{who}-{secs}"), "by": who, "where": thing, "at": at,
+                                  "says": format!("{who} stood on {short}")});
+    let file = trail.join("steps.json");
+    let mut rows: Vec<String> = std::fs::read_to_string(&file)
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect();
+    rows.push(step.to_string());
+    if rows.len() > STEPS_KEPT {
+        rows.drain(..rows.len() - STEPS_KEPT * 3 / 4);
+    }
+    let _ = std::fs::write(&file, rows.join("\n") + "\n");
+    let Some(home) = trail.parent() else { return };
+    if !home.join("oco.toml").is_file() {
+        let host = std::fs::read_to_string("/proc/sys/kernel/hostname")
+            .ok()
+            .map(|h| h.trim().to_string())
+            .filter(|h| !h.is_empty())
+            .unwrap_or_else(|| "this-machine".into());
+        let _ = std::fs::write(
+            home.join("oco.toml"),
+            format!(
+                "schema = 1\n\n[project]\nid = \"{host}/trail\"\nname = \"The trail on {host}: where the drivers of this machine stood, step by step\"\nkind = \"tool\"\nparent = \"{host}\"\n\n[exports]\nsteps = \"trail/steps.json\"\n"
+            ),
+        );
+    }
 }
 
 /// Where the driver stands: the last thing stood on, on whatever surface that was. It stays when the
@@ -150,6 +208,61 @@ mod where_one_stands {
             stands_in(Some(home), "y"),
             None,
             "each driver stands where they stand"
+        );
+    }
+}
+
+#[cfg(test)]
+mod steps_kept {
+    use super::*;
+
+    #[test]
+    fn a_step_is_kept_as_a_row_that_says_who_stood_where_and_when() {
+        let home = std::env::temp_dir().join(format!("ocoeco-steps-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        step_in(Some(home.clone()), "x", "o/r/backlog:a");
+        step_in(Some(home.clone()), "x", "o/r/backlog:a");
+        step_in(Some(home.clone()), "x", "o/r/decisions:b");
+        step_in(Some(home.clone()), "y", "o/r/backlog:a");
+        let kept = std::fs::read_to_string(home.join("ocoeco/trail/steps.json")).unwrap();
+        let rows: Vec<serde_json::Value> = kept
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        let told: Vec<(&str, &str)> = rows
+            .iter()
+            .map(|r| (r["by"].as_str().unwrap(), r["where"].as_str().unwrap()))
+            .collect();
+        assert_eq!(
+            told,
+            [
+                ("x", "o/r/backlog:a"),
+                ("x", "o/r/decisions:b"),
+                ("y", "o/r/backlog:a")
+            ],
+            "a step is a move: standing again where one stands is not one"
+        );
+        assert_eq!(rows[0]["says"], "x stood on r/backlog:a");
+        assert!(
+            crate::relations::when(&rows[0], None).is_some_and(|at| at.len() == 20),
+            "it says when, as a moment"
+        );
+        // and where the trail is kept says it is a place of this machine, once
+        let mark = crate::mark::Mark::parse(
+            &std::fs::read_to_string(home.join("ocoeco/oco.toml")).unwrap(),
+        )
+        .unwrap();
+        assert!(mark.project.id.ends_with("/trail") && mark.exports["steps"] == "trail/steps.json");
+        // steps do not pile up without end
+        for n in 0..STEPS_KEPT + 10 {
+            keep_step(&home.join("ocoeco/trail"), "z", &format!("o/r/backlog:{n}"));
+        }
+        assert!(
+            std::fs::read_to_string(home.join("ocoeco/trail/steps.json"))
+                .unwrap()
+                .lines()
+                .count()
+                <= STEPS_KEPT
         );
     }
 }

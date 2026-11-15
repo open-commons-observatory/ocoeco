@@ -5,8 +5,39 @@
 
 [lens]
 id = "flow"
-says = "What is happening, as one flow: everything in view that says when, the latest first - whatever kind it is, wherever it is held. A look that follows it does not end."
-reads = ["things"]
+says = "What is happening, as one flow: everything in view that says when, the latest first - whatever kind it is, wherever it is held - and where the drivers stand. A look that follows it does not end."
+reads = ["things", "steps"]
+
+# A step: a driver stood on a thing - looked through a lens from it - and when. Kept by ocoeco itself on
+# the machine where it was taken, as a table of a place that machine holds: never gathered, never leaving
+# it. The act of looking, as data - what one is working on is where one stands.
+[tables.steps]
+key = ["id"]
+extra_fields = true
+fields = [
+  { name = "id", type = "string", required = true },
+  { name = "by", type = "string", required = true },
+  { name = "where", type = "string", required = true },
+  { name = "at", type = "string", required = true },
+  { name = "says", type = "string" },
+]
+
+# a step is about the thing stood on: so standing on a thing shows who stood there, and when
+[[relation]]
+from = "steps.where"
+to = ["*"]
+nature = "is about"
+
+# where each driver stands now: their latest step - read off the act of looking, said by no one
+[[focus]]
+title = "where the drivers stand ({count})"
+sql = """
+SELECT s."by" AS who, regexp_replace(s."where", '^[^/]+/', '') AS thing, replace(left(s."at", 16), 'T', ' ') AS at_when,
+       (SELECT count(*) FROM steps n WHERE n."by" = s."by" AND left(n."at", 10) = left(s."at", 10)) AS that_day
+FROM steps s WHERE s."at" = (SELECT max(m."at") FROM steps m WHERE m."by" = s."by")
+ORDER BY s."at" DESC, s."by"
+"""
+line = "{who} - on {thing}, since {at_when} ({that_day} step(s) that day)"
 
 [[focus]]
 title = "the latest ({count})"
