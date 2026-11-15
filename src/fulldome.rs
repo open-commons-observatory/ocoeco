@@ -215,14 +215,21 @@ impl InTerminal {
     /// Every lens given - those built in, and those the places in view bring.
     pub fn of(scale: String, all: Vec<crate::lenses::Lens>) -> InTerminal {
         // a surface said by a lens is not looked through on its own: it lays out what another brings
+        // where one begins: on the whole a place in view says for itself - a lens of its own that places
+        // every lens, with what comes first - and, where none says one, on the flow of work
+        let said_whole = all
+            .iter()
+            .filter(|l| !crate::focus::lays_out_a_plane(l))
+            .position(|l| {
+                l.lens.id != "fulldome" && l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
+            });
         let lenses: Vec<(String, String, bool)> = all
             .into_iter()
             .filter(|l| !crate::focus::lays_out_a_plane(l))
             .map(|l| (l.lens.id, l.lens.says, !l.focus.is_empty()))
             .collect();
-        let at = lenses
-            .iter()
-            .position(|(id, _, _)| id == "work")
+        let at = said_whole
+            .or_else(|| lenses.iter().position(|(id, _, _)| id == "work"))
             .or_else(|| lenses.iter().position(|(_, _, has)| *has))
             .unwrap_or(0);
         InTerminal {
