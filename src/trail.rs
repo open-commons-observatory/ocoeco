@@ -112,6 +112,61 @@ fn keep_step(trail: &Path, who: &str, thing: &str) {
     }
 }
 
+/// What was marked in what the driver was last shown: each thing, in the order of its mark - kept beside
+/// the trail, so that a mark said next names what was shown.
+pub fn marked(who: &str) -> Vec<String> {
+    marked_in(home(), who)
+}
+
+fn marked_in(home: Option<PathBuf>, who: &str) -> Vec<String> {
+    kept(home, who)
+        .and_then(|file| std::fs::read_to_string(file.with_extension("marked")).ok())
+        .map(|text| text.lines().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// Keeps what is marked in what the driver is shown now.
+pub fn mark(who: &str, things: &[String]) {
+    mark_in(home(), who, things)
+}
+
+fn mark_in(home: Option<PathBuf>, who: &str, things: &[String]) {
+    let Some(file) = kept(home, who) else { return };
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::write(file.with_extension("marked"), things.join("\n"));
+}
+
+/// Where the driver stood before where they stand now: the step before the last, as the steps are kept.
+pub fn before(who: &str) -> Option<String> {
+    before_in(home(), who)
+}
+
+fn before_in(home: Option<PathBuf>, who: &str) -> Option<String> {
+    let file = kept(home, who)?;
+    let steps = std::fs::read_to_string(file.parent()?.join("steps.json")).ok()?;
+    let mut stood: Vec<String> = steps
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|step| step["by"].as_str() == Some(who))
+        .filter_map(|step| step["where"].as_str().map(str::to_string))
+        .collect();
+    stood.pop()?;
+    stood.pop()
+}
+
+/// The driver stands on nothing: one step up from any thing, where a place shows what it shows first.
+pub fn leave(who: &str) {
+    leave_in(home(), who)
+}
+
+fn leave_in(home: Option<PathBuf>, who: &str) {
+    if let Some(file) = kept(home, who) {
+        let _ = std::fs::remove_file(file.with_extension("stands"));
+    }
+}
+
 /// Where the driver stands: the last thing stood on, on whatever surface that was. It stays when the
 /// trail begins again - a record of work says where it was made, and one is still standing there after.
 pub fn stands(who: &str) -> Option<String> {
@@ -264,5 +319,40 @@ mod steps_kept {
                 .count()
                 <= STEPS_KEPT
         );
+    }
+}
+
+#[cfg(test)]
+mod of_the_window {
+    use super::*;
+
+    #[test]
+    fn what_was_marked_is_kept_and_one_goes_back_and_up() {
+        let home = std::env::temp_dir().join(format!("ocoeco-window-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        step_in(Some(home.clone()), "d", "o/r/notes:a");
+        step_in(Some(home.clone()), "d", "o/r/notes:b");
+        assert_eq!(
+            before_in(Some(home.clone()), "d").as_deref(),
+            Some("o/r/notes:a"),
+            "back: where one stood before"
+        );
+        mark_in(
+            Some(home.clone()),
+            "d",
+            &["o/r/notes:a".to_string(), "o/r/notes:c".to_string()],
+        );
+        assert_eq!(
+            marked_in(Some(home.clone()), "d"),
+            ["o/r/notes:a", "o/r/notes:c"],
+            "a mark said next names what was shown"
+        );
+        leave_in(Some(home.clone()), "d");
+        assert_eq!(
+            stands_in(Some(home.clone()), "d"),
+            None,
+            "up: one stands on nothing"
+        );
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

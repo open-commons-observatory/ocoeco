@@ -22,3 +22,4 @@ pub mod relations;
 pub mod routes;
 pub mod trail;
 pub mod typed;
+pub mod window;

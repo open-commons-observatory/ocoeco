@@ -845,6 +845,7 @@ mod tests {
                 "as-outline",
                 "as-page",
                 "as-text",
+                "as-window",
                 "flow",
                 "fulldome",
                 "graph",

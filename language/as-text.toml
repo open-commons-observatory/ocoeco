@@ -36,6 +36,7 @@ fields = [
   { name = "of_all", type = "number" },
   { name = "about", type = "string" },
   { name = "thing", type = "string" },
+  { name = "mark", type = "integer" },
   { name = "page", type = "string" },
   { name = "urgent", type = "boolean" },
 ]
