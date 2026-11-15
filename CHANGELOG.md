@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.42.0...ocoeco-v0.43.0) (2026-11-15)
+
+
+### Features
+
+* a name says what it means where it is used; the words go with the program ([#274](https://github.com/open-commons-observatory/ocoeco/issues/274)) ([979ed65](https://github.com/open-commons-observatory/ocoeco/commit/979ed655c283d1e60dcabc0c0e541de61b4da4cf))
+
 ## [0.42.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.3...ocoeco-v0.42.0) (2026-11-15)
 
 
