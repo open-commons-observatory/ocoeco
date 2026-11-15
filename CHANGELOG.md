@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.39.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.38.0...ocoeco-v0.39.0) (2026-11-15)
+
+
+### Features
+
+* a site is said by a lens: its rows are pages, and lines lead to them ([#253](https://github.com/open-commons-observatory/ocoeco/issues/253)) ([7fb1420](https://github.com/open-commons-observatory/ocoeco/commit/7fb1420750cb1fc87018123bc8a88a8e6b6f3638))
+
+
+### Bug Fixes
+
+* a name of several things leads nowhere; a page for each, by its whole name ([#255](https://github.com/open-commons-observatory/ocoeco/issues/255)) ([88549c7](https://github.com/open-commons-observatory/ocoeco/commit/88549c7e735f461af126d6ebe41a9c7457b4cdc9))
+
 ## [0.38.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.37.0...ocoeco-v0.38.0) (2026-11-15)
 
 
