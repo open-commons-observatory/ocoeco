@@ -495,6 +495,11 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 .unwrap_or_else(|| table.to_string())
         };
         let has = |place: &str, table: &str| {
+            // a place is a thing the graph makes, not a row a place keeps: a pointing at one holds
+            // where that place is in view
+            if table == "places" {
+                return places.get(place).map(|_| short(place) == link.id);
+            }
             places
                 .get(place)
                 .map(|held| held.has(&named(place, table), &link.id))
@@ -600,7 +605,25 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 let (Some(value), Some(id)) = (row[field].as_str(), row["id"].as_str()) else {
                     continue;
                 };
-                for link in links(value).iter().filter(|l| {
+                // a value that names, whole, a row this place has is one pointing - a path with spaces
+                // in it is one name; only otherwise is it several, parted by spaces or commas
+                let whole = value.trim();
+                let any = relation.to.iter().any(|t| t == "*");
+                let one = whole.contains(char::is_whitespace)
+                    && held
+                        .tables
+                        .keys()
+                        .any(|t| (any || relation.to.contains(t)) && held.has(t, whole));
+                let found = if one {
+                    vec![Link {
+                        star: None,
+                        table: None,
+                        id: whole.to_string(),
+                    }]
+                } else {
+                    links(value)
+                };
+                for link in found.iter().filter(|l| {
                     !relation
                         .passes_over
                         .iter()
