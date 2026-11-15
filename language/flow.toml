@@ -20,6 +20,8 @@ fields = [
   { name = "where", type = "string", required = true },
   { name = "at", type = "string", required = true },
   { name = "says", type = "string" },
+  # going up is a step too: who left what, and when - so that where one stands is read off the steps
+  { name = "up", type = "boolean" },
 ]
 
 # a step is about the thing stood on: so standing on a thing shows who stood there, and when

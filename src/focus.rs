@@ -111,6 +111,27 @@ thread_local! {
     static PAGES: std::cell::RefCell<std::collections::BTreeMap<String, String>> = Default::default();
 }
 
+/// The tables that hold what was just given in the window, and what was marked in what was last shown:
+/// made for a lens that says what an entry would keep. No place keeps them.
+pub const WAS_GIVEN: &str = "given";
+pub const WAS_MARKED: &str = "marked";
+
+thread_local! {
+    /// What was just given in the window, while a lens that reads it is looked through: each field
+    /// named, and its words.
+    static GIVEN: std::cell::RefCell<Vec<(String, String)>> = Default::default();
+}
+
+/// Says what was given in the window, for the lens that reads it - and, given nothing, that it is over.
+pub fn given_is(given: Vec<(String, String)>) {
+    GIVEN.with(|said| *said.borrow_mut() = given);
+}
+
+/// Who is looking, as a lens may say it - {who}: the driver, by the name the trail keeps their steps under.
+fn whose() -> String {
+    crate::trail::who().replace('\'', "''")
+}
+
 /// Says which things have a page, and where: a plane then says, for a line about such a thing, the page
 /// to go to - so that a surface can lead there. Said by whoever lays a site out, before its pages.
 pub fn pages_are(pages: std::collections::BTreeMap<String, String>) {
@@ -304,13 +325,48 @@ fn gather(
         let of_a_plane = table == OF_A_PLANE;
         // and the thing one stands on, in full: the rows of what it carries, where one stands on a thing
         let of_here = table == IN_FULL;
-        let own = language || graph || kept || routed.is_some() || of_a_plane || of_here;
+        // and what was just given in the window, and what was marked in what was last shown: the rows a
+        // lens reads to say what an entry would keep
+        let given = table == WAS_GIVEN;
+        let marked = table == WAS_MARKED;
+        let own = language
+            || graph
+            || kept
+            || routed.is_some()
+            || of_a_plane
+            || of_here
+            || given
+            || marked;
         if own {
             let made = if of_a_plane {
                 plane.map(<[_]>::to_vec).unwrap_or_default()
             } else if of_here {
                 here.map(|here| in_full(here, among, dirs))
                     .unwrap_or_default()
+            } else if given {
+                GIVEN
+                    .with(|said| said.borrow().clone())
+                    .into_iter()
+                    .enumerate()
+                    .map(|(at, (field, words))| {
+                        Map::from_iter([
+                            ("id".to_string(), Value::from((at + 1).to_string())),
+                            ("field".to_string(), Value::from(field)),
+                            ("value".to_string(), Value::from(words)),
+                        ])
+                    })
+                    .collect()
+            } else if marked {
+                crate::trail::marked(&crate::trail::who())
+                    .into_iter()
+                    .enumerate()
+                    .map(|(at, thing)| {
+                        Map::from_iter([
+                            ("id".to_string(), Value::from((at + 1).to_string())),
+                            ("thing".to_string(), Value::from(thing)),
+                        ])
+                    })
+                    .collect()
             } else if let Some(route) = routed {
                 crate::routes::read(route, dirs)
                     .into_iter()
@@ -953,7 +1009,12 @@ fn brought_anew(
             .collect();
         let questions: Vec<String> = asking
             .iter()
-            .map(|at| found.focus[*at].sql.replace("{today}", today))
+            .map(|at| {
+                found.focus[*at]
+                    .sql
+                    .replace("{today}", today)
+                    .replace("{who}", &whose())
+            })
             .collect();
         let mut answered: std::collections::BTreeMap<usize, Vec<Map<String, Value>>> =
             answers_to_all(engine, &load, &questions)
@@ -1064,7 +1125,14 @@ fn brought_anew(
             }
             let all = match answered.remove(&at) {
                 Some(all) => all,
-                None => answers(engine, &load, &part.sql.replace("{today}", today))?,
+                None => answers(
+                    engine,
+                    &load,
+                    &part
+                        .sql
+                        .replace("{today}", today)
+                        .replace("{who}", &whose()),
+                )?,
             };
             // a part may be laid out once for each value of one of its columns - a red line, a driver,
             // a star - in the order the values first appear; otherwise it is laid out once
@@ -1327,6 +1395,7 @@ fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
                 "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
                 part.sql
                     .replace("{today}", today)
+                    .replace("{who}", &whose())
                     .trim()
                     .trim_end_matches(';')
             ));
@@ -1561,8 +1630,15 @@ pub fn beam(
                         .filter(|(t, _, _)| names_table(&part.sql, t))
                         .collect();
                     let entering: usize = asked.iter().map(|(_, rows, _)| rows).sum();
-                    let passing =
-                        answers(engine, &load, &part.sql.replace("{today}", today))?.len();
+                    let passing = answers(
+                        engine,
+                        &load,
+                        &part
+                            .sql
+                            .replace("{today}", today)
+                            .replace("{who}", &whose()),
+                    )?
+                    .len();
                     let of = asked
                         .iter()
                         .map(|(t, _, _)| t.as_str())
