@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.43.1...ocoeco-v0.44.0) (2026-11-15)
+
+
+### Features
+
+* a change is part of its record of work; an address on a page is a way out ([#280](https://github.com/open-commons-observatory/ocoeco/issues/280)) ([d86534b](https://github.com/open-commons-observatory/ocoeco/commit/d86534bbc5565996643a0e9dabfecacf4c759695))
+
 ## [0.43.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.43.0...ocoeco-v0.43.1) (2026-11-15)
 
 
