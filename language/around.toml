@@ -94,6 +94,20 @@ ORDER BY e.nature, e.how, thing
 """
 line = "{thing} {nature} this{said_as} - {says}"
 
+# what changed for it: the changes that are part of the work that was about it - two steps, taken as one,
+# so that from why something is so one sees what was changed for it, and where that is
+[[focus]]
+title = "what changed for it - the changes of the work that was about it ({count})"
+sql = """
+SELECT DISTINCT left(c."at", 10) AS day, coalesce(c.says, '') AS says,
+       'https://github.com/' || c.place || '/commit/' || substr(c.id, length(c.place) + length(c.of_table) + 3) AS address
+FROM here h JOIN edges w ON w."to" = h.id AND w.from_table = 'glimpses'
+JOIN edges r ON r."to" = w."from" AND r.from_table = 'commits' AND r.how = 'record'
+JOIN things c ON c.id = r."from"
+ORDER BY day DESC, says LIMIT 12
+"""
+line = "{day} {says} - {address}"
+
 # where a change is, on GitHub: the way out, from what is in view, to the code itself
 [[focus]]
 title = "the change itself, where git keeps it ({count})"
