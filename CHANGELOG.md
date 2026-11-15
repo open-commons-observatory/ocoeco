@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.53.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.53.0...ocoeco-v0.53.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* each time done by hand is a row of its own; two things ahead, said with their measures ([#314](https://github.com/open-commons-observatory/ocoeco/issues/314)) ([c6e77ce](https://github.com/open-commons-observatory/ocoeco/commit/c6e77cec065f86fc86c19d94613fc73a1c160b54))
+
 ## [0.53.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.52.0...ocoeco-v0.53.0) (2026-11-15)
 
 
