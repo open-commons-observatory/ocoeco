@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.40.0...ocoeco-v0.41.0) (2026-11-15)
+
+
+### Features
+
+* a step says when: who stood where, as a row of a place the machine holds ([#258](https://github.com/open-commons-observatory/ocoeco/issues/258)) ([1a09d4e](https://github.com/open-commons-observatory/ocoeco/commit/1a09d4ef0a5a7993d17e1f0e1853166c1a54cc1f))
+
 ## [0.40.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.39.0...ocoeco-v0.40.0) (2026-11-15)
 
 
