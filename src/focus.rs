@@ -1162,6 +1162,11 @@ pub fn beam(
 ) -> Result<Vec<Brought>> {
     let _one_look = crate::relations::one_look();
     let all = crate::lenses::with(dirs)?;
+    // a lens looked through from somewhere - lens@thing, lens@place - is traced as it is looked through
+    // from there: its beam is the beam of that look, not of a lens of another name
+    let (lens, here) = lens
+        .split_once('@')
+        .map_or((lens, None), |(lens, here)| (lens, Some(here)));
     // a lens of that name - or else a table of that name, looked through as itself
     let itself = identity(lens, &all, dirs);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
@@ -1172,6 +1177,22 @@ pub fn beam(
                 .collect::<Vec<_>>()
                 .join(", ")
         );
+    };
+    // from a place, what is in view is what is in view from there; from a thing, the lens says where
+    // one stands
+    if let Some(here) = here.filter(|_| !says_here(found)) {
+        let Some(from) = place_named(here, dirs)? else {
+            bail!("the lens {lens} is looked through from a place, and {here} is no place in view");
+        };
+        return beam(lens, &crate::board::in_view(&from).0, today, engine);
+    }
+    let stood;
+    let found = match here {
+        Some(here) => {
+            stood = standing(found, here);
+            &stood
+        }
+        None => found,
     };
     let scratch = std::env::temp_dir().join(format!("ocoeco-beam-{}-{lens}", std::process::id()));
     let traced = (|| -> Result<Vec<Brought>> {
