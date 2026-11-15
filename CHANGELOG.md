@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.47.2...ocoeco-v0.48.0) (2026-11-15)
+
+
+### Features
+
+* the page a visitor meets: lenses as cards that fold, like parts side by side ([#294](https://github.com/open-commons-observatory/ocoeco/issues/294)) ([357842d](https://github.com/open-commons-observatory/ocoeco/commit/357842d718367cc72ad5262e41b4f85fb492bb2b))
+
 ## [0.47.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.47.1...ocoeco-v0.47.2) (2026-11-15)
 
 
