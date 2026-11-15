@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.3](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.2...ocoeco-v0.41.3) (2026-11-15)
+
+
+### Bug Fixes
+
+* the beam of a lens is the beam of the look: from a thing, from a place ([#267](https://github.com/open-commons-observatory/ocoeco/issues/267)) ([6659db5](https://github.com/open-commons-observatory/ocoeco/commit/6659db53a5609687750a0c0dae2bfdfea14462ef))
+
 ## [0.41.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.1...ocoeco-v0.41.2) (2026-11-15)
 
 
