@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.42.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.3...ocoeco-v0.42.0) (2026-11-15)
+
+
+### Features
+
+* a look may be in passing: it stands nowhere and leaves no step ([#269](https://github.com/open-commons-observatory/ocoeco/issues/269)) ([619da8b](https://github.com/open-commons-observatory/ocoeco/commit/619da8bf2848488144e9222d1edd98a1e9429f68))
+
 ## [0.41.3](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.41.2...ocoeco-v0.41.3) (2026-11-15)
 
 
