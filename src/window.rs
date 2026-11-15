@@ -14,7 +14,7 @@ use tad::sql::SqlEngine;
 /// The surface the window is laid out on where there is no terminal: said by a lens.
 const SURFACE: &str = "as-window";
 
-/// The lens that says what an entry asks and the row it would keep, where it is in view.
+/// The lens that says what an entry asks and the row it would keep.
 const ENTERING: &str = "entering";
 
 /// The entry said - by its name, or as the thing a mark marked - with the lens that declares it.
@@ -141,10 +141,9 @@ pub fn said(
     let dirs = crate::board::in_view(dir).0;
     let mut through: Option<String> = None;
     let mut entered = String::new();
-    // where the lens of entering is in view, an entry is said as that lens says it - by its name, or by its
-    // mark where it is marked. One does not stand on an entry: here stays where one stands
+    // an entry is said as the lens of entering says it - by its name, or by its mark where it is marked.
+    // One does not stand on an entry: here stays where one stands
     let all = crate::lenses::with(&dirs)?;
-    let by_a_lens = all.iter().any(|l| l.lens.id == ENTERING);
     let mut an_entry_said: Option<String> = None;
     match words.first().map(String::as_str).unwrap_or_default() {
         "" => {}
@@ -163,7 +162,7 @@ pub fn said(
             else {
                 bail!("nothing is marked {mark} in what was last shown: ocoeco, alone, shows where you stand");
             };
-            if by_a_lens && thing.contains("/lens_entries:") {
+            if thing.contains("/lens_entries:") {
                 an_entry_said = Some(thing.clone());
             } else {
                 crate::trail::step(who, thing);
@@ -172,25 +171,12 @@ pub fn said(
         word if all.iter().any(|l| l.lens.id == word) => {
             through = Some(word.to_string());
         }
-        word if by_a_lens && the_entry(word, &all).is_some() => {
+        word if the_entry(word, &all).is_some() => {
             an_entry_said = Some(word.to_string());
         }
-        word => {
-            match an_entry(
-                word,
-                &given(),
-                crate::trail::stands(who).as_deref(),
-                &crate::trail::marked(who),
-                &dirs,
-                today,
-            )? {
-                Came::Shown(asks) => return Ok(asks),
-                Came::Made { thing, says } => {
-                    crate::trail::step(who, &thing);
-                    entered = says;
-                }
-            }
-        }
+        word => bail!(
+            "{word} is no mark, no lens in view and no entry a lens in view declares: ocoeco, alone, shows where you stand and what can be said from there"
+        ),
     }
     // an entry said: with nothing given, what it asks is shown - through the lens of entering, from the
     // entry; with what it asks given, it is kept as that lens says, and one stands on what was made
@@ -243,12 +229,6 @@ pub fn said(
     ))
 }
 
-/// What came of saying an entry's name: what it asks, shown - or the entry, made.
-enum Came {
-    Shown(String),
-    Made { thing: String, says: String },
-}
-
 /// What was given for an entry: each FIELD: words - a line that names no field of it goes on with the
 /// field before.
 fn given_as_fields(given: &str, known: &[String]) -> Vec<(String, String)> {
@@ -283,179 +263,6 @@ fn place_called(name: &str, dirs: &[PathBuf]) -> Option<(String, PathBuf)> {
     })
 }
 
-/// An entry by its name, said standing on a thing: with nothing given, what it asks, from there; with
-/// what it asks given, it is made - by the entry itself, as it is made anywhere - where the thing stood
-/// on is held, or in the place given. A field that points at things takes `here` for where one stands,
-/// and a mark for what it marks in what was last shown.
-fn an_entry(
-    name: &str,
-    given: &str,
-    stands: Option<&str>,
-    marked: &[String],
-    dirs: &[PathBuf],
-    today: &str,
-) -> Result<Came> {
-    let elsewhere = given.lines().find_map(|line| {
-        line.strip_prefix("in:")
-            .map(|place| place.trim().to_string())
-    });
-    let of_here = stands
-        .and_then(|thing| thing.split_once(':'))
-        .and_then(|(held, _)| held.rsplit_once('/'))
-        .map(|(place, _)| place.to_string());
-    let Some(wanted) = elsewhere.or(of_here) else {
-        bail!("{name} is no mark and no lens in view - and standing on nothing, nothing is entered: stand on what it is to say something of");
-    };
-    let Some((place, dir)) = place_called(&wanted, dirs) else {
-        bail!("no place in view is called {wanted}");
-    };
-    let Some((lens, entry)) = crate::entries::entry_in(name, &dir) else {
-        bail!("{name} is no mark, no lens in view, and no entry that is made in {place}: ocoeco, alone, shows where you stand and what can be entered from there");
-    };
-    let all = crate::entries::fields(&lens, &entry.table);
-    let known: Vec<String> = all
-        .iter()
-        .map(|(field, _, _)| field.clone())
-        .chain(["in".to_string()])
-        .collect();
-    let fields = given_as_fields(given, &known);
-    // which of its fields point at things: those a relation in view is declared from
-    let pointing: Vec<String> = crate::lenses::with(dirs)?
-        .iter()
-        .flat_map(|l| l.relation.iter())
-        .filter_map(|r| {
-            r.from
-                .split_once('.')
-                .filter(|(table, _)| *table == entry.table)
-                .map(|(_, field)| field.to_string())
-        })
-        .collect();
-    if fields.iter().all(|(field, _)| field == "in") {
-        let also: Vec<&str> = all
-            .iter()
-            .map(|(field, _, _)| field.as_str())
-            .filter(|field| *field != "id" && !entry.asks.iter().any(|a| a == field))
-            .collect();
-        return Ok(Came::Shown(format!(
-            "{name} - {}\n  it asks: {}\n  it may also carry: {}\n  of these, what points at things: {} - there, here names where you stand{}, and a mark what it marks\n  it would be kept in {place}\n- say {name} again with what it asks beneath it, each as FIELD: words on lines of its own; in: PLACE keeps it elsewhere, id: NAME names it\n",
-            entry.says,
-            entry.asks.join(", "),
-            also.join(", "),
-            pointing.join(", "),
-            stands.map(|thing| format!(" ({thing})")).unwrap_or_default(),
-        )));
-    }
-    let said = |field: &str| {
-        fields
-            .iter()
-            .find(|(f, _)| f == field)
-            .map(|(_, words)| words.clone())
-    };
-    // named by its first words where no name is given: never an id typed from memory
-    let id = match said("id") {
-        Some(id) => id,
-        None => {
-            let words = fields
-                .iter()
-                .find(|(field, _)| field != "in" && !pointing.contains(field))
-                .map(|(_, words)| words.as_str())
-                .unwrap_or_default();
-            let slug = crate::manual::slug(
-                &words
-                    .split_whitespace()
-                    .take(8)
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            );
-            let dated = lens
-                .tables
-                .get(&entry.table)
-                .and_then(|t| t.get("fields"))
-                .and_then(|f| f.as_array())
-                .into_iter()
-                .flatten()
-                .any(|f| {
-                    f.get("name").and_then(|n| n.as_str()) == Some("id")
-                        && f.get("pattern")
-                            .and_then(|p| p.as_str())
-                            .is_some_and(|p| p.starts_with("^[0-9]{4}"))
-                });
-            let id = if dated {
-                format!("{today}-{slug}")
-            } else {
-                slug
-            };
-            if id.trim_matches('-').is_empty() {
-                bail!("there is nothing to name this {name} by: give what it asks, or id: NAME");
-            }
-            if crate::routes::rows_by_place(&entry.table, std::slice::from_ref(&dir))
-                .iter()
-                .any(|(_, row)| row.get("id").and_then(|v| v.as_str()) == Some(id.as_str()))
-            {
-                bail!("{place} already keeps a {name} called {id}: give id: NAME to name this one - or id: {id}, to change that one");
-            }
-            id
-        }
-    };
-    let mut asked: Vec<String> = vec![
-        "glimpse".into(),
-        name.into(),
-        "--id".into(),
-        id.clone(),
-        "--dir".into(),
-        dir.display().to_string(),
-    ];
-    for (field, words) in fields.iter().filter(|(f, _)| f != "in" && f != "id") {
-        asked.push(format!("--{field}"));
-        asked.push(if pointing.contains(field) {
-            // in a field that points at things, here names where one stands, and a mark what it marks
-            // in what was last shown: a thing is pointed at, never named from memory
-            words
-                .split_whitespace()
-                .map(|word| {
-                    let marks = word
-                        .parse::<usize>()
-                        .ok()
-                        .and_then(|n| n.checked_sub(1))
-                        .and_then(|at| marked.get(at));
-                    match (word, stands, marks) {
-                        ("here", Some(thing), _) => thing,
-                        (_, _, Some(thing)) => thing.as_str(),
-                        _ => word,
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        } else {
-            words.clone()
-        });
-    }
-    // made by the entry itself, as it is made anywhere: asked, guarded and supplied the same
-    // - and standing in the place it is kept in: an entry a place's own lens declares is known there
-    let made = std::process::Command::new(std::env::current_exe()?)
-        .args(&asked)
-        .current_dir(&dir)
-        .output()?;
-    if !made.status.success() {
-        let why = String::from_utf8_lossy(&made.stderr);
-        bail!(
-            "the {name} was not entered: {}",
-            why.lines()
-                .map(str::trim)
-                .filter(|line| !line.is_empty())
-                .collect::<Vec<_>>()
-                .join(" - ")
-        );
-    }
-    let words = id
-        .trim_start_matches(|c: char| c.is_ascii_digit() || c == '-')
-        .replace('-', " ");
-    Ok(Came::Made {
-        thing: format!("{place}/{}:{id}", entry.table),
-        says: format!("entered: {place} | a {name}: {words}\n"),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -475,5 +282,114 @@ mod tests {
             ],
             "a line that names no field goes on with the field before; a colon in the words is words"
         );
+    }
+
+    #[test]
+    fn what_an_entry_would_keep_is_said_by_the_lens_of_entering() {
+        let d = std::env::temp_dir().join(format!("ocoeco-entering-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(
+            d.join("oco.toml"),
+            "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"2026-01-02-what-is-already-kept\",\"says\":\"What is already kept\"}\n",
+        )
+        .unwrap();
+        // a place's own lens: a table whose rows are named by the day, an entry that makes one, and a
+        // field of it that points at things
+        std::fs::write(
+            d.join("lenses/notes.toml"),
+            "[lens]\nid = \"notes\"\nsays = \"Notes, and the entry that makes one.\"\n\n[tables.notes]\nkey = [\"id\"]\nfields = [\n  { name = \"id\", type = \"string\", required = true, pattern = \"^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+$\" },\n  { name = \"says\", type = \"string\", required = true },\n  { name = \"about\", type = \"string\" },\n]\n\n[[relation]]\nfrom = \"notes.about\"\nto = [\"notes\"]\n\n[[glimpse]]\nentry = \"note\"\nsays = \"A note: what it says, and what it is about.\"\ntable = \"notes\"\nasks = [\"says\", \"about\"]\n\n[[focus]]\ntitle = \"notes ({count})\"\nsql = \"SELECT id, says FROM notes ORDER BY id\"\nline = \"{id} - {says}\"\n",
+        )
+        .unwrap();
+        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: what the lens of entering says is held where there is one");
+            return;
+        };
+        let dirs = [d.clone()];
+        let says = |given: &[(&str, &str)]| -> Vec<serde_json::Map<String, serde_json::Value>> {
+            crate::focus::given_is(
+                given
+                    .iter()
+                    .map(|(field, words)| (field.to_string(), words.to_string()))
+                    .collect(),
+            );
+            let parts =
+                crate::focus::brought("entering@note", &dirs, "2026-01-02", &engine).unwrap();
+            crate::focus::given_is(Vec::new());
+            crate::focus::every_answer(&parts)
+                .into_iter()
+                .cloned()
+                .collect()
+        };
+        let of = |rows: &[serde_json::Map<String, serde_json::Value>], key: &str| -> Vec<String> {
+            rows.iter()
+                .filter_map(|row| row.get(key).and_then(|v| v.as_str()).map(str::to_string))
+                .collect()
+        };
+        // nothing given: what it asks, what its fields point at, and how it is said
+        let asked = says(&[]);
+        assert!(of(&asked, "keep_field").is_empty() && of(&asked, "lacking").is_empty());
+        assert!(
+            of(&asked, "how")
+                .iter()
+                .any(|how| how.contains("points at notes"))
+                && of(&asked, "how")
+                    .iter()
+                    .any(|how| how.starts_with("- say note with what it asks")),
+            "{asked:?}"
+        );
+        // given what it asks: the row - named by its first words, dated as its table names its rows, each
+        // field as given - kept in the place that brings the entry
+        let row = says(&[
+            (
+                "says",
+                "A first thing, said plainly - and more words than seven are",
+            ),
+            ("about", "notes:2026-01-02-what-is-already-kept"),
+        ]);
+        assert_eq!(of(&row, "keep_field"), ["id", "says", "about"], "{row:?}");
+        assert_eq!(
+            of(&row, "keep_value"),
+            [
+                "2026-01-02-a-first-thing-said-plainly-and-more",
+                "A first thing, said plainly - and more words than seven are",
+                "notes:2026-01-02-what-is-already-kept"
+            ]
+        );
+        assert_eq!(of(&row, "kept_in"), ["o/r", "o/r", "o/r"], "{row:?}");
+        assert!(of(&row, "lacking").is_empty(), "{row:?}");
+        // a name already kept is not taken by first words - given, it names the row to change
+        let twice = says(&[("says", "What is already kept")]);
+        assert!(
+            of(&twice, "lacking")
+                .iter()
+                .any(|l| l.contains("already keeps one called 2026-01-02-what-is-already-kept")),
+            "{twice:?}"
+        );
+        let changed = says(&[
+            ("id", "2026-01-02-what-is-already-kept"),
+            ("says", "Said anew"),
+        ]);
+        assert!(of(&changed, "lacking").is_empty(), "{changed:?}");
+        assert_eq!(
+            of(&changed, "keep_value"),
+            ["2026-01-02-what-is-already-kept", "Said anew"]
+        );
+        // and with nothing to name it by, nothing is kept
+        let nameless = says(&[("about", "notes:2026-01-02-what-is-already-kept")]);
+        assert!(
+            of(&nameless, "lacking")
+                .iter()
+                .any(|l| l.contains("nothing to name it by")),
+            "{nameless:?}"
+        );
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

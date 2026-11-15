@@ -1,0 +1,215 @@
+# The lens of entering: looked through from an entry - by its name, entering@sign, or as the thing it is.
+# It says what the entry asks; where the one looking stands, and what was marked in what they were last
+# shown - what here and a mark point at; and, given what it asks, the row it would keep: each field and
+# its value, the name the row goes by, the place it is kept in - or what is still lacking. The program
+# gives the words just given and what was marked, and writes the row this lens says: what it is to enter
+# something is said here, where it can be read, changed and looked through like anything else.
+[lens]
+id = "entering"
+says = "From one entry: what it asks, and what it may also carry; where the one looking stands, and what was marked in what they were last shown - what here and a mark point at; and, given what it asks, the row it would keep and the place it would be kept in - or what is still lacking. Looked through from an entry: entering@sign."
+reads = ["things", "lenses", "lens_entries", "lens_fields", "lens_relations", "steps", "given", "marked"]
+
+# What was just given in the window: each field named, and its words. Given by the program for the one
+# look in which an entry is made: no place keeps it.
+[tables.given]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "field", type = "string" },
+    { name = "value", type = "string" },
+]
+
+# What was marked in what the one looking was last shown: each mark, and the thing it marks. Given by the
+# program from what it keeps beside the trail: no place keeps it.
+[tables.marked]
+key = ["id"]
+extra_fields = true
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "thing", type = "string" },
+]
+
+# Every thing in view, by both of its names: where it is held in full, and by its star.
+[[focus]]
+named = "known"
+sql = """
+SELECT id, place, star, of_table, coalesce(says, '') AS says,
+       star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3) AS short
+FROM things
+"""
+
+# The entry one looks from: of that name, or that thing. An entry a place brings is made in that place;
+# one the language brings, anywhere.
+[[focus]]
+named = "entry"
+sql = """
+SELECT e.id, e.lens, e.entry, e.fills, coalesce(e.asks, '') AS asks, coalesce(e.says, '') AS says,
+       coalesce(e.supplies, '') AS supplies, k.short AS thing, k.place,
+       e.star <> (SELECT min(star) FROM lenses WHERE id = 'language') AS of_a_place
+FROM lens_entries e LEFT JOIN known k ON k.of_table = 'lens_entries' AND k.id = k.place || '/lens_entries:' || e.id
+WHERE e.entry = '{here}' OR k.id = '{here}' OR k.short = '{here}'
+ORDER BY e.id LIMIT 1
+"""
+
+# What the entry asks, field by field: whether it is asked, and in which order; what it points at; which
+# values it allows; what the computer supplies where it is not given.
+[[focus]]
+named = "asked"
+sql = """
+SELECT f.name, f.ordinal,
+       nullif(list_position(string_split(replace(e.asks, ' ', ''), ','), f.name), 0) AS nth,
+       p.points_at,
+       CASE WHEN p.points_at IS NOT NULL THEN ' - points at ' || p.points_at || ': here names where you stand, a mark what it marks' ELSE '' END
+       || CASE WHEN coalesce(f.allowed, '') <> '' THEN ' - one of: ' || f.allowed ELSE '' END
+       || coalesce(' - where it is not given: ' || split_part(list_filter(string_split(e.supplies, '; '), lambda s: split_part(s, ' ', 1) = f.name)[1], ' ', 2), '') AS how
+FROM entry e JOIN lens_fields f ON f.lens = e.lens AND f.of_table = e.fills
+LEFT JOIN (SELECT r."from" AS field, string_agg(DISTINCT CASE WHEN r."to" = '*' THEN 'any thing' ELSE r."to" END, ', ') AS points_at
+           FROM lens_relations r GROUP BY r."from") p ON p.field = e.fills || '.' || f.name
+"""
+
+# Where the one looking stands: the thing of their last step - unless that step says they went up from it.
+[[focus]]
+named = "stood"
+sql = """
+SELECT k.short AS thing, s."where" AS said, k.place, k.says
+FROM (SELECT * FROM steps WHERE "by" = '{who}' ORDER BY "at" DESC, id DESC LIMIT 1) s
+JOIN known k ON s."where" IN (k.id, k.short)
+WHERE NOT coalesce(s.up, false)
+LIMIT 1
+"""
+
+# What was given, field by field - but for where to keep it, which is no field of the row.
+[[focus]]
+named = "told"
+sql = """
+SELECT g.field, trim(g.value) AS value, g.seq FROM given g WHERE g.field <> 'in'
+"""
+
+# In a field that points at things, here names where one stands, and a mark what it marks in what was last
+# shown: a thing is pointed at, never named from memory.
+[[focus]]
+named = "pointing"
+sql = """
+SELECT w.field,
+       string_agg(coalesce(CASE WHEN w.word = 'here' THEN (SELECT min(said) FROM stood) END, m.thing, w.word), ' ' ORDER BY w.nth) AS value
+FROM (SELECT t.field, unnest(string_split(t.value, ' ')) AS word, generate_subscripts(string_split(t.value, ' '), 1) AS nth
+      FROM told t JOIN asked a ON a.name = t.field WHERE a.points_at IS NOT NULL) w
+LEFT JOIN marked m ON m.id = w.word
+GROUP BY w.field
+"""
+
+# What the row goes by: the name given - or its first words, where none is: never an id typed from memory.
+# Dated, where the table names its rows by the day.
+[[focus]]
+named = "called"
+sql = """
+SELECT coalesce(i.named, CASE WHEN i.slug <> '' THEN i.dated || i.slug END) AS id, i.named IS NOT NULL AS was_given
+FROM (SELECT (SELECT min(value) FROM told WHERE field = 'id') AS named,
+             coalesce((SELECT array_to_string(list_slice(list_filter(string_split_regex(lower(array_to_string(list_slice(string_split(f.value, ' '), 1, 8), ' ')), '[^[:alnum:]]+'), lambda part: part <> ''), 1, 7), '-')
+                       FROM (SELECT t.value FROM told t LEFT JOIN asked a ON a.name = t.field
+                             WHERE t.field <> 'id' AND a.points_at IS NULL ORDER BY t.seq LIMIT 1) f), '') AS slug,
+             CASE WHEN EXISTS (SELECT 1 FROM entry e JOIN lens_fields p ON p.lens = e.lens AND p.of_table = e.fills AND p.name = 'id'
+                               WHERE starts_with(coalesce(p.pattern, ''), '^[0-9]{4}'))
+                  THEN '{today}-' ELSE '' END AS dated) i
+"""
+
+# Where the row is kept: the place given; else, for an entry a place brings, that place; else where the
+# thing stood on is held.
+[[focus]]
+named = "where_kept"
+sql = """
+SELECT coalesce((SELECT min(k.place) FROM given g JOIN known k ON k.place = trim(g.value) OR k.star = trim(g.value) WHERE g.field = 'in'),
+                (SELECT min(trim(g.value)) FROM given g WHERE g.field = 'in'),
+                (SELECT min(e.place) FROM entry e WHERE e.of_a_place),
+                (SELECT min(s.place) FROM stood s)) AS place
+"""
+
+[[focus]]
+title = "the entry ({count})"
+sql = """
+SELECT thing, entry, says FROM entry
+"""
+line = "{entry} - {says}"
+
+[[focus]]
+title = "it asks ({count})"
+sql = """
+SELECT name, how FROM asked WHERE nth IS NOT NULL ORDER BY nth
+"""
+line = "{name}{how}"
+
+[[focus]]
+title = "it may also carry ({count})"
+sql = """
+SELECT name, how FROM asked WHERE nth IS NULL AND name <> 'id' ORDER BY ordinal
+"""
+line = "{name}{how}"
+
+# What here would name, and what a mark would: said again where they are needed, so that the marks shown
+# here are the ones to say.
+[[focus]]
+title = "where you stand ({count})"
+sql = """
+SELECT s.thing, s.says FROM stood s JOIN entry e ON true
+"""
+line = "{thing} - {says}"
+
+[[focus]]
+title = "marked, in what you were last shown ({count})"
+sql = """
+SELECT k.short AS thing, k.says
+FROM entry e CROSS JOIN marked m JOIN known k ON m.thing IN (k.id, k.short)
+WHERE k.of_table <> 'lens_entries' AND k.short NOT IN (SELECT thing FROM stood)
+ORDER BY m.seq LIMIT 40
+"""
+line = "{thing} - {says}"
+
+[[focus]]
+title = "it would be kept in ({count})"
+sql = """
+SELECT w.place, coalesce(k.short, w.place) AS thing, coalesce(k.says, '') AS says
+FROM where_kept w JOIN entry e ON true LEFT JOIN known k ON k.of_table = 'places' AND k.place = w.place
+WHERE w.place IS NOT NULL AND NOT EXISTS (SELECT 1 FROM given)
+"""
+line = "{place} - {says}"
+
+# Given what it asks: the row it would keep - each field and its value, and the place it is kept in. The
+# program writes what is said here.
+[[focus]]
+title = "it would keep ({count})"
+sql = """
+SELECT r.keep_field, r.keep_value, (SELECT place FROM where_kept) AS kept_in
+FROM (SELECT 'id' AS keep_field, c.id AS keep_value, 0 AS nth FROM called c WHERE c.id IS NOT NULL
+      UNION ALL
+      SELECT t.field, coalesce(p.value, t.value), t.seq FROM told t LEFT JOIN pointing p ON p.field = t.field WHERE t.field <> 'id') r
+JOIN entry e ON true
+WHERE EXISTS (SELECT 1 FROM given)
+ORDER BY r.nth
+"""
+line = "{keep_field}: {keep_value}"
+
+# And what is still lacking, for which nothing is kept.
+[[focus]]
+title = "still lacking ({count})"
+sql = """
+SELECT l.lacking
+FROM (SELECT 'nothing to name it by: give what it asks, or id: NAME' AS lacking FROM called c WHERE c.id IS NULL
+      UNION ALL
+      SELECT 'no place to keep it in: stand on what it is to say something of, or give in: PLACE' FROM where_kept w WHERE w.place IS NULL
+      UNION ALL
+      SELECT w.place || ' already keeps one called ' || c.id || ': give id: NAME to name this one - or id: ' || c.id || ', to change that one'
+      FROM called c, where_kept w, entry e
+      WHERE NOT c.was_given AND EXISTS (SELECT 1 FROM known k WHERE k.id = w.place || '/' || e.fills || ':' || c.id)) l
+JOIN entry e ON true
+WHERE EXISTS (SELECT 1 FROM given)
+"""
+line = "{lacking}"
+
+# How it is said - shown where nothing was given yet.
+[[focus]]
+sql = """
+SELECT '- say ' || e.entry || ' with what it asks beneath it, each as FIELD: words on a line of its own; in: PLACE keeps it elsewhere, id: NAME names it' AS how
+FROM entry e WHERE NOT EXISTS (SELECT 1 FROM given)
+"""
+line = "{how}"

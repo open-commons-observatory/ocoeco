@@ -18,7 +18,7 @@ SELECT text FROM (
   FROM plane
   WHERE coalesce(depth, 0) = 0 OR kind <> 'line'
   UNION ALL
-  SELECT 9223372036854775807, '- say a mark to stand on what it marks, a lens by its name to look through it from where you stand, back, or up'
+  SELECT 9223372036854775807, '- say a mark to stand on what it marks, a lens by its name to look through it from where you stand, an entry by its name to be shown what it asks, back, or up'
 ) ORDER BY ordinal
 """
 line = "{text}"
