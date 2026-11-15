@@ -740,6 +740,7 @@ mod tests {
             all.iter().map(|l| l.lens.id.as_str()).collect::<Vec<_>>(),
             [
                 "around",
+                "as-page",
                 "as-text",
                 "fulldome",
                 "graph",

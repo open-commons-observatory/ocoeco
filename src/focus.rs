@@ -110,11 +110,19 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
                 }
                 continue;
             }
+            // each row says where it comes in its part, and how many lines the part has: so a surface
+            // knows where a part begins and ends from the row itself
+            let walk = crate::dome::walked(part);
             if let Some(title) = &part.title {
-                into.push(row("heading", title, depth, part.urgent));
+                let mut heading = row("heading", title, depth, part.urgent);
+                heading.insert("nth".into(), 0u64.into());
+                heading.insert("of_part".into(), (walk.len() as u64).into());
+                into.push(heading);
             }
-            for (at, along) in crate::dome::walked(part) {
+            for (nth, (at, along)) in walk.iter().copied().enumerate() {
                 let mut line = row("line", &part.lines[at], depth, part.urgent);
+                line.insert("nth".into(), ((nth + 1) as u64).into());
+                line.insert("of_part".into(), (walk.len() as u64).into());
                 line.insert("inset".into(), part.title.is_some().into());
                 line.insert("along".into(), (along as u64).into());
                 if let Some((so_much, of_all)) = part.measures.get(at).copied().flatten() {
@@ -2171,5 +2179,44 @@ mod what_a_line_is_about {
             [None, Some("p/problems:s"), None],
             "a heading, a line about a thing, a line about none"
         );
+    }
+}
+
+#[cfg(test)]
+mod the_page_said_by_a_lens {
+    use super::*;
+    use crate::dome::Dome;
+
+    #[test]
+    fn a_plane_laid_out_by_the_lens_is_the_page_the_program_writes() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-as-page-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place & its <things>\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nproblems = \"data/problems.json\"\n").unwrap();
+        std::fs::write(d.join("data/backlog.json"), "{\"id\":\"a\",\"title\":\"A \\\"quoted\\\" title\",\"status\":\"in-progress\",\"driver\":\"x\",\"opened\":\"2026-01-01\"}\n{\"id\":\"b\",\"title\":\"B\",\"status\":\"next\",\"opened\":\"2026-01-01\"}\n").unwrap();
+        std::fs::write(d.join("data/problems.json"), "{\"id\":\"s\",\"kind\":\"lacking\",\"what\":\"it lacks <a thing> & more\",\"date\":\"2026-01-01\",\"by\":\"x\"}\n").unwrap();
+        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: the page said by a lens is held equal to the program's where there is one");
+            return;
+        };
+        let dirs = [d.clone()];
+        for lens in ["work", "signs", "graph", "insight", "fulldome"] {
+            let by_the_program = crate::dome::Html.whole(
+                "a place & when",
+                &brought(lens, &dirs, "2026-01-02", &engine).unwrap(),
+            );
+            let by_the_lens = crate::dome::Lines
+                .lay_out(
+                    &brought(&format!("as-page@{lens}"), &dirs, "2026-01-02", &engine).unwrap(),
+                )
+                .replace("{scale}", &crate::dome::escaped("a place & when"));
+            assert_eq!(
+                by_the_lens, by_the_program,
+                "the lens {lens}, laid out as a page"
+            );
+        }
     }
 }

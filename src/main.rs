@@ -591,7 +591,16 @@ fn run() -> Result<()> {
                         &today,
                         &engine,
                     )?;
-                    print!("{}", ocoeco::dome::surface("lines", width)?.lay_out(&laid));
+                    // a surface may say {scale} in its frame: what is looked at, and when - filled here
+                    print!(
+                        "{}",
+                        ocoeco::dome::surface("lines", width)?
+                            .lay_out(&laid)
+                            .replace(
+                                "{scale}",
+                                &ocoeco::dome::escaped(&format!("{scale}, {today}"))
+                            )
+                    );
                     return Ok(());
                 }
                 let plane = ocoeco::focus::brought("fulldome", &places, &today, &engine)?;
@@ -742,10 +751,21 @@ fn run() -> Result<()> {
                         println!("{new}");
                     }
                 }
-                None => print!(
-                    "{}",
-                    ocoeco::dome::surface(&surface, width)?.lay_out(&parts)
-                ),
+                None => {
+                    let laid = ocoeco::dome::surface(&surface, width)?.lay_out(&parts);
+                    // a surface said by a lens may say {scale} in its frame: here, the lens and the day
+                    print!(
+                        "{}",
+                        if said_by_a_lens {
+                            laid.replace(
+                                "{scale}",
+                                &ocoeco::dome::escaped(&format!("{lens}, {today}")),
+                            )
+                        } else {
+                            laid
+                        }
+                    );
+                }
             }
         }
         Cmd::Fits { shell, dir, words } => {
