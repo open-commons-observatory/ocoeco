@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.55.1...ocoeco-v0.56.0) (2026-11-15)
+
+
+### Features
+
+* what is given in the window, what was marked and who is looking: read by a lens ([#323](https://github.com/open-commons-observatory/ocoeco/issues/323)) ([c77271c](https://github.com/open-commons-observatory/ocoeco/commit/c77271cad51bda51f1c5953aafeec6dfb32b8010))
+
 ## [0.55.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.55.0...ocoeco-v0.55.1) (2026-11-15)
 
 
