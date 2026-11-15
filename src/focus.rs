@@ -306,6 +306,58 @@ fn gather(
         .context("the lens's tables are a tad declaration")
 }
 
+/// What is said between two parts' answers, when the parts of a lens are all asked in one go.
+const BETWEEN_PARTS: &str = "ocoeco: the next part";
+
+/// Every question of a lens asked of the engine in one go: what the lens gathered is loaded once, and
+/// each question answered after it - not loaded again for each part. Nothing where the engine does not
+/// answer them as asked - one of them fails, or it answers some other way: then each part asks for
+/// itself, as before, and says for itself what is wrong.
+fn answers_to_all(
+    engine: &dyn SqlEngine,
+    load: &str,
+    questions: &[String],
+) -> Option<Vec<Vec<Map<String, Value>>>> {
+    if questions.len() < 2 {
+        return None;
+    }
+    let script = questions.iter().fold(load.to_string(), |script, sql| {
+        format!(
+            "{script}{};\nSELECT '{BETWEEN_PARTS}' AS between_parts;\n",
+            sql.trim().trim_end_matches(';')
+        )
+    });
+    let printed = engine.run(&script, "json").ok()?;
+    // what was answered, part by part: all that is printed up to each saying of what stands between
+    let (mut each, mut so_far) = (Vec::new(), String::new());
+    for line in printed.lines() {
+        if line.contains("\"between_parts\"") && line.contains(BETWEEN_PARTS) {
+            each.push(std::mem::take(&mut so_far));
+        } else {
+            so_far.push_str(line);
+            so_far.push('\n');
+        }
+    }
+    if each.len() != questions.len() || !so_far.trim().is_empty() {
+        return None;
+    }
+    each.iter()
+        .map(|said| {
+            if said.trim().is_empty() {
+                return Some(Vec::new());
+            }
+            let rows: Value = serde_json::from_str(said.trim()).ok()?;
+            Some(
+                rows.as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|r| r.as_object().cloned())
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
 /// The answers to one query: its rows.
 fn answers(engine: &dyn SqlEngine, load: &str, sql: &str) -> Result<Vec<Map<String, Value>>> {
     let printed = engine.run(
@@ -725,7 +777,27 @@ fn brought_anew(
             today,
         );
         let (mut parts, mut doubts) = (Vec::new(), Vec::new());
-        for part in &found.focus {
+        // every part's question is asked of the engine in one go, with what the lens gathered loaded
+        // once: a part finds its answer by its place among them - or asks for itself, where they could
+        // not all be answered together
+        let asking: Vec<usize> = found
+            .focus
+            .iter()
+            .enumerate()
+            .filter(|(_, part)| {
+                part.places.is_none() && !(part.named.is_some() && part.line.trim().is_empty())
+            })
+            .map(|(at, _)| at)
+            .collect();
+        let questions: Vec<String> = asking
+            .iter()
+            .map(|at| found.focus[*at].sql.replace("{today}", today))
+            .collect();
+        let mut answered: std::collections::BTreeMap<usize, Vec<Map<String, Value>>> =
+            answers_to_all(engine, &load, &questions)
+                .map(|all| asking.iter().copied().zip(all).collect())
+                .unwrap_or_default();
+        for (at, part) in found.focus.iter().enumerate() {
             // a part may be what another lens brings into focus, placed here - all of it, or the part
             // under one heading. The other lens gathers, shapes and lays out; this one only places.
             if let Some(other) = &part.places {
@@ -798,7 +870,10 @@ fn brought_anew(
             if part.named.is_some() && part.line.trim().is_empty() {
                 continue;
             }
-            let all = answers(engine, &load, &part.sql.replace("{today}", today))?;
+            let all = match answered.remove(&at) {
+                Some(all) => all,
+                None => answers(engine, &load, &part.sql.replace("{today}", today))?,
+            };
             // a part may be laid out once for each value of one of its columns - a red line, a driver,
             // a star - in the order the values first appear; otherwise it is laid out once
             let mut each: Vec<Vec<Map<String, Value>>> = Vec::new();
@@ -2281,5 +2356,66 @@ mod what_a_line_is_about {
             [None, Some("p/problems:s"), None],
             "a heading, a line about a thing, a line about none"
         );
+    }
+}
+
+#[cfg(test)]
+mod asked_in_one_go {
+    use super::*;
+
+    /// An engine that answers each question it is given with one row saying which it was - and keeps
+    /// count of how often it was run.
+    struct Counting(std::cell::Cell<usize>);
+    impl SqlEngine for Counting {
+        fn run(&self, script: &str, _format: &str) -> Result<String> {
+            self.0.set(self.0.get() + 1);
+            Ok(script
+                .lines()
+                .filter(|line| line.starts_with("SELECT"))
+                .map(|line| {
+                    match line
+                        .strip_prefix("SELECT '")
+                        .and_then(|rest| rest.split_once("' AS between_parts"))
+                    {
+                        Some((between, _)) => format!("[{{\"between_parts\":\"{between}\"}}]\n"),
+                        None if line.contains("nothing") => String::new(),
+                        None => format!(
+                            "[{{\"asked\":\"{}\"}},\n{{\"asked\":\"again\"}}]\n",
+                            line.trim_end_matches(';')
+                        ),
+                    }
+                })
+                .collect())
+        }
+    }
+
+    #[test]
+    fn the_parts_of_a_lens_are_asked_in_one_go_and_each_finds_its_own_answer() {
+        let engine = Counting(std::cell::Cell::new(0));
+        let questions = [
+            "SELECT one".to_string(),
+            "SELECT nothing".to_string(),
+            "SELECT three;".to_string(),
+        ];
+        let all = answers_to_all(&engine, "CREATE TABLE t AS SELECT 1;\n", &questions).unwrap();
+        assert_eq!(engine.0.get(), 1, "the engine is run once for all of them");
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0][0]["asked"], "SELECT one");
+        assert_eq!(all[0].len(), 2, "every row of an answer is its own");
+        assert!(
+            all[1].is_empty(),
+            "a part with no answer has none - and the next is still its own"
+        );
+        assert_eq!(all[2][0]["asked"], "SELECT three");
+        // one question alone is asked as it always was
+        assert!(answers_to_all(&engine, "", &questions[..1]).is_none());
+        // and an engine that answers some other way is not believed: each part then asks for itself
+        struct Otherwise;
+        impl SqlEngine for Otherwise {
+            fn run(&self, _script: &str, _format: &str) -> Result<String> {
+                Ok("[{\"asked\":\"whatever\"}]\n".into())
+            }
+        }
+        assert!(answers_to_all(&Otherwise, "", &questions).is_none());
     }
 }
