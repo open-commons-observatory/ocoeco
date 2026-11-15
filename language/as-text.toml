@@ -8,7 +8,9 @@ id = "as-text"
 says = "A surface, said by a lens: a plane laid out as plain text - a heading with its lines beneath, a lens placed within it by its name and what it says. Looked through from the lens whose plane it lays out: as-text@a-lens."
 
 # What a lens brings into focus, as rows - a plane, in the order it is laid out: a lens placed within it,
-# by its name (of_lens) and what it says of itself, or why it brought nothing; a part's heading; and each
+# by its name (of_lens), what it says of itself and whether it was placed as one of every lens in view
+# (of_every), or why it brought nothing; a part's heading, and what the part is laid out once for each of
+# where it is one of several of one kind (per); and each
 # line - whether it sits beneath a heading (inset), how far along a chain it is (along), its measure of a
 # whole where it has one (so_much, of_all), where it comes in its part and how many lines the part has
 # (nth, of_part - a heading is the 0th), what it is about, and the thing it is about where its answer
@@ -23,6 +25,8 @@ fields = [
   { name = "kind", type = "string", required = true, enum = ["lens", "nothing", "heading", "line"] },
   { name = "says", type = "string" },
   { name = "of_lens", type = "string" },
+  { name = "of_every", type = "boolean" },
+  { name = "per", type = "string" },
   { name = "depth", type = "integer" },
   { name = "inset", type = "boolean" },
   { name = "along", type = "integer" },

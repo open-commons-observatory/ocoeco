@@ -650,7 +650,26 @@ fn run() -> Result<()> {
                                 "{scale}",
                                 &ocoeco::dome::escaped(&format!("{scale}, {today}"))
                             )
-                            .replace("{title}", "The fulldome")
+                            // what the page is called: what the place one looks from is called
+                            .replace(
+                                "{title}",
+                                &ocoeco::dome::escaped(
+                                    &ocoeco::lenses::called_at(&dir)
+                                        .unwrap_or_else(|| "The fulldome".to_string()),
+                                ),
+                            )
+                            // and what it says of itself, under that: what the whole says it shows
+                            .replacen(
+                                "{says}",
+                                &ocoeco::dome::escaped(
+                                    &ocoeco::lenses::with(&places)?
+                                        .iter()
+                                        .find(|l| l.lens.id == whole)
+                                        .map(|l| l.lens.says.clone())
+                                        .unwrap_or_default(),
+                                ),
+                                1,
+                            )
                     );
                     return Ok(());
                 }
@@ -858,6 +877,20 @@ fn run() -> Result<()> {
                                 &ocoeco::dome::escaped(&format!("{lens}, {today}")),
                             )
                             .replace("{title}", &ocoeco::dome::escaped(&lens))
+                            // and what the page says of itself: what the lens looked through says it shows
+                            .replacen(
+                                "{says}",
+                                &ocoeco::dome::escaped(
+                                    &ocoeco::lenses::with(&places)?
+                                        .iter()
+                                        .find(|l| {
+                                            Some(l.lens.id.as_str()) == lens.split('@').next()
+                                        })
+                                        .map(|l| l.lens.says.clone())
+                                        .unwrap_or_default(),
+                                ),
+                                1,
+                            )
                         } else {
                             laid
                         }
@@ -946,13 +979,23 @@ fn run() -> Result<()> {
                     "two pages of the site are written at {path}: each page has a place of its own"
                 );
             }
-            // and what each page is headed by: what its row calls its title - or, saying none, the whole
+            // and what each page is headed by: what its row calls its title - or, saying none, what the
+            // place one looks from is called
             let titles: std::collections::BTreeMap<String, String> =
                 ocoeco::focus::brought(&lens, &places, &today, &engine)?
                     .iter()
                     .flat_map(|part| part.values.iter())
                     .map(|row| (said(row, "path"), said(row, "title")))
                     .filter(|(_, title)| !title.is_empty())
+                    .collect();
+            let called =
+                ocoeco::lenses::called_at(&dir).unwrap_or_else(|| "The fulldome".to_string());
+            // and what each page says of itself, under its title: what its row says
+            let saying: std::collections::BTreeMap<String, String> =
+                ocoeco::focus::brought(&lens, &places, &today, &engine)?
+                    .iter()
+                    .flat_map(|part| part.values.iter())
+                    .map(|row| (said(row, "path"), said(row, "says")))
                     .collect();
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
@@ -968,7 +1011,14 @@ fn run() -> Result<()> {
                 );
                 let text = text.replace(
                     "{title}",
-                    &ocoeco::dome::escaped(titles.get(path).map_or("The fulldome", String::as_str)),
+                    &ocoeco::dome::escaped(
+                        titles.get(path).map_or(called.as_str(), String::as_str),
+                    ),
+                );
+                let text = text.replacen(
+                    "{says}",
+                    &ocoeco::dome::escaped(saying.get(path).map_or("", String::as_str)),
+                    1,
                 );
                 let file = out.join(path);
                 if let Some(folder) = file.parent() {

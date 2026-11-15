@@ -1,58 +1,164 @@
 # A surface, said by a lens: the page. A plane - as rows, in the order it is laid out - laid out as a page
-# of the web: quiet, readable in light and dark, nothing fetched from anywhere. It is the page the program
-# has always written, said in the language: the two give the same, byte for byte. Its frame says {scale},
-# which whoever asks for the page fills with what is looked at, and when. How the page looks - its style -
-# is here, in what the lens says, and no longer in the program. Where a line is about a thing that has a
-# page - while a site is laid out - its words lead there.
+# of the web, readable in light and dark, nothing fetched from anywhere. How the page looks is here, in
+# what the lens says, and not in the program: each meaning a plane carries is drawn its own way, and no
+# lens says how it should look.
+#
+#   a lens placed in the plane   a card that folds, headed by its name, what it says it shows, and its
+#                                figures - the lines it says under no heading. What a place put first, by
+#                                name, is open; a lens placed as one of every other is folded: an index
+#   a part                       a heading with its count, and its lines - drawn by what they carry:
+#                                measures as a grid of rings, short lines in columns, a chain stepped in,
+#                                sentences as rows - the first eight of many, the rest folded beneath
+#   parts laid out once for      side by side, each a small card - a star with its idea and how far it
+#   each of something            has come, a state with its work - where each is short; one under another
+#                                where any is long
+#   a line                       what it is known by set strong, where its words say that name; the thing
+#                                it is about a way to that thing's page, where it has one; an address of
+#                                the web, a way out; a long line cut short until it is chosen
+#   a measure                    a ring, so much of the whole
+#   the lenses of the page       ways to each, at the top
+#
+# Its frame says {title}, {scale} and {says}, which whoever asks for the page fills with what it is called,
+# what is looked at and when, and what it says of itself.
 
 [lens]
 id = "as-page"
-says = "A surface, said by a lens: a plane laid out as a page of the web - each part a section, its heading and its lines as a list, a measure as a meter. Looked through from the lens whose plane it lays out: as-page@a-lens."
+says = "A surface, said by a lens: a plane laid out as a page of the web - a lens placed in it as a card that folds, open where a place put it first; a measure as a ring; what a line is about as a way to it; and ways to each lens at the top. Looked through from the lens whose plane it lays out: as-page@a-lens."
 reads = ["plane"]
 
-# first what is said, made safe for a page and its numbers written as a page writes them; then each row
-# as its piece of the page - a part opens with its heading and closes after its last line; then the frame
-# around them all
+# first what is said, made safe for a page; then what each line is about; then which stretch of the page a
+# row belongs to - a lens placed at the top, or what the lens looked through says itself - and which part,
+# and what its part carries; then each row as its piece of the page; then the frame around them all
 [[focus]]
 always = true
 sql = """
 WITH made AS (
-  SELECT seq, kind, coalesce(nth, 0) AS nth, coalesce(of_part, 0) AS of_part, coalesce(inset, false) AS inset, coalesce(along, 0) AS along, of_all,
+  SELECT seq, kind, coalesce(depth, 0) AS depth, coalesce(nth, 0) AS nth, coalesce(of_part, 0) AS of_part,
+         coalesce(inset, false) AS inset, coalesce(along, 0) AS along, of_all,
+         coalesce(urgent, false) AS urgent, coalesce(of_every, false) AS of_every, coalesce(per, '') AS per,
          replace(replace(replace(replace(coalesce(says, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS words,
+         replace(replace(replace(replace(coalesce(about, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS about,
+         replace(replace(replace(replace(coalesce(thing, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS thing,
          coalesce(page, '') AS page,
          replace(replace(replace(replace(coalesce(of_lens, ''), '&', '&amp;'), '<', '&lt;'), '>', '&gt;'), '"', '&quot;') AS of_lens,
-         CASE WHEN so_much = floor(so_much) THEN CAST(CAST(so_much AS BIGINT) AS VARCHAR) ELSE CAST(so_much AS VARCHAR) END AS so,
-         CASE WHEN of_all = floor(of_all) THEN CAST(CAST(of_all AS BIGINT) AS VARCHAR) ELSE CAST(of_all AS VARCHAR) END AS of_it
+         CAST(CASE WHEN of_all > 0 THEN least(100, greatest(0, round(so_much / of_all * 100))) ELSE 0 END AS INTEGER) AS percent,
+         -- what stands in a ring: the two numbers where they fit, and otherwise how much of a hundred
+         CASE WHEN so_much > 99 OR of_all > 99
+              THEN CAST(CAST(CASE WHEN of_all > 0 THEN least(100, greatest(0, round(so_much / of_all * 100))) ELSE 0 END AS INTEGER) AS VARCHAR) || '%'
+              ELSE CASE WHEN so_much = floor(so_much) THEN CAST(CAST(so_much AS BIGINT) AS VARCHAR) ELSE CAST(so_much AS VARCHAR) END
+                   || '/' || CASE WHEN of_all = floor(of_all) THEN CAST(CAST(of_all AS BIGINT) AS VARCHAR) ELSE CAST(of_all AS VARCHAR) END
+         END AS ring
   FROM plane
+), marked AS (
+  -- what a place wrote between two pairs of stars is said strongly; an address of the web is a way out
+  SELECT *, regexp_replace(strong, '(https?://[^ <]*[^ <.,;:)])', '<a href="\\1">\\1</a>', 'g') AS led,
+         -- what a line is known by, where the plane says it and the line's own words say that name; and
+         -- the thing it is about, where its words name that thing whole
+         CASE WHEN kind = 'line' AND about <> '' AND length(about) < length(words) AND strpos(words, about) > 0 THEN about ELSE '' END AS known,
+         CASE WHEN kind = 'line' AND thing <> '' AND strpos(words, thing) > 0 THEN thing ELSE '' END AS named
+  FROM (SELECT *, regexp_replace(words, '\\*\\*([^*]+)\\*\\*', '<b>\\1</b>', 'g') AS strong FROM made)
 ), said AS (
-  -- a line about a thing that has a page leads to it: the words are the way there
-  -- and an address of the web, where a line says one, is a way out: to a source, to the code
-  SELECT *, CASE WHEN page <> '' AND kind = 'line' THEN '<a style="color:inherit" href="/' || page || '">' || words || '</a>'
-                 ELSE regexp_replace(words, '(https?://[^ <]*[^ <.,;:)])', '<a style="color:inherit" href="\\1">\\1</a>', 'g') END AS says FROM made
+  -- what a line is known by is set strong, and is the way to its thing's page where it has one; a thing
+  -- named whole is the way to its page, and nothing more; a line that names nothing so, about a thing
+  -- with a page, leads there whole
+  SELECT *, CASE
+      WHEN known <> '' AND strpos(led, known) > 0 THEN
+        substr(led, 1, strpos(led, known) - 1)
+        || CASE WHEN page <> '' THEN '<a class="s" href="/' || page || '">' || known || '</a>' ELSE '<b class="s">' || known || '</b>' END
+        || substr(led, strpos(led, known) + length(known))
+      WHEN named <> '' AND page <> '' AND strpos(led, named) > 0 THEN
+        substr(led, 1, strpos(led, named) - 1) || '<a href="/' || page || '">' || named || '</a>'
+        || substr(led, strpos(led, named) + length(named))
+      WHEN page <> '' AND kind = 'line' THEN '<a href="/' || page || '">' || strong || '</a>'
+      ELSE led END AS says,
+      (depth = 0 AND kind NOT IN ('lens', 'nothing')) AS own
+  FROM marked
+), begun AS (
+  -- a stretch of the page begins where a lens is placed at the top, where the page begins, and where
+  -- the lens looked through speaks itself again after one it placed
+  SELECT *, CASE WHEN (kind = 'lens' AND depth = 0) OR seq = min(seq) OVER ()
+                   OR (own AND NOT coalesce(lag(own) OVER (ORDER BY seq), false)) THEN 1 ELSE 0 END AS begins
+  FROM said
+), placed AS (
+  SELECT *, sum(begins) OVER (ORDER BY seq) AS stretch,
+            sum(CASE WHEN kind IN ('lens', 'heading', 'nothing') OR (kind = 'line' AND NOT inset AND nth = 1) THEN 1 ELSE 0 END) OVER (ORDER BY seq) AS part
+  FROM begun
+), sized AS (
+  -- whether a row's stretch is a lens that folds, where the stretch ends, and what its part carries
+  SELECT *, first_value(kind = 'lens' AND depth = 0) OVER (PARTITION BY stretch ORDER BY seq) AS folds,
+            seq = max(seq) OVER (PARTITION BY stretch) AS ends,
+            seq = max(seq) OVER (PARTITION BY part) AS closes,
+            count(of_all) OVER (PARTITION BY part) AS measures,
+            max(along) OVER (PARTITION BY part) AS chained,
+            coalesce(max(CASE WHEN kind = 'line' THEN length(words) END) OVER (PARTITION BY part), 0) AS longest,
+            coalesce(max(CASE WHEN kind = 'heading' THEN per END) OVER (PARTITION BY part), '') AS each_of
+  FROM placed
+), ran AS (
+  -- parts laid out once for each of something - each star, each state - come one after another: a run of
+  -- them begins where one follows what is not one, and ends before what is not one
+  SELECT *, (kind = 'heading' AND each_of <> '' AND (begins = 1 OR coalesce(lag(each_of) OVER (ORDER BY seq), '') = '')) AS run_begins,
+            (closes AND each_of <> '' AND (ends OR coalesce(lead(each_of) OVER (ORDER BY seq), '') = '')) AS run_ends
+  FROM sized
+), runs AS (
+  SELECT *, CASE WHEN each_of <> '' THEN sum(CASE WHEN run_begins THEN 1 ELSE 0 END) OVER (ORDER BY seq) ELSE 0 END AS run
+  FROM ran
+), fit AS (
+  -- and they stand side by side, each a small card, where there are several and none is long
+  SELECT *, (run > 0 AND max(of_part) OVER (PARTITION BY run) <= 10
+             AND sum(CASE WHEN kind = 'heading' THEN 1 ELSE 0 END) OVER (PARTITION BY run) > 1) AS beside,
+            -- and a part of many sentences shows its first eight, the rest folded beneath them
+            (measures = 0 AND chained = 0 AND NOT (longest <= 72 AND of_part >= 6) AND of_part > 12) AS rest
+  FROM runs
+), figures AS (
+  -- what a placed lens says under no heading - its figures - is said with its name, seen while it is folded
+  SELECT stretch, string_agg(says, ' &middot; ' ORDER BY seq) AS figures
+  FROM sized WHERE folds AND kind = 'line' AND NOT inset GROUP BY stretch
 ), laid AS (
-  SELECT seq, CASE kind
-    WHEN 'lens' THEN '<h2 id="' || of_lens || '">' || of_lens || '</h2>' || chr(10) || '<p class="says">' || says || '</p>'
-    WHEN 'nothing' THEN '<p class="none">' || says || '</p>'
-    WHEN 'heading' THEN '<section>' || chr(10) || '<h3>' || says || '</h3>' || chr(10)
-         || CASE WHEN of_part = 0 THEN '<p class="none">Nothing.</p>' || chr(10) || '</section>' ELSE '<ul>' END
-    ELSE CASE WHEN inset THEN
-           CASE WHEN of_all IS NOT NULL THEN '<li><meter value="' || so || '" max="' || of_it || '">' || so || ' of ' || of_it || '</meter> ' || says || '</li>'
-                WHEN along = 0 THEN '<li>' || says || '</li>'
-                ELSE '<li style="margin-left:' || CASE WHEN along % 2 = 0 THEN CAST(along * 3 // 2 AS VARCHAR) ELSE CAST(along * 1.5 AS VARCHAR) END || 'rem">' || says || '</li>' END
-           || CASE WHEN nth = of_part THEN chr(10) || '</ul>' || chr(10) || '</section>' ELSE '' END
-         ELSE CASE WHEN nth = 1 THEN '<section>' || chr(10) ELSE '' END || '<p>' || says || '</p>'
-           || CASE WHEN nth = of_part THEN chr(10) || '</section>' ELSE '' END
-         END
-  END AS text FROM said
+  SELECT s.seq,
+    CASE
+      WHEN kind = 'lens' AND depth = 0 THEN
+        '<details class="lens" id="' || of_lens || '"' || CASE WHEN of_every THEN '' ELSE ' open' END || '>' || chr(10)
+        || '<summary><h2>' || of_lens || '</h2><p class="says">' || says || '</p>'
+        || coalesce('<p class="figures">' || f.figures || '</p>', '') || '</summary>'
+      ELSE
+        CASE WHEN begins = 1 THEN '<div class="lens bare">' || chr(10) ELSE '' END
+        || CASE WHEN run_begins AND beside THEN '<div class="each">' || chr(10) ELSE '' END
+        || CASE
+          WHEN kind = 'lens' THEN '<section class="part"><h3>' || of_lens || '</h3><p class="says">' || says || '</p></section>'
+          WHEN kind = 'nothing' THEN '<p class="none">' || says || '</p>'
+          WHEN kind = 'heading' THEN
+            '<section class="part' || CASE WHEN measures > 0 THEN ' tiles' WHEN chained > 0 THEN ' chain' WHEN longest <= 72 AND of_part >= 6 THEN ' cols' ELSE '' END
+            || CASE WHEN urgent THEN ' urgent' ELSE '' END || '">' || chr(10)
+            || '<h3>' || regexp_replace(says, ' \\((\\d+)\\)$', ' <span class="count">\\1</span>') || '</h3>' || chr(10)
+            || CASE WHEN of_part = 0 THEN '<p class="none">Nothing.</p>' || chr(10) || '</section>' ELSE '<ul>' END
+          WHEN inset THEN
+            CASE WHEN rest AND nth = 9 THEN '</ul>' || chr(10) || '<details class="more"><summary>' || CAST(of_part - 8 AS VARCHAR) || ' more</summary>' || chr(10) || '<ul>' || chr(10) ELSE '' END
+            || '<li' || CASE WHEN of_all IS NOT NULL OR along > 0 OR length(words) > 300
+                          THEN ' class="' || trim(CASE WHEN of_all IS NOT NULL THEN 'measure ' ELSE '' END || CASE WHEN along > 0 THEN 'along ' ELSE '' END || CASE WHEN length(words) > 300 AND of_all IS NULL THEN 'long' ELSE '' END) || '"'
+                          ELSE '' END
+            || CASE WHEN along > 0 THEN ' style="--along:' || CAST(along AS VARCHAR) || '"' ELSE '' END
+            || CASE WHEN length(words) > 300 AND of_all IS NULL THEN ' tabindex="0"' ELSE '' END || '>'
+            || CASE WHEN of_all IS NOT NULL THEN '<span class="ring" style="--p:' || CAST(percent AS VARCHAR) || '">' || ring || '</span><span>' || says || '</span>' ELSE says END
+            || '</li>'
+            || CASE WHEN nth = of_part THEN chr(10) || '</ul>' || chr(10) || CASE WHEN rest THEN '</details>' || chr(10) ELSE '' END || '</section>' ELSE '' END
+          WHEN folds THEN ''
+          ELSE '<p class="figures">' || says || '</p>'
+        END
+        || CASE WHEN run_ends AND beside THEN chr(10) || '</div>' ELSE '' END
+    END
+    || CASE WHEN ends THEN chr(10) || CASE WHEN folds THEN '</details>' ELSE '</div>' END ELSE '' END AS text
+  FROM fit s LEFT JOIN figures f USING (stretch)
 )
 SELECT text FROM (
-  SELECT 0 AS ordinal, '<!doctype html>' || chr(10) || '<html lang="en">' || chr(10) || '<head>' || chr(10) || '<meta charset="utf-8">' || chr(10)
+  SELECT -1 AS ordinal, '<!doctype html>' || chr(10) || '<html lang="en">' || chr(10) || '<head>' || chr(10) || '<meta charset="utf-8">' || chr(10)
     || '<meta name="viewport" content="width=device-width, initial-scale=1">' || chr(10) || '<title>{title}</title>' || chr(10)
-    || '<style>body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#1c1c1c;background:#fcfcfa}h1{font-size:1.6rem}h2{margin-top:2.2rem;border-bottom:1px solid #8884;padding-bottom:.2rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}ul{margin:.2rem 0;padding-left:1.2rem}li{margin:.15rem 0}.says,.scale,.none{color:#555}.none{font-style:italic}@media(prefers-color-scheme:dark){body{color:#e8e8e4;background:#16171a}.says,.scale,.none{color:#a0a0a0}}</style>' || chr(10)
-    || '</head>' || chr(10) || '<body>' || chr(10) || '<h1>{title}</h1>' || chr(10)
-    || '<p class="scale">{scale} - <a style="color:inherit" href="/">the whole</a></p>' AS text
-  UNION ALL SELECT seq, text FROM laid
-  UNION ALL SELECT 2000000000, '</body>' || chr(10) || '</html>'
+    || '<style>:root{--ground:#fbfaf7;--card:#fff;--words:#1c1b19;--quiet:#6b6a64;--edge:#1c1b1920;--soft:#1c1b190d;--mark:#2d7a55;--warn:#b4541a}@media(prefers-color-scheme:dark){:root{--ground:#141518;--card:#1b1d21;--words:#e9e7e2;--quiet:#a19e97;--edge:#ffffff24;--soft:#ffffff0f;--mark:#6fc394;--warn:#e39a62}}*{box-sizing:border-box}body{font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;color:var(--words);background:var(--ground)}header,main{max-width:68rem;margin:0 auto;padding:0 1.25rem}header{padding-top:2.4rem}main{padding-bottom:4rem}h1{font-size:clamp(1.55rem,5.2vw,2.1rem);line-height:1.15;margin:0 0 .35rem;letter-spacing:-.015em;text-wrap:balance}.scale{color:var(--quiet);margin:0}.lead{font-size:1.1rem;max-width:46rem;margin:.9rem 0 0}.lead:empty{display:none}nav{display:flex;flex-wrap:wrap;gap:.2rem .95rem;margin-top:1.2rem;padding:.65rem 0;border-top:1px solid var(--edge);border-bottom:1px solid var(--edge);font-size:.92rem}nav a{color:var(--quiet);text-decoration:none}nav a:hover{color:var(--words)}a{color:inherit;text-decoration-color:var(--quiet);text-decoration-thickness:1px;text-underline-offset:.16em}a:hover{text-decoration-color:currentColor}.lens{--on:var(--card);background:var(--on);border:1px solid var(--edge);border-radius:.8rem;margin-top:1rem;padding:0 1.3rem}.bare{padding-top:.1rem;padding-bottom:1.1rem}summary{list-style:none;cursor:pointer;position:relative}summary::-webkit-details-marker{display:none}summary::before{content:"";position:absolute;left:.1rem;width:.5rem;height:.5rem;border-right:2px solid var(--quiet);border-bottom:2px solid var(--quiet);transform:rotate(-45deg);transition:transform .15s}details[open]>summary::before{transform:rotate(45deg)}.lens>summary{padding:1rem 0 .95rem 1.4rem}.lens>summary::before{top:1.45rem}.lens[open]>summary{border-bottom:1px solid var(--edge)}details.lens[open]{padding-bottom:1.1rem}.more>summary{padding:.5rem 0 .35rem 1.4rem;border-top:1px solid var(--soft);color:var(--quiet);font-size:.92rem}.more>summary::before{top:.9rem}h2{font-size:1.3rem;margin:0}.says{color:var(--quiet);margin:.15rem 0 0}.figures{margin:.35rem 0 0;font-size:.95rem;font-variant-numeric:tabular-nums}.bare>.figures{color:var(--quiet);margin-top:1rem}.part{margin-top:1.25rem}h3{font-size:.98rem;margin:0 0 .3rem}.count{display:inline-block;min-width:1.5rem;padding:0 .45rem;margin-left:.25rem;border-radius:1rem;background:var(--soft);color:var(--quiet);font-size:.82rem;font-weight:600;text-align:center;font-variant-numeric:tabular-nums}.urgent h3::before{content:"";display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:var(--warn);margin-right:.45rem}ul{list-style:none;margin:0;padding:0}li{padding:.42rem 0;border-top:1px solid var(--soft);overflow-wrap:anywhere}li:first-child{border-top:0}.s{font-weight:600}.long{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;cursor:pointer;padding-bottom:0;margin-bottom:.42rem}.long:focus{display:block;overflow:visible;outline:0}.cols ul{columns:17rem;column-gap:2.2rem}.cols li{break-inside:avoid;border-top:0;padding:.14rem 0}.tiles ul{display:grid;grid-template-columns:repeat(auto-fill,minmax(16.5rem,1fr));gap:.5rem 1.4rem}.tiles li{border-top:0;padding:.2rem 0}.measure{display:flex;gap:.7rem;align-items:center}.ring{flex:none;width:2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;font-size:.66rem;font-weight:600;font-variant-numeric:tabular-nums;background:radial-gradient(closest-side,var(--on) 74%,transparent 76%),conic-gradient(var(--mark) calc(var(--p)*1%),var(--edge) 0)}.each{display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.8rem;margin-top:1.1rem}.each>.part{--on:var(--ground);background:var(--on);margin:0;padding:.85rem 1rem .75rem;border:1px solid var(--edge);border-radius:.6rem}.each h3{font-size:1.02rem;margin-bottom:.35rem}.each li{font-size:.93rem;border-top:0;padding:.2rem 0}.each .tiles ul{display:block}.each li:not(.measure){font-size:.95rem;padding-bottom:.55rem}.each .ring{width:2.1rem;height:2.1rem;font-size:.58rem}.bare:has(>.each:only-child){background:none;border:0;padding:0}.bare:has(>.each:only-child)>.each>.part{--on:var(--card)}.chain li{border-top:0}.along{margin-left:calc(var(--along)*1.4rem);border-left:2px solid var(--edge);padding-left:.8rem}p{margin:.3rem 0}.none{color:var(--quiet);font-style:italic}</style>' || chr(10)
+    || '</head>' || chr(10) || '<body>' || chr(10) || '<header>' || chr(10) || '<h1>{title}</h1>' || chr(10)
+    || '<p class="scale">{scale} - <a href="/">the whole</a></p>' || chr(10) || '<p class="lead">{says}</p>' || chr(10)
+    || (SELECT CASE WHEN count(*) > 1 THEN '<nav>' || string_agg('<a href="#' || of_lens || '">' || of_lens || '</a>', ' ' ORDER BY seq) || '</nav>' || chr(10) ELSE '' END FROM made WHERE kind = 'lens' AND depth = 0)
+    || '</header>' || chr(10) || '<main>' AS text
+  UNION ALL SELECT seq, text FROM laid WHERE text <> ''
+  UNION ALL SELECT 2000000000, '</main>' || chr(10) || '</body>' || chr(10) || '</html>'
 ) ORDER BY ordinal
 """
 line = "{text}"

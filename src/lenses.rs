@@ -206,6 +206,13 @@ pub fn of_the_place(dir: &Path) -> toml::Table {
         .unwrap_or_default()
 }
 
+/// What the place at `dir` is called, where it has a mark: the name on it. A page of a place's whole is
+/// headed by this - what the place one looks from is called, not a name every whole shares.
+pub fn called_at(dir: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(dir.join("oco.toml")).ok()?;
+    Some(crate::mark::Mark::parse(&text).ok()?.project.name).filter(|name| !name.trim().is_empty())
+}
+
 /// The whole the place at `dir` says for itself, if it says one: a lens of its own that places every
 /// lens - what comes first, and then every other. What a place shows first is that place's to say: the
 /// one looked from, not another it has in view.
@@ -1113,5 +1120,25 @@ mod added_to_a_lens {
                 .len(),
             before
         );
+    }
+}
+
+#[cfg(test)]
+mod what_a_place_is_called {
+    use super::*;
+
+    #[test]
+    fn a_place_is_called_what_its_mark_names_it_and_nothing_where_it_has_none() {
+        let d = std::env::temp_dir().join(format!("ocoeco-called-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("marked")).unwrap();
+        std::fs::create_dir_all(d.join("bare")).unwrap();
+        std::fs::write(
+            d.join("marked/oco.toml"),
+            "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\n",
+        )
+        .unwrap();
+        assert_eq!(called_at(&d.join("marked")).as_deref(), Some("P: a place"));
+        assert_eq!(called_at(&d.join("bare")), None);
     }
 }

@@ -146,6 +146,7 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
                     "of_lens".into(),
                     part.title.clone().unwrap_or_default().into(),
                 );
+                placed.insert("of_every".into(), part.of_every.into());
                 into.push(placed);
                 match &part.nothing_because {
                     Some(why) => into.push(row("nothing", why, depth, part.urgent)),
@@ -160,6 +161,10 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
                 let mut heading = row("heading", title, depth, part.urgent);
                 heading.insert("nth".into(), 0u64.into());
                 heading.insert("of_part".into(), (walk.len() as u64).into());
+                // and what it is laid out once for each of, where it is one of several parts of one kind
+                if let Some(per) = &part.per {
+                    heading.insert("per".into(), per.clone().into());
+                }
                 into.push(heading);
             }
             for (nth, (at, along)) in walk.iter().copied().enumerate() {
@@ -443,6 +448,15 @@ pub struct Brought {
     pub about: Option<String>,
     #[serde(default)]
     pub nothing_because: Option<String>,
+    /// Whether this lens was placed as one of every lens in view, and not by its name. What a lens places
+    /// by name is what it says comes first; every other follows. A meaning: a surface may fold what
+    /// follows, or lay it out as it does the rest.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub of_every: bool,
+    /// What this part is laid out once for each of, where the lens says so: each star, each state, each
+    /// thread - one of several parts of one kind. A meaning: a surface may stand them side by side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub per: Option<String>,
     /// What each line is about, so it can be known again another time though its words change (an age,
     /// a count): its star and id when the answer names them, otherwise the line itself.
     #[serde(default)]
@@ -866,6 +880,7 @@ fn brought_anew(
                                 about: Some(placed.lens.says.clone()),
                                 within,
                                 nothing_because,
+                                of_every: other == "*",
                                 ..Default::default()
                             });
                         }
@@ -939,6 +954,8 @@ fn brought_anew(
                     within: Vec::new(),
                     about: None,
                     nothing_because: None,
+                    of_every: false,
+                    per: part.per.clone().filter(|_| !rows.is_empty()),
                     keys: rows
                         .iter()
                         .map(|row| {
@@ -2260,6 +2277,82 @@ mod a_surface_said_by_a_lens {
     use super::*;
 
     #[test]
+    fn a_page_closes_what_it_opens_folds_what_follows_and_stands_like_parts_side_by_side() {
+        let d = std::env::temp_dir()
+            .join(format!("ocoeco-as-page-{}", std::process::id()))
+            .join("o/p");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nproblems = \"data/problems.json\"\n").unwrap();
+        std::fs::write(d.join("data/backlog.json"), "{\"id\":\"a\",\"title\":\"A\",\"status\":\"in-progress\",\"driver\":\"x\",\"opened\":\"2026-01-01\"}\n{\"id\":\"b\",\"title\":\"B\",\"status\":\"next\",\"opened\":\"2026-01-01\"}\n").unwrap();
+        std::fs::write(d.join("data/problems.json"), "{\"id\":\"s\",\"kind\":\"lacking\",\"what\":\"it lacks\",\"date\":\"2026-01-01\",\"by\":\"x\"}\n").unwrap();
+        // the place says what it shows first, and keeps a lens whose part is laid out once for each status
+        std::fs::write(
+            d.join("lenses/first.toml"),
+            "[lens]\nid = \"first\"\nsays = \"What this place shows first.\"\n\n[[focus]]\nplaces = \"signs\"\n\n[[focus]]\nplaces = \"*\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("lenses/by-status.toml"),
+            "[lens]\nid = \"by-status\"\nsays = \"Items, by their status.\"\nreads = [\"backlog\"]\n\n[[focus]]\ntitle = \"{status}\"\nsql = \"SELECT status, title FROM backlog ORDER BY status, id\"\nline = \"{title}\"\nper = \"status\"\n",
+        )
+        .unwrap();
+        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: a page is held to closing what it opens where there is one");
+            return;
+        };
+        let dirs = [d.clone()];
+        let page = |lens: &str| {
+            crate::dome::surface("lines", 80).unwrap().lay_out(
+                &brought(&format!("as-page@{lens}"), &dirs, "2026-01-02", &engine).unwrap(),
+            )
+        };
+        let times = |page: &str, piece: &str| page.matches(piece).count();
+        // whatever a lens brings, the page closes each piece it opens
+        for lens in [
+            "fulldome",
+            "first",
+            "by-status",
+            "work",
+            "signs",
+            "purpose",
+            "insight",
+        ] {
+            let page = page(lens);
+            for (opens, closes) in [
+                ("<details", "</details>"),
+                ("<summary>", "</summary>"),
+                ("<section", "</section>"),
+                ("<div", "</div>"),
+                ("<ul>", "</ul>"),
+                ("<li", "</li>"),
+            ] {
+                assert_eq!(
+                    times(&page, opens),
+                    times(&page, closes),
+                    "{lens}: every {opens} is closed"
+                );
+            }
+        }
+        // what a place put first, by name, is open; what came as one of every other is folded
+        let first = page("first");
+        assert_eq!(
+            times(&first, "<details class=\"lens\" id=\"signs\" open>"),
+            1,
+            "the lens the place put first is a card, open"
+        );
+        assert_eq!(times(&first, "\" open>"), 1, "and every other is folded");
+        assert!(times(&first, "<details class=\"lens\"") > 5);
+        assert_eq!(times(&page("fulldome"), "\" open>"), 0);
+        // parts laid out once for each of something, each short, stand side by side
+        let by_status = page("by-status");
+        assert_eq!(times(&by_status, "<div class=\"each\">"), 1);
+        assert_eq!(times(&by_status, "<section class=\"part"), 2);
+    }
+
+    #[test]
     fn a_plane_laid_out_by_the_lens_is_what_the_text_surface_gives() {
         let d = std::env::temp_dir()
             .join(format!("ocoeco-as-text-{}", std::process::id()))
@@ -2445,5 +2538,62 @@ mod asked_in_one_go {
             }
         }
         assert!(answers_to_all(&Otherwise, "", &questions).is_none());
+    }
+}
+
+#[cfg(test)]
+mod how_a_part_came_to_be_placed {
+    use super::*;
+
+    #[test]
+    fn a_plane_says_which_lens_came_as_one_of_every_and_what_a_part_is_laid_out_once_for() {
+        let of_a_star = |name: &str| Brought {
+            title: Some(name.into()),
+            lines: vec!["why it exists".into()],
+            per: Some("star".into()),
+            ..Default::default()
+        };
+        let placed = |name: &str, of_every: bool| Brought {
+            title: Some(name.into()),
+            about: Some("what it says of itself".into()),
+            of_every,
+            within: vec![Brought {
+                title: Some("a part laid out once".into()),
+                lines: vec!["a line".into()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let plane = as_plane(
+            &[
+                of_a_star("a"),
+                of_a_star("b"),
+                placed("signs", false),
+                placed("work", true),
+            ],
+            &Named::default(),
+        );
+        let said = |kind: &str, field: &str| -> Vec<Value> {
+            plane
+                .iter()
+                .filter(|row| row["kind"] == kind)
+                .map(|row| row.get(field).cloned().unwrap_or(Value::Null))
+                .collect()
+        };
+        assert_eq!(
+            said("lens", "of_every"),
+            [Value::from(false), Value::from(true)],
+            "what a place put first by name, and what came as one of every other"
+        );
+        assert_eq!(
+            said("heading", "per"),
+            [
+                Value::from("star"),
+                Value::from("star"),
+                Value::Null,
+                Value::Null
+            ],
+            "a part laid out once for each star says so; a part laid out once says nothing of it"
+        );
     }
 }
