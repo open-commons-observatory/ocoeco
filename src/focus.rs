@@ -13,11 +13,13 @@ use tad::sql::SqlEngine;
 
 /// Gathers the lens's tables from the places at `dirs` into `into`, each row with its star and seq -
 /// its place in the order gathered - and returns the declaration of what was gathered.
-/// The things there are, by name: each by where it is held, its table and its id - and, with the table
-/// left out, by its star and id where that names one thing only.
+/// The things there are, by name. A thing's whole name is where it is held - owner and place - its table
+/// and its id; without the owner it is shorter, and is the name of one thing only where no two places
+/// share a name. With the table left out too, a star and an id name a thing where they are one thing only.
 #[derive(Default)]
 pub struct Named {
-    whole: std::collections::BTreeSet<String>,
+    whole: std::collections::BTreeMap<String, String>,
+    short: std::collections::BTreeMap<String, Option<String>>,
     by_star_and_id: std::collections::BTreeMap<(String, String), Option<String>>,
 }
 
@@ -42,30 +44,60 @@ impl Named {
                 .entry((star.to_string(), own.to_string()))
                 .and_modify(|one| *one = None)
                 .or_insert_with(|| Some(name.clone()));
-            named.whole.insert(name);
+            // the shorter name is the name of one thing, or of several - and then of none
+            named
+                .short
+                .entry(name.clone())
+                .and_modify(|one| *one = None)
+                .or_insert_with(|| Some(id.to_string()));
+            named.whole.insert(id.to_string(), name);
         }
         Ok(named)
     }
 
+    /// A value as the name of a thing: its whole name, or its shorter one where that is one thing only.
+    fn known(&self, value: &str) -> Option<String> {
+        (self.whole.contains_key(value) || self.short.get(value).is_some_and(|one| one.is_some()))
+            .then(|| value.to_string())
+    }
+
     /// The thing an answer is about: the value it calls `thing`, or else the first of its values that is
-    /// a thing's name - or its star and id, where they are one thing only.
+    /// a thing's name - or its star and id, where they are one thing only. A name that is the name of
+    /// several things is the name of none: a line about it leads nowhere.
     pub fn thing(&self, answer: &Map<String, Value>) -> Option<String> {
         let said = |key: &str| answer.get(key).and_then(|v| v.as_str());
         said("thing")
-            .filter(|thing| self.whole.contains(*thing))
+            .and_then(|thing| self.known(thing))
             .or_else(|| {
                 answer
                     .values()
                     .filter_map(|v| v.as_str())
-                    .find(|value| self.whole.contains(*value))
+                    .find_map(|value| self.known(value))
             })
-            .map(str::to_string)
             .or_else(|| {
                 self.by_star_and_id
                     .get(&(said("star")?.to_string(), said("id")?.to_string()))
                     .cloned()
                     .flatten()
+                    .filter(|name| self.known(name).is_some())
             })
+    }
+
+    /// Every name a thing goes by that names it alone: its whole name, and its shorter one where no
+    /// other thing goes by it. Given either; nothing where the name given is the name of several, or none.
+    pub fn names_of(&self, name: &str) -> Vec<String> {
+        let whole = match (self.whole.contains_key(name), self.short.get(name)) {
+            (true, _) => name.to_string(),
+            (false, Some(Some(whole))) => whole.clone(),
+            _ => return Vec::new(),
+        };
+        let shorter = self
+            .whole
+            .get(&whole)
+            .filter(|short| self.short.get(*short).is_some_and(|one| one.is_some()));
+        std::iter::once(whole.clone())
+            .chain(shorter.cloned())
+            .collect()
     }
 }
 
@@ -2174,6 +2206,22 @@ mod what_a_line_is_about {
             None,
             "words that speak of a thing do not name it"
         );
+        // a thing's whole name names it too - and every name that names it alone is known
+        assert_eq!(
+            named
+                .thing(&answer(&[("of_thing", "o/p/backlog:a")]))
+                .as_deref(),
+            Some("o/p/backlog:a")
+        );
+        assert_eq!(
+            named.names_of("p/backlog:a"),
+            ["o/p/backlog:a", "p/backlog:a"]
+        );
+        assert_eq!(
+            named.names_of("o/p/backlog:a"),
+            ["o/p/backlog:a", "p/backlog:a"]
+        );
+        assert!(named.names_of("p/backlog:nothing").is_empty());
         // and the plane carries it, line by line
         let part = Brought {
             title: Some("showing (1)".into()),

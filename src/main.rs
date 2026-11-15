@@ -845,14 +845,31 @@ fn run() -> Result<()> {
                     "a page is written under where the site is laid out: {path} leads out of it"
                 );
             }
-            // which things have a page: a line about one then leads to it
+            // which things have a page: a line about one then leads to it - by every name that names
+            // that thing alone. A name that is the name of several things leads nowhere
+            let named = ocoeco::focus::Named::of(&places)?;
             ocoeco::focus::pages_are(
                 pages
                     .iter()
                     .filter(|(_, _, _, of)| !of.is_empty())
-                    .map(|(path, _, _, of)| (of.clone(), path.clone()))
+                    .flat_map(|(path, _, _, of)| {
+                        named
+                            .names_of(of)
+                            .into_iter()
+                            .map(move |name| (name, path.clone()))
+                    })
                     .collect(),
             );
+            // and no two pages are written in one place
+            let mut written = std::collections::BTreeSet::new();
+            if let Some((path, ..)) = pages
+                .iter()
+                .find(|(path, ..)| !written.insert(path.clone()))
+            {
+                anyhow::bail!(
+                    "two pages of the site are written at {path}: each page has a place of its own"
+                );
+            }
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
                     &format!("{surface}@{looks}"),
