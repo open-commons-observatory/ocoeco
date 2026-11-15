@@ -217,17 +217,19 @@ line = "{lens}: its entry {entry} puts into {fills}, and none of its parts asks 
 [[focus]]
 title = "the names of the language, and which have a meaning said ({count})"
 sql = """
+-- a field and a table say what they mean by a word of their name; a lens says what it is itself, or by a
+-- word. What is listed is what still says nothing: that is what there is to do
 WITH names AS (
-  SELECT DISTINCT name, 'a field' AS what FROM lens_fields
-  UNION SELECT DISTINCT name, 'a table' FROM lens_tables
-  UNION SELECT DISTINCT id, 'a lens' FROM lenses
-), said AS (SELECT DISTINCT lower(term) AS term FROM vocabulary)
-SELECT what, count(*) AS names,
-       count(*) FILTER (WHERE name IN (SELECT term FROM said)) AS with_meaning,
-       coalesce(string_agg(name, ', ' ORDER BY name) FILTER (WHERE name IN (SELECT term FROM said)), 'none') AS which
-FROM names GROUP BY what ORDER BY what
+  SELECT DISTINCT name, 'a field' AS what, false AS says_itself FROM lens_fields
+  UNION SELECT DISTINCT name, 'a table', false FROM lens_tables
+  UNION SELECT DISTINCT id, 'a lens', coalesce(says, '') <> '' FROM lenses
+), said AS (SELECT DISTINCT lower(term) AS term FROM vocabulary),
+told AS (SELECT what, name, says_itself OR name IN (SELECT term FROM said) AS told FROM names)
+SELECT what, count(*) AS names, count(*) FILTER (WHERE told) AS with_meaning,
+       coalesce(string_agg(name, ', ' ORDER BY name) FILTER (WHERE NOT told), 'none') AS without
+FROM told GROUP BY what ORDER BY what
 """
-line = "{what}: {names} names, {with_meaning} given a meaning as a word - {which}"
+line = "{what}: {names} names, {with_meaning} say what they mean - still to say: {without}"
 
 [[focus]]
 title = "a part placed from another lens ({count})"
