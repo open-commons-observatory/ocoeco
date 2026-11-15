@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.37.0...ocoeco-v0.38.0) (2026-11-15)
+
+
+### Features
+
+* the page is said by a lens, equal to the program's byte for byte ([#251](https://github.com/open-commons-observatory/ocoeco/issues/251)) ([f372ae3](https://github.com/open-commons-observatory/ocoeco/commit/f372ae33037e3aedcb5a95fd21e73351a423fdbb))
+
 ## [0.37.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.36.0...ocoeco-v0.37.0) (2026-11-14)
 
 
