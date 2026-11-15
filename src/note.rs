@@ -168,6 +168,23 @@ pub fn take_back(dir: &Path, table: &str, id: &str) -> Result<String> {
     if path.contains('@') {
         bail!("{table} is kept on another branch ({path}): it is gathered there, not written here");
     }
+    // what points at it, from anywhere in view of here - this place, and from an observatory every place
+    // it has in view: taken back, the row would leave each of them with a link that points nowhere
+    let whole = format!("{}/{table}:{id}", mark.project.id);
+    let pointing: Vec<String> = crate::relations::as_graph(&crate::board::in_view(dir).0)?
+        .get("edges")
+        .into_iter()
+        .flatten()
+        .filter(|edge| edge.get("to").and_then(|v| v.as_str()) == Some(whole.as_str()))
+        .filter_map(|edge| edge.get("from").and_then(|v| v.as_str()).map(String::from))
+        .collect();
+    if !pointing.is_empty() {
+        bail!(
+            "{table} {id} is not taken back: {} thing(s) in view point at it - {} - and each then points nowhere",
+            pointing.len(),
+            pointing.iter().take(3).cloned().collect::<Vec<_>>().join(", ")
+        );
+    }
     let file = dir.join(path);
     let text = std::fs::read_to_string(&file).unwrap_or_default();
     let is_it = |line: &&str| {
