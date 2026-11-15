@@ -47,9 +47,10 @@ WITH made AS (
 )
 SELECT text FROM (
   SELECT 0 AS ordinal, '<!doctype html>' || chr(10) || '<html lang="en">' || chr(10) || '<head>' || chr(10) || '<meta charset="utf-8">' || chr(10)
-    || '<meta name="viewport" content="width=device-width, initial-scale=1">' || chr(10) || '<title>The fulldome</title>' || chr(10)
+    || '<meta name="viewport" content="width=device-width, initial-scale=1">' || chr(10) || '<title>{title}</title>' || chr(10)
     || '<style>body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#1c1c1c;background:#fcfcfa}h1{font-size:1.6rem}h2{margin-top:2.2rem;border-bottom:1px solid #8884;padding-bottom:.2rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}ul{margin:.2rem 0;padding-left:1.2rem}li{margin:.15rem 0}.says,.scale,.none{color:#555}.none{font-style:italic}@media(prefers-color-scheme:dark){body{color:#e8e8e4;background:#16171a}.says,.scale,.none{color:#a0a0a0}}</style>' || chr(10)
-    || '</head>' || chr(10) || '<body>' || chr(10) || '<h1>The fulldome</h1>' || chr(10) || '<p class="scale">{scale}</p>' AS text
+    || '</head>' || chr(10) || '<body>' || chr(10) || '<h1>{title}</h1>' || chr(10)
+    || '<p class="scale">{scale} - <a style="color:inherit" href="/">the whole</a></p>' AS text
   UNION ALL SELECT seq, text FROM laid
   UNION ALL SELECT 2000000000, '</body>' || chr(10) || '</html>'
 ) ORDER BY ordinal
