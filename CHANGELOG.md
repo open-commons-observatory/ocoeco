@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.57.1...ocoeco-v0.58.0) (2026-11-15)
+
+
+### Features
+
+* a placed lens may be seen through a lens behind it, kept in the lens that places them ([#336](https://github.com/open-commons-observatory/ocoeco/issues/336)) ([63f4b84](https://github.com/open-commons-observatory/ocoeco/commit/63f4b84f673c5dad73aa280857cb1dde589dd4b9))
+
 ## [0.57.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.57.0...ocoeco-v0.57.1) (2026-11-15)
 
 
