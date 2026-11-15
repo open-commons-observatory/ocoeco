@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.49.0...ocoeco-v0.50.0) (2026-11-15)
+
+
+### Features
+
+* the way up is a surface: the whole one step up, each lens by what it says and holds ([#304](https://github.com/open-commons-observatory/ocoeco/issues/304)) ([ccd8511](https://github.com/open-commons-observatory/ocoeco/commit/ccd85112b613c35f841e2e19d51a54c89f6c64a4))
+
 ## [0.49.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.48.2...ocoeco-v0.49.0) (2026-11-15)
 
 
