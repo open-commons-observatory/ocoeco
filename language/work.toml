@@ -51,22 +51,6 @@ supplies = [
 # - by whom, how often, when last; one said to be done and worked on in the last days is finished
 # lately. Nobody types either, so neither drifts. One question, laid out once for each of the two; an
 # item touched some days ago and not since is neither - it is as it was said to be.
-# Where the work is happening: read off where records of work were made - the things stood on while each
-# was done, supplied by the act of looking, never typed. Of any kind: an item, a decision, a thought. This
-# is the work seen as it happens; what was planned is not its measure.
-[[focus]]
-title = "where the work is happening - read off where it was done ({count})"
-sql = """
-SELECT e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
-       string_agg(DISTINCT lower(g."by"), ', ' ORDER BY lower(g."by")) AS who, count(*) AS stood,
-       substr(max(CAST(g."at" AS VARCHAR)), 12, 5) AS last
-FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id LEFT JOIN things t ON t.id = e."to"
-WHERE e.how = 'where' AND e.from_table = 'glimpses'
-  AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 1 DAY
-GROUP BY 1, 2 ORDER BY max(CAST(g."at" AS VARCHAR)) DESC, 1 LIMIT 20
-"""
-line = "{who}: {thing} - {says} (stood on {stood} time(s), the last at {last})"
-
 [[focus]]
 title = "{state} ({count})"
 sql = """
@@ -91,6 +75,22 @@ ORDER BY state DESC, last_at DESC, star, id
 """
 line = "{who}: {star}/{id} - {title}{next} ({times} time(s), the last at {last})"
 per = "state"
+
+# Where the work is happening: read off where records of work were made - the things stood on while each
+# was done, supplied by the act of looking, never typed. Of any kind: an item, a decision, a thought. This
+# is the work seen as it happens; what was planned is not its measure.
+[[focus]]
+title = "where the work is happening - read off where it was done ({count})"
+sql = """
+SELECT e.to_star || '/' || e.to_table || ':' || e.to_id AS thing, coalesce(t.says, '') AS says,
+       string_agg(DISTINCT lower(g."by"), ', ' ORDER BY lower(g."by")) AS who, count(*) AS stood,
+       substr(max(CAST(g."at" AS VARCHAR)), 12, 5) AS last
+FROM edges e JOIN glimpses g ON g.star = e.from_star AND g.id = e.from_id LEFT JOIN things t ON t.id = e."to"
+WHERE e.how = 'where' AND e.from_table = 'glimpses'
+  AND try_cast(left(CAST(g."at" AS VARCHAR), 10) AS DATE) >= DATE '{today}' - INTERVAL 1 DAY
+GROUP BY 1, 2 ORDER BY max(CAST(g."at" AS VARCHAR)) DESC, 1 LIMIT 20
+"""
+line = "{who}: {thing} - {says} (stood on {stood} time(s), the last at {last})"
 
 [[focus]]
 title = "said to be in progress, though nothing done lately advances it ({count})"
