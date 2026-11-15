@@ -47,9 +47,12 @@ shape = 'AGE-SECRET-KEY-[A-Z0-9]+|-----BEGIN [A-Z ]*PRIVATE KEY-----|ssh-(ed2551
 what = "a private channel"
 shape = 'ntfy\.sh/[A-Za-z0-9_-]{6,}|hc-ping\.com/[0-9a-f-]{20,}'
 
+# a lens looked through from a place is written the same way - lens@place - and a place may be named as
+# GitHub names its pages: around@marshall-oco.github.io is no one's address, and is let be
 [[keeps_out]]
 what = "an address of someone"
 shape = '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[a-z]{2,}'
+unless = '@[A-Za-z0-9-]+\.github$'
 
 # an address no one beyond the machine or its own network can reach is let be
 [[keeps_out]]
