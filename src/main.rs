@@ -945,20 +945,23 @@ fn run() -> Result<()> {
                     .trim()
                     .to_string()
             };
-            let pages: Vec<(String, String, String, String)> =
-                ocoeco::focus::brought(&lens, &places, &today, &engine)?
-                    .iter()
-                    .flat_map(|part| part.values.iter())
-                    .filter(|row| !said(row, "path").is_empty() && !said(row, "looks").is_empty())
-                    .map(|row| {
-                        (
-                            said(row, "path"),
-                            said(row, "looks"),
-                            said(row, "scale"),
-                            said(row, "of_thing"),
-                        )
-                    })
-                    .collect();
+            // what the lens brings into focus is asked once, and what a lens placed in it brings is read
+            // as its own: so a place may offer pages of what it holds, and an observatory place them
+            let of_the_site = ocoeco::focus::brought(&lens, &places, &today, &engine)?;
+            let rows = ocoeco::focus::every_answer(&of_the_site);
+            let pages: Vec<(String, String, String, String)> = rows
+                .iter()
+                .copied()
+                .filter(|row| !said(row, "path").is_empty() && !said(row, "looks").is_empty())
+                .map(|row| {
+                    (
+                        said(row, "path"),
+                        said(row, "looks"),
+                        said(row, "scale"),
+                        said(row, "of_thing"),
+                    )
+                })
+                .collect();
             if pages.is_empty() {
                 anyhow::bail!("the lens {lens} says no pages: each row of what it brings into focus names where a page is written (path) and what it looks through (looks)");
             }
@@ -996,22 +999,20 @@ fn run() -> Result<()> {
             }
             // and what each page is headed by: what its row calls its title - or, saying none, what the
             // place one looks from is called
-            let titles: std::collections::BTreeMap<String, String> =
-                ocoeco::focus::brought(&lens, &places, &today, &engine)?
-                    .iter()
-                    .flat_map(|part| part.values.iter())
-                    .map(|row| (said(row, "path"), said(row, "title")))
-                    .filter(|(_, title)| !title.is_empty())
-                    .collect();
+            let titles: std::collections::BTreeMap<String, String> = rows
+                .iter()
+                .copied()
+                .map(|row| (said(row, "path"), said(row, "title")))
+                .filter(|(_, title)| !title.is_empty())
+                .collect();
             let called =
                 ocoeco::lenses::called_at(&dir).unwrap_or_else(|| "The fulldome".to_string());
             // and what each page says of itself, under its title: what its row says
-            let saying: std::collections::BTreeMap<String, String> =
-                ocoeco::focus::brought(&lens, &places, &today, &engine)?
-                    .iter()
-                    .flat_map(|part| part.values.iter())
-                    .map(|row| (said(row, "path"), said(row, "says")))
-                    .collect();
+            let saying: std::collections::BTreeMap<String, String> = rows
+                .iter()
+                .copied()
+                .map(|row| (said(row, "path"), said(row, "says")))
+                .collect();
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
                     &format!("{surface}@{looks}"),
