@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.57.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.57.0...ocoeco-v0.57.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* of what was marked, an entry is offered what fits; one mark for one thing ([#332](https://github.com/open-commons-observatory/ocoeco/issues/332)) ([1981286](https://github.com/open-commons-observatory/ocoeco/commit/198128669027475d169df1f04be286135fbecf9a))
+
 ## [0.57.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.56.0...ocoeco-v0.57.0) (2026-11-15)
 
 
