@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.55.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.55.0...ocoeco-v0.55.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* an entry said in the window is made where it is kept; a mark names a thing to point at ([#321](https://github.com/open-commons-observatory/ocoeco/issues/321)) ([cfbb77c](https://github.com/open-commons-observatory/ocoeco/commit/cfbb77c0406e3e77a5ede16c415738b301344a46))
+
 ## [0.55.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.54.0...ocoeco-v0.55.0) (2026-11-15)
 
 
