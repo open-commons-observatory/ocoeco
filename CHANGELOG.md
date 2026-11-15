@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.39.0...ocoeco-v0.40.0) (2026-11-15)
+
+
+### Features
+
+* a thing says when: the flow, a step in time, a look that does not end ([#256](https://github.com/open-commons-observatory/ocoeco/issues/256)) ([098ecc7](https://github.com/open-commons-observatory/ocoeco/commit/098ecc719067b8d85a1063a6aca6391c928776da))
+
 ## [0.39.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.38.0...ocoeco-v0.39.0) (2026-11-15)
 
 
