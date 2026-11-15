@@ -357,9 +357,25 @@ fn run() -> Result<()> {
                 .or_else(|_| std::env::var("USER"))
                 .unwrap_or_else(|_| "someone".into());
             let engine = tad::sql::DuckDb::find()?;
+            // what an entry is given comes beneath its name, on what is said to the program: read only
+            // where an entry is named, and never from a terminal one would have to end by hand
+            let given = || {
+                let mut given = String::new();
+                if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+                    let _ = std::io::Read::read_to_string(&mut std::io::stdin(), &mut given);
+                }
+                given
+            };
             print!(
                 "{}",
-                ocoeco::window::said(&said[1..], std::path::Path::new("."), &who, &today, &engine)?
+                ocoeco::window::said(
+                    &said[1..],
+                    &given,
+                    std::path::Path::new("."),
+                    &who,
+                    &today,
+                    &engine
+                )?
             );
             return Ok(());
         }
