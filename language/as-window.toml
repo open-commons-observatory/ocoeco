@@ -13,7 +13,7 @@ sql = """
 SELECT text FROM (
   SELECT seq AS ordinal,
          repeat('  ', CAST(coalesce(depth, 0) AS INTEGER) + CASE WHEN kind = 'line' THEN 1 ELSE 0 END)
-         || CASE WHEN kind = 'line' AND mark IS NOT NULL THEN '[' || CAST(mark AS VARCHAR) || '] ' ELSE '' END
+         || CASE WHEN kind IN ('line', 'heading') AND mark IS NOT NULL THEN '[' || CAST(mark AS VARCHAR) || '] ' ELSE '' END
          || CASE WHEN kind = 'lens' THEN coalesce(of_lens, '') || ' - ' || coalesce(says, '') ELSE coalesce(says, '') END AS text
   FROM plane
   WHERE coalesce(depth, 0) = 0 OR kind <> 'line'
