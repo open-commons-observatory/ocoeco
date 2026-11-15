@@ -227,6 +227,10 @@ enum Cmd {
         /// only what newly came into view. Idle, it waits without load
         #[arg(long)]
         follow: bool,
+        /// Look from there in passing: without standing there - no step is left on the trail. For a look
+        /// that is not a driver's attention: a comparison, a timing
+        #[arg(long)]
+        passing: bool,
     },
     /// Lay a site out: every page the lens says there is, each on the surface, written under OUT. A site
     /// is said by a lens - each row of what it brings names a page: where it is written (path), what it
@@ -721,6 +725,7 @@ fn run() -> Result<()> {
             since,
             beam,
             follow,
+            passing,
         } => {
             let places = match (observed, root) {
                 (Some(observed), _) => vec![observed],
@@ -814,7 +819,7 @@ fn run() -> Result<()> {
             };
             // looking through a lens from a thing is a step on the driver's trail: the work, seen where it
             // happens - a record of work reads from it where it was made
-            if let Some(thing) = ocoeco::focus::stood_on(&lens, &places) {
+            if let Some(thing) = ocoeco::focus::stood_on(&lens, &places).filter(|_| !passing) {
                 let who = std::env::var("OCOECO_BY")
                     .or_else(|_| std::env::var("USER"))
                     .unwrap_or_else(|_| "someone".into());
