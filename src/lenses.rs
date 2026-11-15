@@ -166,6 +166,34 @@ fn named_by_where_they_stand(mut lens: Lens) -> Lens {
 /// as rows (its tables lenses and lens_parts) - read as the program
 /// runs - each with its text, so that two bringings of one lens are known to be one.
 pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
+    brought_beside(dir, &std::collections::BTreeSet::new())
+}
+
+/// The rows of a table a folder of what was observed holds, but those of the places `held` beside it: a
+/// place held among those in view is read as it stands, not as it was observed.
+fn observed_rows(
+    dir: &Path,
+    table: &str,
+    held: &std::collections::BTreeSet<String>,
+) -> Vec<serde_json::Value> {
+    crate::harvest::read_rows(&dir.join(format!("{table}.json")))
+        .into_iter()
+        .filter(|row| {
+            !row.get("project")
+                .and_then(|p| p.as_str())
+                .is_some_and(|p| held.contains(p))
+        })
+        .map(serde_json::Value::Object)
+        .collect()
+}
+
+/// What the place at `dir` brings, beside the places `held` as they stand: of what a folder of what was
+/// observed holds, the lenses of a place held among those in view are passed over - where one stands is
+/// read as it stands, every other place as it was observed.
+fn brought_beside(
+    dir: &Path,
+    held: &std::collections::BTreeSet<String>,
+) -> Result<Vec<(String, Lens)>> {
     // a place may keep lens files, rows, both or neither: no folder of files is not the end of the looking
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir.join("lenses"))
         .into_iter()
@@ -197,12 +225,7 @@ pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
     } else if dir.join("projects.json").is_file() {
         // by whatever route they arrived: what an observatory observed holds the lenses its places keep as
         // rows, and they are looked through as where they are kept
-        let observed = |table: &str| -> Vec<serde_json::Value> {
-            crate::harvest::read_rows(&dir.join(format!("{table}.json")))
-                .into_iter()
-                .map(serde_json::Value::Object)
-                .collect()
-        };
+        let observed = |table: &str| observed_rows(dir, table, held);
         found.extend(
             from_rows(observed)
                 .into_iter()
@@ -253,6 +276,13 @@ pub fn whole_said_at(dir: &Path) -> Option<String> {
 /// lens's own text: the one built in is looked through (whether the two still agree is the check's to
 /// say - `differing`).
 pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
+    // the places held among these - each folder with a mark: what was observed of them is passed over
+    let held: std::collections::BTreeSet<String> = dirs
+        .iter()
+        .filter_map(|dir| std::fs::read_to_string(dir.join("oco.toml")).ok())
+        .filter_map(|text| crate::mark::Mark::parse(&text).ok())
+        .map(|mark| mark.project.id)
+        .collect();
     let mut all: Vec<(String, Lens)> = lenses()
         .into_iter()
         .map(|lens| ("ocoeco".to_string(), lens))
@@ -276,7 +306,7 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_default()
             });
-        for (text, lens) in brought_by(dir)? {
+        for (text, lens) in brought_beside(dir, &held)? {
             let id = lens.lens.id.clone();
             if all[..built_in].iter().any(|(_, l)| l.lens.id == id)
                 || brought.iter().any(|(i, t)| *i == id && *t == text)
@@ -301,7 +331,7 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
     // what a place adds to a lens it does not keep is joined to that lens, wherever it is kept: the lens
     // as it is looked through is the one it names, and this besides
     for dir in dirs {
-        for more in added_by(dir) {
+        for more in added_beside(dir, &held) {
             if let Some((_, lens)) = all.iter_mut().find(|(_, l)| l.lens.id == more.lens.id) {
                 lens.relation.extend(more.relation);
                 lens.focus.extend(more.focus);
@@ -318,18 +348,18 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
 /// that name holding only what is added: a lens that changes the composition of the one it names a
 /// little - only what is added is recorded, the rest is referenced.
 pub fn added_by(dir: &Path) -> Vec<Lens> {
+    added_beside(dir, &std::collections::BTreeSet::new())
+}
+
+/// What the place at `dir` adds, beside the places `held` as they stand - as `brought_beside` says.
+fn added_beside(dir: &Path, held: &std::collections::BTreeSet<String>) -> Vec<Lens> {
     let mark = std::fs::read_to_string(dir.join("oco.toml"))
         .ok()
         .and_then(|text| crate::mark::Mark::parse(&text).ok());
     let rows = |table: &str| -> Vec<serde_json::Value> {
         match &mark {
             Some(mark) => crate::join::rows(dir, mark, table),
-            None if dir.join("projects.json").is_file() => {
-                crate::harvest::read_rows(&dir.join(format!("{table}.json")))
-                    .into_iter()
-                    .map(serde_json::Value::Object)
-                    .collect()
-            }
+            None if dir.join("projects.json").is_file() => observed_rows(dir, table, held),
             None => Vec::new(),
         }
     };
@@ -1162,5 +1192,62 @@ mod what_a_place_is_called {
         .unwrap();
         assert_eq!(called_at(&d.join("marked")).as_deref(), Some("P: a place"));
         assert_eq!(called_at(&d.join("bare")), None);
+    }
+}
+
+#[cfg(test)]
+mod where_one_stands {
+    use super::*;
+
+    #[test]
+    fn a_place_looking_at_what_it_observed_sees_its_own_lens_as_it_stands() {
+        let base = std::env::temp_dir().join(format!("ocoeco-stands-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let here = base.join("o/here");
+        std::fs::create_dir_all(here.join("oco")).unwrap();
+        std::fs::write(here.join("oco.toml"), "schema = 1\n[project]\nid = \"o/here\"\nname = \"Here: an observatory\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nlenses = \"oco/lenses.json\"\nlens_parts = \"oco/lens_parts.json\"\n").unwrap();
+        std::fs::write(
+            here.join("oco/lenses.json"),
+            "{\"id\":\"sheet\",\"says\":\"What goes together, as it stands.\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            here.join("oco/lens_parts.json"),
+            "{\"id\":\"sheet/1\",\"lens\":\"sheet\",\"part\":1,\"places\":\"work\"}\n",
+        )
+        .unwrap();
+        // what it observed before its lens was changed: the lens as it was, with a part it no longer has
+        let seen = here.join("data");
+        std::fs::create_dir_all(&seen).unwrap();
+        std::fs::write(
+            seen.join("projects.json"),
+            "{\"id\":\"o/here\",\"name\":\"Here: an observatory\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            seen.join("lenses.json"),
+            "{\"id\":\"sheet\",\"says\":\"What goes together, as it was.\",\"project\":\"o/here\"}\n",
+        )
+        .unwrap();
+        std::fs::write(seen.join("lens_parts.json"), "{\"id\":\"sheet/1\",\"lens\":\"sheet\",\"part\":1,\"places\":\"work\",\"project\":\"o/here\"}\n{\"id\":\"sheet/2\",\"lens\":\"sheet\",\"part\":2,\"places\":\"signs\",\"project\":\"o/here\"}\n").unwrap();
+        let sheet = |dirs: &[PathBuf]| {
+            with(dirs)
+                .expect("one lens of that name, not two")
+                .into_iter()
+                .find(|l| l.lens.id == "sheet")
+                .unwrap()
+        };
+        let stands = sheet(&crate::board::observed_from(&here, seen.clone()));
+        assert_eq!(
+            (stands.lens.says.as_str(), stands.focus.len()),
+            ("What goes together, as it stands.", 1),
+            "from where one stands, its own lens as it stands"
+        );
+        let was = sheet(&[seen]);
+        assert_eq!(
+            (was.lens.says.as_str(), was.focus.len()),
+            ("What goes together, as it was.", 2),
+            "and from what was observed alone, as it was observed"
+        );
     }
 }

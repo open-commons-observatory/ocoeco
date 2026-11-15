@@ -25,6 +25,18 @@ pub fn projects(root: &Path) -> Vec<PathBuf> {
 /// What is in view standing at `dir`: the place itself and, if its mark says it gathers, the stars it
 /// gathers that are held beside it (the lab keeps every place two levels under one root). Says in
 /// words what is in view, and which named stars are not held here - never passing over them silently.
+/// What is in view looking from the place at `dir` at what was `observed`: the place itself as it stands,
+/// where it is one - with a mark - and every other place as it was observed. A change to where one stands
+/// is seen at once, not after the next observing.
+pub fn observed_from(dir: &Path, observed: PathBuf) -> Vec<PathBuf> {
+    let mut places: Vec<PathBuf> = Some(dir.to_path_buf())
+        .filter(|d| d.join("oco.toml").is_file())
+        .into_iter()
+        .collect();
+    places.push(observed);
+    places
+}
+
 pub fn in_view(dir: &Path) -> (Vec<PathBuf>, String) {
     let kept = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
