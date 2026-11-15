@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.54.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.53.1...ocoeco-v0.54.0) (2026-11-15)
+
+
+### Features
+
+* the window where there is no terminal: one stands, says a mark, a lens, back or up ([#317](https://github.com/open-commons-observatory/ocoeco/issues/317)) ([601c575](https://github.com/open-commons-observatory/ocoeco/commit/601c5753dc60fada4aec6bd84f02b6e1dff994ce))
+
 ## [0.53.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.53.0...ocoeco-v0.53.1) (2026-11-15)
 
 
