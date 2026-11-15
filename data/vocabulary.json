@@ -1,5 +1,6 @@
 {"id":"about","term":"about","means":"The thing a line, a record or a decision speaks of."}
 {"id":"action","term":"action","means":"What was done by hand, in a few words."}
+{"id":"activity","term":"activity","means":"What happened in a repository, day by day, as gathered there by its own work."}
 {"id":"advances","term":"advances","means":"What a record of work moves toward - an item, a milestone. More and more it is read off where the record was made, and not said."}
 {"id":"after","term":"after","means":"What this follows: the turn before a turn."}
 {"id":"allowed","term":"allowed","means":"The values a field may hold, where it may hold only some."}
@@ -11,15 +12,19 @@
 {"id":"at","term":"at","means":"When it happened, to the second: a moment.","not":"A day alone: that is a date."}
 {"id":"attention","term":"attention","means":"Where the whole is weakest right now, read from every project's data, to choose the next piece of work.","not":"Whatever is loudest.","see":"essence, observatory","decided":"2026-11-11-word-attention"}
 {"id":"automated_by","term":"automated_by","means":"What does it now, where it is no longer done by hand."}
+{"id":"backlog","term":"backlog","means":"The items of a place: what is to be done, is being done, was done."}
 {"id":"breaking","term":"breaking","means":"Whether a change breaks what relied on things as they were."}
 {"id":"by","term":"by","means":"Who did it - a person, an agent, or a program acting by itself - by the name they go by."}
 {"id":"bytes","term":"bytes","means":"How long a file is, in bytes."}
 {"id":"chain","term":"chain","means":"The two values of an answer that say which follows which: a part laid out as chains, each line beneath the one it follows."}
 {"id":"change","term":"change","means":"One landed piece of work: a branch, one squash commit on main, and its record.","not":"changeset (a bundle in Knope, one file in changesets - two meanings); commit (git's unit; a change may take many)","decided":"2026-11-11-changes-are-records"}
 {"id":"changes","term":"changes","means":"What will be done otherwise from now on."}
+{"id":"commits","term":"commits","means":"The changes to a place's repository, as git has them: each by its name, when, by whom, and what it says of itself."}
 {"id":"concept","term":"concept","means":"An idea a project rests on, with why it matters.","not":"What a word means: that is the vocabulary.","see":"decision, vocabulary","decided":"2026-11-11-word-concept"}
+{"id":"concepts","term":"concepts","means":"The ideas a place works with, each said once."}
 {"id":"conclusion","term":"conclusion","means":"How a run ended: it succeeded, it failed, it was cancelled."}
 {"id":"connection","term":"connection","means":"How one thing bears on another, found by looking: this led to, needed, halted or repeats that - with why, and how it is known. It runs between two particular rows, of any tables, in any stars. Connections on one thread are a red line.","not":"relation (declared once for a whole table: a decision may refine a decision); link (how a row is pointed at, in any field); edge, arrow (words of the drawing, not of what is meant)","see":"lens, projection","decided":"2026-11-13-connections"}
+{"id":"connections","term":"connections","means":"What bears on what: one thing led to, needed, halted or repeats another - with how that is known."}
 {"id":"considered","term":"considered","means":"What was weighed, and not done."}
 {"id":"constellation","term":"constellation","means":"A place of its own that keeps what holds between its stars: its mark says it is a constellation and what it gathers - stars by name, or every star of an owner; a star may be in many. Standing in it, the fulldome shows the constellation. The four stars once of kind lens are constellations: Linux Phones, Rhizome, Mnemonic Vocabulary, Linux package distribution.","not":"observatory (looking, not belonging); organization (GitHub's word); the earlier use of lens for a group of projects","decided":"2026-11-13-a-place-says-what-it-gathers"}
 {"id":"conveyor","term":"conveyor","means":"A shared process that carries work from one state to the next - built, tested, delivered - which projects call, not copy.","not":"A template to copy.","see":"workings","decided":"2026-11-11-word-conveyor"}
@@ -32,10 +37,13 @@
 {"id":"dated","term":"dated","means":"Which of a table's fields says when a row happened."}
 {"id":"decided","term":"decided","means":"The decision in which a word was chosen over others."}
 {"id":"decision","term":"decision","means":"A choice taken, with why, and with what was rejected.","not":"A plan or a wish.","see":"concept","decided":"2026-11-11-word-decision"}
+{"id":"decisions","term":"decisions","means":"What was decided, each with why, and what was weighed and not chosen."}
 {"id":"depth","term":"depth","means":"How deep a row is among lenses placed within lenses."}
+{"id":"documents","term":"documents","means":"What a place has written down, as files meant to be read."}
 {"id":"dome","term":"dome","means":"What a star's shine can be focused onto: the one thing every surface must be able to do - lay out what a lens brought into focus. The core term; plain text, a terminal, Markdown, HTML and CSS, and whatever someone makes later are surfaces - each a dome made real. A lens knows of no surface.","not":"surface (a surface is one dome made real: the dome is what they share); screen, page, output (each names one surface); renderer (a graphics word, and it names a doer where this names what is done upon)","see":"surface, fulldome, lens","decided":"2026-11-12-the-dome-is-the-port"}
 {"id":"done","term":"done","means":"What was done."}
 {"id":"driver","term":"driver","means":"Who is doing it now: a person or an agent, by the name they go by."}
+{"id":"edges","term":"edges","means":"Every pointing between the things in view: from what, how, to what, and whether it holds."}
 {"id":"effort","term":"effort","means":"Minutes weighted by how draining they were (load 0-10, Borg CR10): five counts as one. A short heavy chore can outweigh a long light one.","not":"Time alone.","see":"manual work","decided":"2026-11-11-word-effort"}
 {"id":"entry","term":"entry","means":"A way to add a row by saying only what a person knows: the rest is supplied, and the row is held to its shape."}
 {"id":"entry_date","term":"entry_date","means":"The day a session wrote its log."}
@@ -58,7 +66,9 @@
 {"id":"fulldome","term":"fulldome","means":"Every lens, in focus, on a dome: the lens that focuses all lenses onto all their surfaces. The same at every scale - a star's, a constellation's, an observatory's - and on every surface; touched, not watched.","not":"board (one lens: the flow of work); room, wall; a lens beside the others (it holds them); a show to sit through","decided":"2026-11-12-the-dome-is-the-port","see":"dome, surface, lens"}
 {"id":"gatherer","term":"gatherer","means":"A small daily job in each project that writes down what its work produced: commits, releases, test runs.","not":"A person keeping records.","see":"work, harvest","decided":"2026-11-11-word-gatherer"}
 {"id":"glimpse","term":"glimpse","means":"The part of a lens through which data is taken in: it says the data's place and relations, and how it is entered with ease - what is already there is not retyped, what the computer can supply is not asked. Also a thing so taken in: one row. ocoeco glimpse brings every lens's glimpse together - their subcommands and flags, declared, so that two cannot collide unnoticed: a collision is found when ocoeco is built, never in use. One lens has one glimpse, which may hold several kinds of entry. The word first named (2026-11-11) only the record of work done: that is the glimpse of the lens of work.","not":"note (the earlier way, table by table: one had to know the tables and fields); record (plain, but names nothing one can point at); form (says nothing of looking); pulse (oco-agent's sign of life)","decided":"2026-11-12-a-lens-has-a-glimpse"}
+{"id":"glimpses","term":"glimpses","means":"Records of work: each a moment of work done, in one line, with where it was made."}
 {"id":"grew_from","term":"grew_from","means":"The lens a lens grew out of."}
+{"id":"guards","term":"guards","means":"The tests of a program, each by what it says it holds."}
 {"id":"handled","term":"handled","means":"Whether a sign has come to something. Read off what came of it, where that is drawn."}
 {"id":"harvest","term":"harvest","means":"The observatory's reading of every marked project's tables, every few hours.","not":"A copy of the projects.","see":"observatory, mark","decided":"2026-11-11-word-harvest"}
 {"id":"has","term":"has","means":"What a surface or a place has: what one finds on getting there."}
@@ -70,6 +80,8 @@
 {"id":"idea","term":"idea","means":"Why a project exists, written by the project itself for someone who knows nothing about it.","not":"A feature list, or a summary for insiders.","see":"essence","decided":"2026-11-11-word-idea"}
 {"id":"inset","term":"inset","means":"Whether a line sits beneath a heading."}
 {"id":"job","term":"job","means":"The job a row of the journal is about."}
+{"id":"journal","term":"journal","means":"What oco-agent wrote of each job, as it happened."}
+{"id":"kept_out","term":"kept_out","means":"What a place says is to be kept out of view, by the shape each is told by."}
 {"id":"key","term":"key","means":"Which field names a row within its table."}
 {"id":"kind","term":"kind","means":"Which of a few named sorts a row is. Each table says its own sorts, and a row is of one."}
 {"id":"known","term":"known","means":"How a connection is known: measured, recorded, or only said."}
@@ -78,15 +90,25 @@
 {"id":"lays_out","term":"lays_out","means":"How each answer of a part is laid out as a line: words, with a name in braces where a value goes."}
 {"id":"learned","term":"learned","means":"What was understood from what was seen."}
 {"id":"lens","term":"lens","means":"A way of seeing, and the concrete mechanism for it, with two faces: its glimpse catches data - the data's place, its relations, and how it is entered with ease - and its focus brings it into view, as a structure of Markdown files, HTML and CSS, a terminal, anything. A lens shows nothing by itself: it lets the data through, ordered. It is made once and used by anyone in ocoeco, in their star or constellation: the data and its structure are known, so it just works. One lens defines a piece of data; many may read it. A lens may be made of lenses.","not":"view (SQL's word for one query); dashboard, report; plugin (it adds no code path of its own to a star)","see":"observatory, curated","decided":"2026-11-12-a-lens-focuses"}
+{"id":"lens_entries","term":"lens_entries","means":"The entries the lenses declare, as rows: each a way to add a row by saying only what a person knows."}
+{"id":"lens_fields","term":"lens_fields","means":"The fields of the tables the lenses declare, as rows."}
+{"id":"lens_parts","term":"lens_parts","means":"The parts of the lenses, as rows: each a question and how its answers are laid out."}
+{"id":"lens_relations","term":"lens_relations","means":"The relations the lenses declare, as rows: which fields hold pointings, to what, and what each is."}
+{"id":"lens_routes","term":"lens_routes","means":"The routes the lenses declare, as rows: which tables are read from a surface, and how."}
+{"id":"lens_tables","term":"lens_tables","means":"The tables the lenses declare, as rows: the language, read as data."}
+{"id":"lenses","term":"lenses","means":"The lenses there are, each by what it says it shows."}
 {"id":"level","term":"level","means":"What a pointing asks of the thing it points at, beyond that it is there - a feature at its best, say: written after a mark at the end of the link."}
 {"id":"line","term":"line","means":"Which line of a file something is on."}
 {"id":"lines","term":"lines","means":"How long a file is, in lines."}
 {"id":"load","term":"load","means":"How draining an action was this time, from 0 (nothing) through 5 (hard) to 10 (maximal), after Borg's CR10 scale of perceived exertion.","not":"How long it took: that is minutes.","see":"effort, manual work","decided":"2026-11-11-word-load"}
 {"id":"manual-work","term":"manual work","means":"An action done by hand that a tool could do: counted with its minutes and load, and when it was done, until something automates it.","not":"Bad work: it is a measure of where a tool would help, not a judgment.","see":"effort, attention","decided":"2026-11-11-manual-work"}
+{"id":"manual_events","term":"manual_events","means":"Each time something was done by hand, and what it took."}
+{"id":"manual_work","term":"manual_work","means":"The kinds of work done by hand, each with how often it has been."}
 {"id":"mark","term":"mark","means":"The small file (oco.toml) by which a repository says: I am part of the commons, and here are my tables.","not":"A badge someone else gives.","see":"project, harvest","decided":"2026-11-11-word-mark"}
 {"id":"means","term":"means","means":"What a word means here: one meaning, said plainly."}
 {"id":"measure","term":"measure","means":"The value of an answer that says how much, of a whole. A meaning, shown by each surface its own way."}
 {"id":"milestone","term":"milestone","means":"A step on a path, reached only when its evidence exists.","not":"A date or a promise.","see":"path, workings","decided":"2026-11-11-word-milestone"}
+{"id":"milestones","term":"milestones","means":"What a place reaches for, each with what it rests on."}
 {"id":"minutes","term":"minutes","means":"How long it took, in minutes."}
 {"id":"moment","term":"moment","means":"When something happened, to the second. A day is when to the day; both are words that sort in time."}
 {"id":"name","term":"name","means":"What something is called by people. A place's name says what it is for, after its own name and a colon."}
@@ -117,10 +139,13 @@
 {"id":"passes_over","term":"passes_over","means":"The values a field of pointings may hold that are no pointing - a word such as none - and are passed over."}
 {"id":"path","term":"path","means":"What a project must reach: its milestones on three horizons, each with the evidence that proves it.","not":"A plan of dates.","see":"milestone, horizon","decided":"2026-11-11-word-path"}
 {"id":"pattern","term":"pattern","means":"The shape a value must have, said as a regular expression."}
+{"id":"people","term":"people","means":"Who takes part, each by the names they go by."}
 {"id":"per","term":"per","means":"The value a part is laid out once for each of: once for each driver, each star, each thread."}
 {"id":"places","term":"places","means":"The lens a part places within this one - all of it, or one of its parts."}
 {"id":"plane","term":"plane","means":"What a lens brings into focus, as rows in the order they are laid out: what a surface reads.","not":"A screen or a page: those are surfaces a plane is laid on."}
 {"id":"practice","term":"practice","means":"A way of working, said so that another can follow it."}
+{"id":"practices","term":"practices","means":"The ways of working, each said so that another can follow it."}
+{"id":"problems","term":"problems","means":"Signs: what was seen not to fit - stale, overlapping, lacking, unclear. The table keeps the name it had before they were called signs."}
 {"id":"project","term":"project","means":"A repository with a mark. It keeps its own idea, path, workings and work, in its own data.","not":"A folder of code alone.","see":"mark, essence","decided":"2026-11-11-word-project"}
 {"id":"projection","term":"projection","means":"The topmost shape of shapes: what a lens brings into focus, cut from the whole down to its places - fulldome, lens, part, line, place. Each piece has exactly one place because it was cut from there. It comes hand in hand with what it is projected onto, as a port with its adapters; it does not check what it projects, only its shape. What the world calls a project is one: what is thrown forward and lands on a surface, with what it came from left out of sight; a star is that source.","not":"the act of a lens (that is focus); a surface's text (the projection laid out, no longer a shape); a check of the data (the data's own, and observing's)","see":"lens, dome, surface, focus","decided":"2026-11-13-the-whole-is-cut"}
 {"id":"query","term":"query","means":"The question a part asks of its tables."}
@@ -130,12 +155,16 @@
 {"id":"record","term":"record","means":"The work done by hand that this is one more time of."}
 {"id":"refines","term":"refines","means":"The decision this one builds on, or makes finer."}
 {"id":"reflection","term":"reflection","means":"A look back over a stretch of work by anyone - a person or a machine - saying what they saw, what they learned and what changes because of it; it touches what it is about and may answer another reflection.","not":"retrospective (a ceremony at an iteration's end); post-mortem (only after failures); lessons learned (only what went wrong); review (already means code review)","decided":"2026-11-12-reflections"}
+{"id":"reflections","term":"reflections","means":"What someone saw looking back, what they learned from it, and what changes."}
 {"id":"rejected","term":"rejected","means":"What was considered and not chosen, and why - so that it need not be weighed again blind."}
 {"id":"relation","term":"relation","means":"A field said to hold pointings: from a row of one table to things of others, with what the pointing is."}
 {"id":"released","term":"released","means":"The release a change went out in."}
+{"id":"releases","term":"releases","means":"What a repository released, and when."}
 {"id":"research","term":"research","means":"The look around before acting: the question asked, what was found in plain words, and the sources it rests on.","not":"A list of links.","see":"source, decision","decided":"2026-11-11-word-research"}
 {"id":"room","term":"room","means":"The word first used on 2026-11-12 for what is now called the fulldome; with it went wall, which needs no replacement: a part of the whole is a lens.","not":"see fulldome","decided":"open-commons-observatory/ecosystem/decisions:2026-11-12-the-fulldome"}
 {"id":"route","term":"route","means":"A lens at the edge: how a table's rows are read from a surface - which kind of surface, which part of it, and the shape taken from it."}
+{"id":"runs","term":"runs","means":"What ran on GitHub: each run of a workflow, and how it ended."}
+{"id":"said","term":"said","means":"What the voice told, and when."}
 {"id":"saturated","term":"saturated","means":"Done by hand often enough (three times) or heavily enough (30 effort-minutes) that it asks for a tool.","not":"Bad, or forbidden: a saturated action is simply the next candidate for automation.","see":"manual work, effort","decided":"2026-11-11-word-saturated"}
 {"id":"saw","term":"saw","means":"What was seen, as it was."}
 {"id":"says","term":"says","means":"What a thing says of itself in its own words: a lens what it shows, a place what it is for, a row its few telling words."}
@@ -153,17 +182,21 @@
 {"id":"star","term":"star","means":"A place that produces: one idea or project keeping its own ocoeco data, gathering nothing. A git repository today.","not":"project (only what has a repository and code); repository (a tool's word, and only where it lives today)","decided":"open-commons-observatory/ecosystem/decisions:2026-11-12-places-lenses-acts"}
 {"id":"status","term":"status","means":"Where an item stands, as someone said: open, next, in progress, waiting, done, parked. More and more it is read off what is done, and not said."}
 {"id":"step","term":"step","means":"Standing on a neighbour of where one stands."}
+{"id":"steps","term":"steps","means":"Where the drivers of a machine stood, each step with who and when."}
 {"id":"subject","term":"subject","means":"What a milestone is about: the device, the feature, the part of the whole."}
 {"id":"summary","term":"summary","means":"A concept's own text: what it is, in a sentence or two.","not":"statement (the word two projects used for the same role, retired 2026-11-11)","decided":"2026-11-11-language-on-tad"}
 {"id":"supplies","term":"supplies","means":"What an entry fills in by itself: the moment, who, a name for the row."}
 {"id":"surface","term":"surface","means":"Where a projection is laid out, and where what someone gives is read back: text, a screen, a page, a terminal, a line typed in a shell, the environment. A surface adds looks, never meaning; and what comes back off it enters through a lens again.","not":"view, render (one direction only); interface (says nothing of what it is)","decided":"2026-11-13-a-surface-reads-back","see":"dome, projection, lens"}
+{"id":"surfaces","term":"surfaces","means":"Where everything lives: each surface with what it has, where it is, and by which way in it is read."}
 {"id":"table","term":"table","means":"Rows of one shape - kept by a place, or read from a surface."}
 {"id":"takes","term":"takes","means":"What is taken from a source: the part of it that a finding or a decision rests on."}
 {"id":"term","term":"term","means":"A word, as it is written."}
 {"id":"text","term":"text","means":"Words as they were written or said, whole and unchanged."}
 {"id":"thing","term":"thing","means":"Anything one can stand on - a row, a place, a lens and what it is made of - known by where it is held, its table and its id."}
+{"id":"things","term":"things","means":"Everything in view that one can stand on."}
 {"id":"thread","term":"thread","means":"The line of thought a connection belongs to: one name for all that follow one another."}
 {"id":"title","term":"title","means":"The few words a row is known by where many are listed."}
+{"id":"titles","term":"titles","means":"How each document begins, where it begins by saying what it is."}
 {"id":"to","term":"to","means":"Where a pointing ends: the thing pointed at."}
 {"id":"to_id","term":"to_id","means":"The id of the thing a pointing ends at."}
 {"id":"to_place","term":"to_place","means":"The place of the thing a pointing ends at."}
@@ -173,6 +206,8 @@
 {"id":"touches","term":"touches","means":"The things a row speaks of, or changed."}
 {"id":"trail","term":"trail","means":"Where a driver stood, step by step, as it happened. A record of work reads from it where it was made."}
 {"id":"transcript","term":"transcript","means":"Which kept transcript a turn was read from."}
+{"id":"translations","term":"translations","means":"Words said again in another language: of which row, and which of its fields."}
+{"id":"turns","term":"turns","means":"What was said in the conversation, turn by turn, each following the one before."}
 {"id":"unless","term":"unless","means":"What a shape to be kept out lets through all the same."}
 {"id":"urgent","term":"urgent","means":"To be said at once, wherever its driver is - not when next looked at."}
 {"id":"url","term":"url","means":"Where on the web something is: an address one can open."}
