@@ -129,7 +129,9 @@ WITH made AS (
           WHEN kind = 'heading' THEN
             '<section class="part' || CASE WHEN measures > 0 THEN ' tiles' WHEN chained > 0 THEN ' chain' WHEN longest <= 72 AND of_part >= 6 THEN ' cols' ELSE '' END
             || CASE WHEN urgent THEN ' urgent' ELSE '' END || '">' || chr(10)
-            || '<h3>' || regexp_replace(says, ' \\((\\d+)\\)$', ' <span class="count">\\1</span>') || '</h3>' || chr(10)
+            || '<h3>' || CASE WHEN page <> '' THEN '<a href="/' || page || '">' ELSE '' END
+            || regexp_replace(says, ' \\((\\d+)\\)$', ' <span class="count">\\1</span>')
+            || CASE WHEN page <> '' THEN '</a>' ELSE '' END || '</h3>' || chr(10)
             || CASE WHEN of_part = 0 THEN '<p class="none">Nothing.</p>' || chr(10) || '</section>' ELSE '<ul>' END
           WHEN inset THEN
             CASE WHEN rest AND nth = 9 THEN '</ul>' || chr(10) || '<details class="more"><summary>' || CAST(of_part - 8 AS VARCHAR) || ' more</summary>' || chr(10) || '<ul>' || chr(10) ELSE '' END
