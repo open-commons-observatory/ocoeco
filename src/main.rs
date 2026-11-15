@@ -189,7 +189,8 @@ enum Cmd {
         /// The width of the screen surface, in columns
         #[arg(long, default_value_t = 80)]
         width: usize,
-        /// Lay the whole fulldome out on a surface - text, screen, markdown or html - instead of opening it
+        /// Lay the whole fulldome out on a surface - text or screen, or a lens that says one, as as-page says
+        /// the page - instead of opening it
         #[arg(long)]
         surface: Option<String>,
         /// The place, when no ROOT is given
@@ -208,7 +209,8 @@ enum Cmd {
         /// The width of the screen surface, in columns
         #[arg(long, default_value_t = 80)]
         width: usize,
-        /// The surface to lay it out on: text, screen, markdown, html or json - or a lens that says a surface
+        /// The surface to lay it out on: text, screen or json - or a lens that says a surface, as as-page says
+        /// the page
         #[arg(long, default_value = "text")]
         surface: String,
         /// What was observed: a folder ocoeco observe wrote, every row naming its project
@@ -604,6 +606,12 @@ fn run() -> Result<()> {
             if let Some(surface) = surface {
                 // the whole fulldome, laid out on a surface: the plane-lens that places every lens in view,
                 // each keeping its own shape within it - laid out as any plane is, in the surface's frame
+                // the page is said by a lens: its old name still asks for it
+                let surface = if surface == "html" {
+                    "as-page".to_string()
+                } else {
+                    surface
+                };
                 // a surface said by a lens lays the whole out itself
                 if !ocoeco::dome::SURFACES.contains(&surface.as_str())
                     && ocoeco::lenses::with(&places)?
@@ -775,6 +783,12 @@ fn run() -> Result<()> {
                     format!("{lens}@{thing}")
                 }
                 _ => lens,
+            };
+            // the page is said by a lens: its old name still asks for it
+            let surface = if surface == "html" {
+                "as-page".to_string()
+            } else {
+                surface
             };
             // a surface may be said by a lens: then that lens is looked through, from the lens asked for,
             // and what it brings is lines laid out already
