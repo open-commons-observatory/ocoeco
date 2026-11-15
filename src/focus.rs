@@ -224,6 +224,8 @@ fn gather(
     {
         let (table, declared) = (&table, &declared);
         let (mut text, mut seq) = (String::new(), 0u64);
+        // how long this table takes to gather is kept, so that a look can say where its time goes
+        let began = std::time::Instant::now();
         // the lenses themselves, as rows: kept by no place - they are the language, read as data
         // and every link between everything in view: the graph, kept by no place either
         let language = crate::lenses::OF_THE_LANGUAGE.contains(&table.as_str());
@@ -282,6 +284,10 @@ fn gather(
             text.push('\n');
         }
         std::fs::write(into.join(format!("{table}.json")), text)?;
+        TOOK.with(|took| {
+            took.borrow_mut()
+                .push((table.clone(), began.elapsed().as_millis()))
+        });
         let mut declared = declared.clone();
         if let Some(fields) = declared.get_mut("fields").and_then(|f| f.as_array_mut()) {
             for (name, kind) in [("star", "string"), ("seq", "integer")] {
@@ -642,7 +648,16 @@ thread_local! {
 /// The look has ended: what was brought into focus in it is not kept.
 pub(crate) fn forget_what_was_brought() {
     BROUGHT.with(|brought| brought.borrow_mut().clear());
+    TOOK.with(|took| took.borrow_mut().clear());
 }
+
+thread_local! {
+    /// How long gathering each table took, in the look under way: the table, and thousandths of a second.
+    static TOOK: std::cell::RefCell<Vec<(String, u128)>> = Default::default();
+}
+
+/// What takes less than this, in thousandths of a second, is not worth saying.
+const WORTH_SAYING: u128 = 20;
 
 fn brought_anew(
     lens: &str,
@@ -1164,6 +1179,19 @@ pub fn beam(
         let mut shaped: Vec<(String, usize, usize)> = Vec::new();
         // a shape another lens names, read here, is light coming in from that lens
         let mut light_in = light_in;
+        // and how long each took to gather, where that is worth saying: so a look says where its time
+        // goes. Within one look the graph is made once - the table that asks for it first waits for it
+        let took = TOOK.with(|took| took.borrow().clone());
+        for (line, table) in light_in.lines.iter_mut().zip(&light_in.keys) {
+            let all: u128 = took
+                .iter()
+                .filter(|(t, _)| t == table)
+                .map(|(_, ms)| ms)
+                .sum();
+            if all >= WORTH_SAYING {
+                line.push_str(&format!(" - gathered in {all} ms"));
+            }
+        }
         for read in &found.lens.reads {
             if let Some(giver) = giver_of(read, &all) {
                 let rows = answers(engine, &load, &format!("SELECT * FROM \"{read}\""))?.len();
@@ -2242,44 +2270,5 @@ mod what_a_line_is_about {
             [None, Some("p/problems:s"), None],
             "a heading, a line about a thing, a line about none"
         );
-    }
-}
-
-#[cfg(test)]
-mod the_page_said_by_a_lens {
-    use super::*;
-    use crate::dome::Dome;
-
-    #[test]
-    fn a_plane_laid_out_by_the_lens_is_the_page_the_program_writes() {
-        let d = std::env::temp_dir()
-            .join(format!("ocoeco-as-page-{}", std::process::id()))
-            .join("o/p");
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(d.join("data")).unwrap();
-        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place & its <things>\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nbacklog = \"data/backlog.json\"\nproblems = \"data/problems.json\"\n").unwrap();
-        std::fs::write(d.join("data/backlog.json"), "{\"id\":\"a\",\"title\":\"A \\\"quoted\\\" title\",\"status\":\"in-progress\",\"driver\":\"x\",\"opened\":\"2026-01-01\"}\n{\"id\":\"b\",\"title\":\"B\",\"status\":\"next\",\"opened\":\"2026-01-01\"}\n").unwrap();
-        std::fs::write(d.join("data/problems.json"), "{\"id\":\"s\",\"kind\":\"lacking\",\"what\":\"it lacks <a thing> & more\",\"date\":\"2026-01-01\",\"by\":\"x\"}\n").unwrap();
-        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
-        let Ok(engine) = tad::sql::DuckDb::find() else {
-            eprintln!("no engine here: the page said by a lens is held equal to the program's where there is one");
-            return;
-        };
-        let dirs = [d.clone()];
-        for lens in ["work", "signs", "graph", "insight", "fulldome"] {
-            let by_the_program = crate::dome::Html.whole(
-                "a place & when",
-                &brought(lens, &dirs, "2026-01-02", &engine).unwrap(),
-            );
-            let by_the_lens = crate::dome::Lines
-                .lay_out(
-                    &brought(&format!("as-page@{lens}"), &dirs, "2026-01-02", &engine).unwrap(),
-                )
-                .replace("{scale}", &crate::dome::escaped("a place & when"));
-            assert_eq!(
-                by_the_lens, by_the_program,
-                "the lens {lens}, laid out as a page"
-            );
-        }
     }
 }

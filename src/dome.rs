@@ -1,6 +1,7 @@
 //! The dome: what a star's shine can be focused onto. A lens says what comes into focus; a dome is the
-//! one thing every surface must be able to do with it - lay it out. Plain text, Markdown, HTML and CSS,
-//! a terminal, and whatever someone makes later are surfaces: each a dome made real. A lens knows of
+//! one thing every surface must be able to do with it - lay it out. Plain text, a screen of a given width,
+//! a terminal, and whatever someone makes later are surfaces: each a dome made real. A surface may be
+//! said by a lens too, and the page is: as-page, with how it looks in what the lens says. A lens knows of
 //! none of them, so a lens made before a surface existed shows on it as it stands. The fulldome is every
 //! lens, in focus, on a dome.
 
@@ -138,129 +139,12 @@ impl Dome for Text {
     }
 }
 
-/// The Markdown surface: a heading as a heading, its lines as a list; a part with no heading as plain
-/// lines.
-pub struct Markdown;
-
-impl Dome for Markdown {
-    fn lay_out(&self, parts: &[Brought]) -> String {
-        let mut text = String::new();
-        for part in parts {
-            if let Some(about) = &part.about {
-                text.push_str(&format!(
-                    "\n## {}\n\n{about}\n\n",
-                    part.title.as_deref().unwrap_or_default()
-                ));
-                match &part.nothing_because {
-                    Some(why) => text.push_str(&format!("*{why}*\n")),
-                    None => text.push_str(&self.lay_out(&part.within)),
-                }
-                continue;
-            }
-            if !text.is_empty() {
-                text.push('\n');
-            }
-            match &part.title {
-                Some(title) => {
-                    text.push_str(&format!("### {title}\n\n"));
-                    for (at, along) in walked(part) {
-                        let (line, along) = (&part.lines[at], "  ".repeat(along));
-                        match part.measures.get(at).copied().flatten() {
-                            Some((so_much, of)) => {
-                                text.push_str(&format!("- `{}` {line}\n", bar(so_much, of)))
-                            }
-                            None => text.push_str(&format!("{along}- {line}\n")),
-                        }
-                    }
-                    if part.lines.is_empty() {
-                        text.push_str("Nothing.\n");
-                    }
-                }
-                None => {
-                    for line in &part.lines {
-                        text.push_str(&format!("{line}\n"));
-                    }
-                }
-            }
-        }
-        text
-    }
-
-    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
-        format!("# The fulldome\n\n{scale}\n{}", self.lay_out(plane))
-    }
-}
-
-/// Text made safe to stand inside HTML.
+/// Text made safe to stand inside a page of the web.
 pub fn escaped(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
-}
-
-/// The HTML and CSS surface: each part a section - its heading, and its lines as a list.
-pub struct Html;
-
-/// How the fulldome's page looks: quiet, readable in light and dark, nothing fetched from anywhere.
-const STYLE: &str = "body{font:16px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#1c1c1c;background:#fcfcfa}h1{font-size:1.6rem}h2{margin-top:2.2rem;border-bottom:1px solid #8884;padding-bottom:.2rem}h3{font-size:1rem;margin:1.2rem 0 .3rem}ul{margin:.2rem 0;padding-left:1.2rem}li{margin:.15rem 0}.says,.scale,.none{color:#555}.none{font-style:italic}@media(prefers-color-scheme:dark){body{color:#e8e8e4;background:#16171a}.says,.scale,.none{color:#a0a0a0}}";
-
-impl Dome for Html {
-    fn lay_out(&self, parts: &[Brought]) -> String {
-        let mut text = String::new();
-        for part in parts {
-            if let Some(about) = &part.about {
-                let id = part.title.as_deref().unwrap_or_default();
-                text.push_str(&format!(
-                    "<h2 id=\"{}\">{}</h2>\n<p class=\"says\">{}</p>\n",
-                    escaped(id),
-                    escaped(id),
-                    escaped(about)
-                ));
-                match &part.nothing_because {
-                    Some(why) => {
-                        text.push_str(&format!("<p class=\"none\">{}</p>\n", escaped(why)))
-                    }
-                    None => text.push_str(&self.lay_out(&part.within)),
-                }
-                continue;
-            }
-            text.push_str("<section>\n");
-            match &part.title {
-                Some(title) => {
-                    text.push_str(&format!("<h3>{}</h3>\n", escaped(title)));
-                    if part.lines.is_empty() {
-                        text.push_str("<p class=\"none\">Nothing.</p>\n");
-                    } else {
-                        text.push_str("<ul>\n");
-                        for (at, along) in walked(part) {
-                            let (line, along) = (&part.lines[at], "  ".repeat(along));
-                            match part.measures.get(at).copied().flatten() {
-                                Some((so_much, of)) => text.push_str(&format!("<li><meter value=\"{so_much}\" max=\"{of}\">{so_much} of {of}</meter> {}</li>\n", escaped(line))),
-                                None if along.is_empty() => text.push_str(&format!("<li>{}</li>\n", escaped(line))),
-                                None => text.push_str(&format!("<li style=\"margin-left:{}rem\">{}</li>\n", along.len() as f64 * 0.75, escaped(line))),
-                            }
-                        }
-                        text.push_str("</ul>\n");
-                    }
-                }
-                None => {
-                    for line in &part.lines {
-                        text.push_str(&format!("<p>{}</p>\n", escaped(line)));
-                    }
-                }
-            }
-            text.push_str("</section>\n");
-        }
-        text
-    }
-
-    fn whole(&self, scale: &str, plane: &[Brought]) -> String {
-        let mut text = format!("<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>The fulldome</title>\n<style>{STYLE}</style>\n</head>\n<body>\n<h1>The fulldome</h1>\n<p class=\"scale\">{}</p>\n", escaped(scale));
-        text.push_str(&self.lay_out(plane));
-        text.push_str("</body>\n</html>\n");
-        text
-    }
 }
 
 /// How many columns a text takes on a screen of monospaced cells.
@@ -426,7 +310,7 @@ impl Dome for Json {
 }
 
 /// The surfaces a projection can be laid out on, by name - besides the terminal, which is a place to stand.
-pub const SURFACES: [&str; 5] = ["text", "screen", "markdown", "html", "json"];
+pub const SURFACES: [&str; 3] = ["text", "screen", "json"];
 
 /// The lines alone, as they are: for a plane whose lines are laid out already - what a surface said by a
 /// lens brings into focus.
@@ -451,12 +335,10 @@ pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
     Ok(match name {
         "text" => Box::new(Text),
         "lines" => Box::new(Lines),
-        "markdown" => Box::new(Markdown),
-        "html" => Box::new(Html),
         "json" => Box::new(Json),
         "screen" => Box::new(Screen { width }),
         other => bail!(
-            "no surface is called {other}: there are {} and {} (and the terminal: ocoeco fulldome)",
+            "no surface is called {other}: there are {} and {} (and the terminal: ocoeco fulldome) - or a lens that says a surface, as as-page says the page",
             SURFACES[..SURFACES.len() - 1].join(", "),
             SURFACES[SURFACES.len() - 1]
         ),
@@ -499,14 +381,6 @@ mod tests {
             Text.lay_out(&parts()),
             "in progress (1)\n  claude: r/a - A <b> & co\nwaiting (0)\nopen 2, across 1 stars\n"
         );
-        assert_eq!(Markdown.lay_out(&parts()), "### in progress (1)\n\n- claude: r/a - A <b> & co\n\n### waiting (0)\n\nNothing.\n\nopen 2, across 1 stars\n");
-        let html = Html.lay_out(&parts());
-        assert!(html.contains("<h3>in progress (1)</h3>\n<ul>\n<li>claude: r/a - A &lt;b&gt; &amp; co</li>\n</ul>"), "what a row holds cannot become markup:\n{html}");
-        assert!(
-            html.contains("<h3>waiting (0)</h3>\n<p class=\"none\">Nothing.</p>")
-                && html.contains("<p>open 2, across 1 stars</p>"),
-            "{html}"
-        );
     }
 
     #[test]
@@ -533,21 +407,6 @@ mod tests {
                 .contains("purpose: Why a star exists.\n  (the lens purpose has no focus yet)\n"),
             "{text}"
         );
-        let page = Html.whole("every place observed", &lenses);
-        assert!(
-            page.starts_with("<!doctype html>")
-                && page.ends_with("</body>\n</html>\n")
-                && page.contains("<h2 id=\"work\">work</h2>")
-                && page.contains("<p class=\"none\">the lens purpose has no focus yet</p>"),
-            "{page}"
-        );
-        assert_eq!(
-            page.matches("<section>").count(),
-            page.matches("</section>").count()
-        );
-        assert!(Markdown
-            .whole("this place", &lenses)
-            .contains("## purpose\n\nWhy a star exists.\n\n*the lens purpose has no focus yet*\n"));
     }
 
     #[test]
@@ -572,10 +431,6 @@ mod tests {
             Text.lay_out(&reached),
             "being reached (2)\n  █████████░ r - Published: 8 of 9\n  r - Begun\n"
         );
-        assert!(Markdown
-            .lay_out(&reached)
-            .contains("- `█████████░` r - Published: 8 of 9\n- r - Begun\n"));
-        assert!(Html.lay_out(&reached).contains("<li><meter value=\"8\" max=\"9\">8 of 9</meter> r - Published: 8 of 9</li>\n<li>r - Begun</li>"));
     }
 
     #[test]
@@ -744,12 +599,6 @@ mod tests {
             "each line once, and what follows it beneath it"
         );
         assert_eq!(Text.lay_out(std::slice::from_ref(&chain)), "a red line\n  q led to x\n    x led to y z\n      y led to g\n        g led to h\n      z led to g\n  lone led to end\n");
-        assert!(Markdown
-            .lay_out(std::slice::from_ref(&chain))
-            .contains("- q led to x\n  - x led to y z\n    - y led to g\n"));
-        assert!(Html
-            .lay_out(std::slice::from_ref(&chain))
-            .contains("<li>q led to x</li>\n<li style=\"margin-left:1.5rem\">x led to y z</li>"));
         assert!(Screen { width: 20 }
             .lay_out(std::slice::from_ref(&chain))
             .lines()
@@ -777,13 +626,15 @@ mod tests {
     #[test]
     fn a_surface_is_found_by_its_name() {
         assert_eq!(
-            surface("html", 80).unwrap().lay_out(&parts()),
-            Html.lay_out(&parts())
+            surface("text", 80).unwrap().lay_out(&parts()),
+            Text.lay_out(&parts())
         );
         assert!(surface("paper", 80)
             .err()
             .unwrap()
             .to_string()
-            .contains("there are text, screen, markdown, html and json"));
+            .contains("there are text, screen and json"));
+        // the page is no surface of the program's: a lens says it
+        assert!(surface("html", 80).is_err());
     }
 }
