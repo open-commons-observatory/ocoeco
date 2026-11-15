@@ -215,21 +215,14 @@ impl InTerminal {
     /// Every lens given - those built in, and those the places in view bring.
     pub fn of(scale: String, all: Vec<crate::lenses::Lens>) -> InTerminal {
         // a surface said by a lens is not looked through on its own: it lays out what another brings
-        // where one begins: on the whole a place in view says for itself - a lens of its own that places
-        // every lens, with what comes first - and, where none says one, on the flow of work
-        let said_whole = all
-            .iter()
-            .filter(|l| !crate::focus::lays_out_a_plane(l))
-            .position(|l| {
-                l.lens.id != "fulldome" && l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
-            });
         let lenses: Vec<(String, String, bool)> = all
             .into_iter()
             .filter(|l| !crate::focus::lays_out_a_plane(l))
             .map(|l| (l.lens.id, l.lens.says, !l.focus.is_empty()))
             .collect();
-        let at = said_whole
-            .or_else(|| lenses.iter().position(|(id, _, _)| id == "work"))
+        let at = lenses
+            .iter()
+            .position(|(id, _, _)| id == "work")
             .or_else(|| lenses.iter().position(|(_, _, has)| *has))
             .unwrap_or(0);
         InTerminal {
@@ -506,11 +499,18 @@ pub fn open(
     scale: String,
     can_enter: bool,
     all: Vec<crate::lenses::Lens>,
+    begins: Option<String>,
     mut load: impl FnMut(&str, Looking) -> String,
     mut write: impl FnMut(&str, &[String]) -> anyhow::Result<String>,
     mut about: impl FnMut(&str) -> Vec<(usize, String)>,
 ) -> anyhow::Result<()> {
     let mut dome = InTerminal::of(scale, all);
+    // one begins on the whole the place one looks from says for itself - and, where it says none, on the
+    // flow of work
+    if let Some(at) = begins.and_then(|lens| dome.lenses.iter().position(|(id, _, _)| *id == lens))
+    {
+        dome.at = at;
+    }
     dome.can_enter = can_enter;
     dome.text = load(dome.lens(), Looking::InFocus);
     let mut terminal = ratatui::init();

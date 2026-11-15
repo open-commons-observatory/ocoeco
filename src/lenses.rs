@@ -206,6 +206,22 @@ pub fn of_the_place(dir: &Path) -> toml::Table {
         .unwrap_or_default()
 }
 
+/// The whole the place at `dir` says for itself, if it says one: a lens of its own that places every
+/// lens - what comes first, and then every other. What a place shows first is that place's to say: the
+/// one looked from, not another it has in view.
+pub fn whole_said_at(dir: &Path) -> Option<String> {
+    brought_by(dir)
+        .ok()?
+        .into_iter()
+        .map(|(_, lens)| lens)
+        .find(|lens| {
+            lens.focus
+                .iter()
+                .any(|part| part.places.as_deref() == Some("*"))
+        })
+        .map(|lens| lens.lens.id)
+}
+
 /// Every lens there is to look through from these places, each with where it is kept: those built into
 /// ocoeco, and those the places bring. A brought lens is held to what the build holds the built-in ones
 /// to, said when it is looked through: no id used twice, no table defined by two lenses. One lens brought
