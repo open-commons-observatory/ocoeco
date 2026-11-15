@@ -6,12 +6,124 @@
 //! what was marked is kept beside the trail, so that the mark said next names what was shown. What a
 //! window shows is decided by lenses; this carries what is said, and what an entry is given.
 
+use crate::lenses::Lens;
 use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 use tad::sql::SqlEngine;
 
 /// The surface the window is laid out on where there is no terminal: said by a lens.
 const SURFACE: &str = "as-window";
+
+/// The lens that says what an entry asks and the row it would keep, where it is in view.
+const ENTERING: &str = "entering";
+
+/// The entry said - by its name, or as the thing a mark marked - with the lens that declares it.
+fn the_entry<'a>(said: &str, all: &'a [Lens]) -> Option<(&'a Lens, &'a crate::lenses::Entry)> {
+    match said.rsplit_once("/lens_entries:") {
+        Some((_, of)) => {
+            let (lens, name) = of.split_once('/')?;
+            let lens = all.iter().find(|l| l.lens.id == lens)?;
+            Some((lens, lens.glimpse.iter().find(|e| e.entry == name)?))
+        }
+        None => all
+            .iter()
+            .find_map(|l| l.glimpse.iter().find(|e| e.entry == said).map(|e| (l, e))),
+    }
+}
+
+/// What was given for an entry, kept as the lens of entering says: the lens is given the words, and says
+/// each field and value of the row and the place it is kept in - or what is lacking; the entry itself then
+/// makes the row, as it is made anywhere. Returns the thing entered, and what to say of it.
+fn kept_as_the_lens_says(
+    said: &str,
+    given: &str,
+    all: &[Lens],
+    dirs: &[PathBuf],
+    today: &str,
+    engine: &dyn SqlEngine,
+) -> Result<(String, String)> {
+    let Some((lens, declared)) = the_entry(said, all) else {
+        bail!("{said} is no entry a lens in view declares");
+    };
+    let name = declared.entry.as_str();
+    let known: Vec<String> = crate::entries::fields(lens, &declared.table)
+        .into_iter()
+        .map(|(field, _, _)| field)
+        .chain(["in".to_string()])
+        .collect();
+    // the lens is given the words for this one look, and says the row
+    crate::focus::given_is(given_as_fields(given, &known));
+    let says = crate::focus::brought(&format!("{ENTERING}@{said}"), dirs, today, engine);
+    crate::focus::given_is(Vec::new());
+    let says = says?;
+    let rows = crate::focus::every_answer(&says);
+    let words = |row: &serde_json::Map<String, serde_json::Value>, key: &str| {
+        row.get(key).and_then(|v| v.as_str()).map(str::to_string)
+    };
+    let lacking: Vec<String> = rows
+        .iter()
+        .copied()
+        .filter_map(|row| words(row, "lacking"))
+        .collect();
+    if !lacking.is_empty() {
+        bail!("the {name} is not entered: {}", lacking.join("; "));
+    }
+    let keeps: Vec<(String, String)> = rows
+        .iter()
+        .copied()
+        .filter_map(|row| Some((words(row, "keep_field")?, words(row, "keep_value")?)))
+        .collect();
+    let Some(id) = keeps
+        .iter()
+        .find(|(field, _)| field == "id")
+        .map(|(_, id)| id.clone())
+    else {
+        bail!("the lens of entering names no row to keep: nothing was given that {name} asks");
+    };
+    let Some((place, dir)) = rows
+        .iter()
+        .copied()
+        .find_map(|row| words(row, "kept_in"))
+        .and_then(|place| place_called(&place, dirs))
+    else {
+        bail!("the lens of entering says no place in view to keep the {name} in: stand on what it is to say something of, or give in: PLACE");
+    };
+    let mut asked: Vec<String> = vec![
+        "glimpse".into(),
+        name.into(),
+        "--id".into(),
+        id.clone(),
+        "--dir".into(),
+        dir.display().to_string(),
+    ];
+    for (field, value) in keeps.iter().filter(|(field, _)| field != "id") {
+        asked.push(format!("--{field}"));
+        asked.push(value.clone());
+    }
+    // made by the entry itself, as it is made anywhere - standing in the place it is kept in
+    let made = std::process::Command::new(std::env::current_exe()?)
+        .args(&asked)
+        .current_dir(&dir)
+        .output()?;
+    if !made.status.success() {
+        let why = String::from_utf8_lossy(&made.stderr);
+        bail!(
+            "the {name} was not entered: {}",
+            why.lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" - ")
+        );
+    }
+    let called = id
+        .trim_start_matches(|c: char| c.is_ascii_digit() || c == '-')
+        .replace('-', " ");
+    Ok((
+        format!("{place}/{}:{id}", declared.table),
+        format!("entered: {place} | a {name}: {called}\n"),
+    ))
+}
 
 /// What `who` says in the window, standing where they stand among what is in view from `dir` - and what
 /// is then shown. Nothing said: where one stands. A mark: one stands on what it marked. A lens by its
@@ -29,6 +141,11 @@ pub fn said(
     let dirs = crate::board::in_view(dir).0;
     let mut through: Option<String> = None;
     let mut entered = String::new();
+    // where the lens of entering is in view, an entry is said as that lens says it - by its name, or by its
+    // mark where it is marked. One does not stand on an entry: here stays where one stands
+    let all = crate::lenses::with(&dirs)?;
+    let by_a_lens = all.iter().any(|l| l.lens.id == ENTERING);
+    let mut an_entry_said: Option<String> = None;
     match words.first().map(String::as_str).unwrap_or_default() {
         "" => {}
         "up" => crate::trail::leave(who),
@@ -46,13 +163,17 @@ pub fn said(
             else {
                 bail!("nothing is marked {mark} in what was last shown: ocoeco, alone, shows where you stand");
             };
-            crate::trail::step(who, thing);
+            if by_a_lens && thing.contains("/lens_entries:") {
+                an_entry_said = Some(thing.clone());
+            } else {
+                crate::trail::step(who, thing);
+            }
         }
-        word if crate::lenses::with(&dirs)?
-            .iter()
-            .any(|l| l.lens.id == word) =>
-        {
+        word if all.iter().any(|l| l.lens.id == word) => {
             through = Some(word.to_string());
+        }
+        word if by_a_lens && the_entry(word, &all).is_some() => {
+            an_entry_said = Some(word.to_string());
         }
         word => {
             match an_entry(
@@ -71,16 +192,32 @@ pub fn said(
             }
         }
     }
+    // an entry said: with nothing given, what it asks is shown - through the lens of entering, from the
+    // entry; with what it asks given, it is kept as that lens says, and one stands on what was made
+    let mut asks: Option<String> = None;
+    if let Some(entry) = an_entry_said {
+        let given = given();
+        if given.trim().is_empty() {
+            asks = Some(entry);
+        } else {
+            let (thing, says) = kept_as_the_lens_says(&entry, &given, &all, &dirs, today, engine)?;
+            crate::trail::step(who, &thing);
+            entered = says;
+        }
+    }
     // what is looked through: the lens named, from where one stands if it looks from a thing; else what
     // is around the thing stood on; else what the place shows first
     let stands = crate::trail::stands(who);
-    let looked = match (&through, &stands) {
-        (Some(lens), Some(thing)) if crate::focus::stands_somewhere(lens, &dirs) => {
+    let looked = match (&asks, &through, &stands) {
+        (Some(entry), _, _) => format!("{ENTERING}@{entry}"),
+        (None, Some(lens), Some(thing)) if crate::focus::stands_somewhere(lens, &dirs) => {
             format!("{lens}@{thing}")
         }
-        (Some(lens), _) => lens.clone(),
-        (None, Some(thing)) => format!("around@{thing}"),
-        (None, None) => crate::lenses::whole_said_at(dir).unwrap_or_else(|| "fulldome".to_string()),
+        (None, Some(lens), _) => lens.clone(),
+        (None, None, Some(thing)) => format!("around@{thing}"),
+        (None, None, None) => {
+            crate::lenses::whole_said_at(dir).unwrap_or_else(|| "fulldome".to_string())
+        }
     };
     // one look: what the lens brings is brought once, for its marks and for the surface that lays it out
     let _one_look = crate::relations::one_look();

@@ -70,6 +70,12 @@ const STEPS_KEPT: usize = 2000;
 /// is kept is a place of this machine: its mark, so that standing in an observatory there the steps are
 /// in view. Never gathered, never leaving the machine.
 fn keep_step(trail: &Path, who: &str, thing: &str) {
+    keep_as_a_step(trail, who, thing, false)
+}
+
+/// A step kept as a row: who stood on what, and when - or, going up, who left it. So where a driver
+/// stands is read off the steps: the thing of their last one, unless it says they went up from it.
+fn keep_as_a_step(trail: &Path, who: &str, thing: &str, up: bool) {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -83,14 +89,24 @@ fn keep_step(trail: &Path, who: &str, thing: &str) {
     );
     // a thing is said without its owner where it is spoken of: place, table and id
     let short = thing.split_once('/').map_or(thing, |(_, rest)| rest);
-    let step = serde_json::json!({"id": format!("{who}-{secs}"), "by": who, "where": thing, "at": at,
-                                  "says": format!("{who} stood on {short}")});
     let file = trail.join("steps.json");
     let mut rows: Vec<String> = std::fs::read_to_string(&file)
         .unwrap_or_default()
         .lines()
         .map(str::to_string)
         .collect();
+    // two steps within a second are two rows: each named apart
+    let named = format!("\"id\":\"{who}-{secs}");
+    let id = match rows.iter().filter(|row| row.contains(&named)).count() {
+        0 => format!("{who}-{secs}"),
+        nth => format!("{who}-{secs}-{}", nth + 1),
+    };
+    let does = if up { "went up from" } else { "stood on" };
+    let mut step = serde_json::json!({"id": id, "by": who, "where": thing, "at": at,
+                                      "says": format!("{who} {does} {short}")});
+    if up {
+        step["up"] = true.into();
+    }
     rows.push(step.to_string());
     if rows.len() > STEPS_KEPT {
         rows.drain(..rows.len() - STEPS_KEPT * 3 / 4);
@@ -149,7 +165,8 @@ fn before_in(home: Option<PathBuf>, who: &str) -> Option<String> {
     let mut stood: Vec<String> = steps
         .lines()
         .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|step| step["by"].as_str() == Some(who))
+        // a leaving is no place one stood: back leads to where one stood before
+        .filter(|step| step["by"].as_str() == Some(who) && step["up"] != true)
         .filter_map(|step| step["where"].as_str().map(str::to_string))
         .collect();
     stood.pop()?;
@@ -163,8 +180,20 @@ pub fn leave(who: &str) {
 
 fn leave_in(home: Option<PathBuf>, who: &str) {
     if let Some(file) = kept(home, who) {
+        // going up is a step too - who left what, and when: where one stands is read off the steps
+        let stood = std::fs::read_to_string(file.with_extension("stands")).unwrap_or_default();
+        if let Some(dir) = file.parent().filter(|_| !stood.trim().is_empty()) {
+            keep_as_a_step(dir, who, stood.trim(), true);
+        }
         let _ = std::fs::remove_file(file.with_extension("stands"));
     }
+}
+
+/// Who is driving: as the program is told, else as the machine knows them.
+pub fn who() -> String {
+    std::env::var("OCOECO_BY")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "someone".into())
 }
 
 /// Where the driver stands: the last thing stood on, on whatever surface that was. It stays when the
@@ -352,6 +381,30 @@ mod of_the_window {
             stands_in(Some(home.clone()), "d"),
             None,
             "up: one stands on nothing"
+        );
+        // and going up is kept as a step - who left what: where one stands is read off the steps
+        let steps = std::fs::read_to_string(home.join("ocoeco/trail/steps.json")).unwrap();
+        let last: serde_json::Value = serde_json::from_str(steps.lines().last().unwrap()).unwrap();
+        assert!(
+            last["up"] == true
+                && last["where"] == "o/r/notes:b"
+                && last["says"] == "d went up from r/notes:b",
+            "going up is a step that says so: {last}"
+        );
+        let named: std::collections::BTreeSet<String> = steps
+            .lines()
+            .filter_map(|row| serde_json::from_str::<serde_json::Value>(row).ok())
+            .filter_map(|row| row["id"].as_str().map(str::to_string))
+            .collect();
+        assert_eq!(
+            named.len(),
+            steps.lines().count(),
+            "steps within a second are named apart"
+        );
+        assert_eq!(
+            before_in(Some(home.clone()), "d").as_deref(),
+            Some("o/r/notes:a"),
+            "back, after going up: a leaving is no place one stood"
         );
         let _ = std::fs::remove_dir_all(&home);
     }
