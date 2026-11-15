@@ -26,7 +26,9 @@ WITH made AS (
   FROM plane
 ), said AS (
   -- a line about a thing that has a page leads to it: the words are the way there
-  SELECT *, CASE WHEN page <> '' AND kind = 'line' THEN '<a style="color:inherit" href="/' || page || '">' || words || '</a>' ELSE words END AS says FROM made
+  -- and an address of the web, where a line says one, is a way out: to a source, to the code
+  SELECT *, CASE WHEN page <> '' AND kind = 'line' THEN '<a style="color:inherit" href="/' || page || '">' || words || '</a>'
+                 ELSE regexp_replace(words, '(https?://[^ <]*[^ <.,;:)])', '<a style="color:inherit" href="\\1">\\1</a>', 'g') END AS says FROM made
 ), laid AS (
   SELECT seq, CASE kind
     WHEN 'lens' THEN '<h2 id="' || of_lens || '">' || of_lens || '</h2>' || chr(10) || '<p class="says">' || says || '</p>'

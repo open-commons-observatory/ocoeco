@@ -94,6 +94,15 @@ ORDER BY e.nature, e.how, thing
 """
 line = "{thing} {nature} this{said_as} - {says}"
 
+# where a change is, on GitHub: the way out, from what is in view, to the code itself
+[[focus]]
+title = "the change itself, where git keeps it ({count})"
+sql = """
+SELECT 'https://github.com/' || h.place || '/commit/' || substr(h.id, length(h.place) + length(h.of_table) + 3) AS address
+FROM here h WHERE h.of_table = 'commits'
+"""
+line = "{address}"
+
 # and in time: what came just before it and just after, in the same place - a step along the flow, as the
 # parts above are steps along what points at what
 [[focus]]

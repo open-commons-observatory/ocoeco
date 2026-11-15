@@ -389,6 +389,28 @@ fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
     ) else {
         return Vec::new();
     };
+    // a change made through ocoeco says what its record of work says, after the kind of change: so the
+    // record a change is part of is read off what both say - never typed. A saying several records of
+    // the place share is the saying of none of them
+    let mut records: std::collections::BTreeMap<String, Option<String>> = Default::default();
+    if let Some(mark) = std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|text| crate::mark::Mark::parse(&text).ok())
+    {
+        for row in crate::join::rows(dir, &mark, "glimpses") {
+            let said = |key: &str| {
+                row.get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.trim().to_string())
+            };
+            if let (Some(summary), Some(id)) = (said("summary"), said("id")) {
+                records
+                    .entry(summary)
+                    .and_modify(|one| *one = None)
+                    .or_insert(Some(id));
+            }
+        }
+    }
     said.lines()
         .filter_map(|line| {
             let mut parts = line.splitn(4, '\u{1f}');
@@ -398,9 +420,20 @@ fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
                 parts.next()?,
                 parts.next().unwrap_or_default(),
             );
-            serde_json::json!({"id": id, "at": at, "by": by, "says": says})
-                .as_object()
-                .cloned()
+            // what the change says, without the number of its pull request and the kind of change
+            let numbered = says
+                .rsplit_once(" (#")
+                .filter(|(_, n)| n.trim_end_matches(')').chars().all(|c| c.is_ascii_digit()));
+            let plain = numbered.map_or(says, |(before, _)| before);
+            let plain = plain
+                .split_once(": ")
+                .map_or(plain, |(_, after)| after)
+                .trim();
+            let mut row = serde_json::json!({"id": id, "at": at, "by": by, "says": says});
+            if let Some(record) = records.get(plain).cloned().flatten() {
+                row["record"] = record.into();
+            }
+            row.as_object().cloned()
         })
         .collect()
 }
