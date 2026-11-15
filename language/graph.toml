@@ -15,6 +15,7 @@ fields = [
     { name = "of_table", type = "string", required = true },
     { name = "place", type = "string", required = true },
     { name = "says", type = "string" },
+    { name = "at", type = "string" },
 ]
 
 [tables.edges]

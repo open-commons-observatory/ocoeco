@@ -1,0 +1,40 @@
+# What is happening, as one flow. A thing says when - by the field its table says dates it, or its moment,
+# or its day - and the flow is everything in view that says when, the latest first: whatever kind of thing
+# it is, wherever it is held. The whole is then not only what points at what, but what came before what.
+# Looked through with --follow it does not end: it is shown again as it moves.
+
+[lens]
+id = "flow"
+says = "What is happening, as one flow: everything in view that says when, the latest first - whatever kind it is, wherever it is held. A look that follows it does not end."
+reads = ["things"]
+
+[[focus]]
+title = "the latest ({count})"
+sql = """
+SELECT star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3) AS thing,
+       replace(left("at", 16), 'T', ' ') AS at_when, coalesce(says, '') AS says
+FROM things WHERE "at" IS NOT NULL
+-- the latest day first; within a day, what says only the day - entered sometime in it - and then its
+-- moments, the latest first: so what was just entered is not hidden behind the moments of its day
+ORDER BY left("at", 10) DESC, length("at") > 10, "at" DESC, id LIMIT 40
+"""
+line = "{at_when} {thing} - {says}"
+
+# how much happened each day, and of which kinds - the most first
+[[focus]]
+title = "day by day ({count})"
+sql = """
+WITH each AS (SELECT left("at", 10) AS day, of_table, count(*) AS n FROM things WHERE "at" IS NOT NULL GROUP BY 1, 2)
+SELECT day, CAST(sum(n) AS BIGINT) AS in_all, string_agg(n || ' ' || of_table, ', ' ORDER BY n DESC, of_table) AS kinds
+FROM each GROUP BY day ORDER BY day DESC LIMIT 7
+"""
+line = "{day} - {in_all} thing(s): {kinds}"
+
+[[focus]]
+always = true
+sql = """
+SELECT count("at") AS dated, count(*) - count("at") AS undated, left(min("at"), 10) AS first_day,
+       replace(left(max("at"), 16), 'T', ' ') AS latest
+FROM things
+"""
+line = "{dated} things say when, from {first_day} to {latest}; {undated} say nothing of when"
