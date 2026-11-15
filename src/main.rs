@@ -222,6 +222,27 @@ enum Cmd {
         #[arg(long)]
         since: Option<std::path::PathBuf>,
     },
+    /// Lay a site out: every page the lens says there is, each on the surface, written under OUT. A site
+    /// is said by a lens - each row of what it brings names a page: where it is written (path), what it
+    /// looks through (looks), and the thing it is the page of (of_thing), so that lines about it lead there
+    Site {
+        /// The lens that says which pages there are
+        lens: String,
+        /// The surface each page is laid out on: a lens that says a surface
+        #[arg(long, default_value = "as-page")]
+        surface: String,
+        /// Where the pages are written
+        #[arg(long)]
+        out: std::path::PathBuf,
+        /// What an observatory observed, instead of the places held here
+        #[arg(long)]
+        observed: Option<std::path::PathBuf>,
+        /// Every place under ROOT (two levels down: owner/repository)
+        #[arg(long)]
+        root: Option<String>,
+        #[arg(long, default_value = ".")]
+        dir: std::path::PathBuf,
+    },
     /// What may come next on a typed line, from a blank: read off the language and the rows that exist.
     /// The last word is the one being typed (give "" for a blank). With --shell, answers as a shell asks -
     /// complete -C 'ocoeco fits --shell' ocoeco - from COMP_LINE and COMP_POINT, one word to a line
@@ -767,6 +788,95 @@ fn run() -> Result<()> {
                     );
                 }
             }
+        }
+        Cmd::Site {
+            lens,
+            surface,
+            out,
+            observed,
+            root,
+            dir,
+        } => {
+            let places = match (observed, root) {
+                (Some(observed), _) => vec![observed],
+                (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
+                    root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
+                )),
+                (None, None) => ocoeco::board::in_view(&dir).0,
+            };
+            let today = std::process::Command::new("date")
+                .arg("+%F")
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_default();
+            let engine = tad::sql::DuckDb::find()?;
+            // laying a site out is one look: what is in view is the same for every page of it
+            let _one_look = ocoeco::relations::one_look();
+            // the pages there are: each row of what the lens brings into focus that names where a page is
+            // written and what it looks through
+            let said = |row: &serde_json::Map<String, serde_json::Value>, key: &str| {
+                row.get(key)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string()
+            };
+            let pages: Vec<(String, String, String, String)> =
+                ocoeco::focus::brought(&lens, &places, &today, &engine)?
+                    .iter()
+                    .flat_map(|part| part.values.iter())
+                    .filter(|row| !said(row, "path").is_empty() && !said(row, "looks").is_empty())
+                    .map(|row| {
+                        (
+                            said(row, "path"),
+                            said(row, "looks"),
+                            said(row, "scale"),
+                            said(row, "of_thing"),
+                        )
+                    })
+                    .collect();
+            if pages.is_empty() {
+                anyhow::bail!("the lens {lens} says no pages: each row of what it brings into focus names where a page is written (path) and what it looks through (looks)");
+            }
+            if let Some((path, ..)) = pages.iter().find(|(path, ..)| {
+                path.starts_with('/') || path.split('/').any(|step| step == "..")
+            }) {
+                anyhow::bail!(
+                    "a page is written under where the site is laid out: {path} leads out of it"
+                );
+            }
+            // which things have a page: a line about one then leads to it
+            ocoeco::focus::pages_are(
+                pages
+                    .iter()
+                    .filter(|(_, _, _, of)| !of.is_empty())
+                    .map(|(path, _, _, of)| (of.clone(), path.clone()))
+                    .collect(),
+            );
+            for (path, looks, scale, _) in &pages {
+                let laid = ocoeco::focus::brought(
+                    &format!("{surface}@{looks}"),
+                    &places,
+                    &today,
+                    &engine,
+                )?;
+                let what = if scale.is_empty() { looks } else { scale };
+                let text = ocoeco::dome::surface("lines", 80)?.lay_out(&laid).replace(
+                    "{scale}",
+                    &ocoeco::dome::escaped(&format!("{what}, {today}")),
+                );
+                let file = out.join(path);
+                if let Some(folder) = file.parent() {
+                    std::fs::create_dir_all(folder)?;
+                }
+                std::fs::write(&file, text)?;
+            }
+            ocoeco::focus::pages_are(Default::default());
+            println!(
+                "{} page(s) laid out on {surface} -> {}",
+                pages.len(),
+                out.display()
+            );
         }
         Cmd::Fits { shell, dir, words } => {
             use clap::CommandFactory;

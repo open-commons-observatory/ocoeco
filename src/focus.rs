@@ -74,6 +74,17 @@ pub fn stands_somewhere(lens: &str, dirs: &[PathBuf]) -> bool {
     crate::lenses::with(dirs).is_ok_and(|all| all.iter().any(|l| l.lens.id == lens && says_here(l)))
 }
 
+thread_local! {
+    /// The pages there are for things, while a site is laid out: each thing with where its page is.
+    static PAGES: std::cell::RefCell<std::collections::BTreeMap<String, String>> = Default::default();
+}
+
+/// Says which things have a page, and where: a plane then says, for a line about such a thing, the page
+/// to go to - so that a surface can lead there. Said by whoever lays a site out, before its pages.
+pub fn pages_are(pages: std::collections::BTreeMap<String, String>) {
+    PAGES.with(|said| *said.borrow_mut() = pages);
+}
+
 /// The table a surface reads: what another lens brings into focus, as rows.
 pub const OF_A_PLANE: &str = "plane";
 
@@ -135,6 +146,10 @@ pub fn as_plane(parts: &[Brought], named: &Named) -> Vec<Map<String, Value>> {
                 // the thing a line is about, where its answer names one: so that any surface can offer
                 // standing on it, its own way - and none has to guess it from the words
                 if let Some(thing) = part.values.get(at).and_then(|answer| named.thing(answer)) {
+                    // and, while a site is laid out, the page there is for that thing: where to go
+                    if let Some(page) = PAGES.with(|pages| pages.borrow().get(&thing).cloned()) {
+                        line.insert("page".into(), page.into());
+                    }
                     line.insert("thing".into(), thing.into());
                 }
                 into.push(line);
