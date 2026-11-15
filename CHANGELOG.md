@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.47.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.47.1...ocoeco-v0.47.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* in the lens of work, what is in progress comes first ([#292](https://github.com/open-commons-observatory/ocoeco/issues/292)) ([31da8a6](https://github.com/open-commons-observatory/ocoeco/commit/31da8a6613b53017dae03412a12bac11d5f09db7))
+
 ## [0.47.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.47.0...ocoeco-v0.47.1) (2026-11-15)
 
 
