@@ -368,19 +368,28 @@ fn of_one_place(
 /// The history of the repository a place is held in, as git has it: each change - its name, when, by
 /// whom, and what it says of itself - the latest first. Nothing where the folder is no repository.
 fn git_history(dir: &Path) -> Vec<serde_json::Map<String, serde_json::Value>> {
-    let Ok(out) = std::process::Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["log", "-n", "2000", "--format=%h%x1f%cI%x1f%an%x1f%s"])
-        .output()
-    else {
+    // what git says of a history depends only on the commit it is asked from, and a commit does not
+    // change: so it is asked once for each commit, and found again while the place stands at it
+    let ask = || {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["log", "-n", "2000", "--format=%h%x1f%cI%x1f%an%x1f%s"])
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    };
+    let Some(said) = crate::join::answered_for(
+        dir,
+        "history",
+        crate::join::commit_at(dir, "HEAD").as_deref(),
+        ask,
+    ) else {
         return Vec::new();
     };
-    if !out.status.success() {
-        return Vec::new();
-    }
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
+    said.lines()
         .filter_map(|line| {
             let mut parts = line.splitn(4, '\u{1f}');
             let (id, at, by, says) = (

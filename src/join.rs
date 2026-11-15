@@ -171,26 +171,102 @@ pub fn kept(dir: &Path, path: &str) -> Option<String> {
     if let Some(known) = read.lock().ok().and_then(|r| r.get(&key).cloned()) {
         return known;
     }
+    // and, across runs, once for each commit the branch has stood at: what git shows of a file on a branch
+    // depends only on the commit the branch is at, and a commit does not change
     let found = [
-        format!("origin/{branch}:{path}"),
-        format!("{branch}:{path}"),
+        ("refs/remotes/origin", format!("origin/{branch}:{path}")),
+        ("refs/heads", format!("{branch}:{path}")),
     ]
     .iter()
-    .find_map(|at| {
-        let out = std::process::Command::new("git")
-            .arg("-C")
-            .arg(dir)
-            .args(["show", at])
-            .output()
-            .ok()?;
-        out.status
-            .success()
-            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+    .find_map(|(under, at)| {
+        let ask = || {
+            let out = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(["show", at])
+                .output()
+                .ok()?;
+            out.status
+                .success()
+                .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+        };
+        answered_for(
+            dir,
+            &format!("show {at}"),
+            commit_at(dir, &format!("{under}/{branch}")).as_deref(),
+            ask,
+        )
     });
     if let Ok(mut r) = read.lock() {
         r.insert(key, found.clone());
     }
     found
+}
+
+/// The commit a name in a repository stands at - HEAD, or a branch by its whole name (refs/...) - read
+/// from what git keeps of it, without asking git. Nothing where the folder is no plain repository, or
+/// the name is kept in a way not read here: then git is asked, as before.
+pub fn commit_at(dir: &Path, name: &str) -> Option<String> {
+    let git = dir.join(".git");
+    let commit = |said: &str| {
+        let said = said.trim();
+        (said.len() >= 40 && said.bytes().all(|b| b.is_ascii_hexdigit())).then(|| said.to_string())
+    };
+    let name = if name == "HEAD" {
+        let head = std::fs::read_to_string(git.join("HEAD")).ok()?;
+        match head.trim().strip_prefix("ref: ") {
+            Some(named) => named.to_string(),
+            None => return commit(&head),
+        }
+    } else {
+        name.to_string()
+    };
+    if let Ok(said) = std::fs::read_to_string(git.join(&name)) {
+        return commit(&said);
+    }
+    std::fs::read_to_string(git.join("packed-refs"))
+        .ok()?
+        .lines()
+        .find_map(|line| {
+            let (at, of) = line.split_once(' ')?;
+            (of.trim() == name).then(|| commit(at)).flatten()
+        })
+}
+
+/// What git answered, kept beside the repository under the commit it was answered for. A commit does not
+/// change, so what was asked of one is asked once: found again for as long as the name stands at that
+/// commit, and asked anew when it has moved. Where the commit is not known, git is asked each time.
+pub fn answered_for(
+    dir: &Path,
+    asked: &str,
+    at: Option<&str>,
+    ask: impl FnOnce() -> Option<String>,
+) -> Option<String> {
+    let Some(at) = at else { return ask() };
+    let name: String = asked
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let file = dir.join(".git").join("ocoeco").join(name);
+    if let Ok(kept) = std::fs::read_to_string(&file) {
+        if let Some((for_commit, answer)) = kept.split_once('\n') {
+            if for_commit == at {
+                return Some(answer.to_string());
+            }
+        }
+    }
+    let answer = ask()?;
+    if let Some(folder) = file.parent() {
+        let _ = std::fs::create_dir_all(folder);
+    }
+    let _ = std::fs::write(&file, format!("{at}\n{answer}"));
+    Some(answer)
 }
 
 /// When the branch a table is kept on last changed, in seconds - where the mark says it is kept on one.
@@ -511,5 +587,64 @@ mod tests {
             unexported(&d).unwrap(),
             vec!["oco/concepts.json".to_string()]
         );
+    }
+}
+
+#[cfg(test)]
+mod asked_once_for_a_commit {
+    use super::*;
+
+    #[test]
+    fn what_git_answered_for_a_commit_is_asked_once_and_anew_when_the_name_has_moved() {
+        let d = std::env::temp_dir().join(format!("ocoeco-asked-once-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join(".git/refs/heads")).unwrap();
+        let (one, two) = ("1".repeat(40), "2".repeat(40));
+        std::fs::write(d.join(".git/HEAD"), "ref: refs/heads/main\n").unwrap();
+        std::fs::write(d.join(".git/refs/heads/main"), format!("{one}\n")).unwrap();
+        std::fs::write(
+            d.join(".git/packed-refs"),
+            format!("# pack-refs with: peeled\n{two} refs/remotes/origin/data\n"),
+        )
+        .unwrap();
+        // where a name stands is read from what git keeps: HEAD through its branch, a branch kept loose or packed
+        assert_eq!(commit_at(&d, "HEAD").as_deref(), Some(one.as_str()));
+        assert_eq!(
+            commit_at(&d, "refs/remotes/origin/data").as_deref(),
+            Some(two.as_str())
+        );
+        assert_eq!(commit_at(&d, "refs/heads/nowhere"), None);
+        // asked once for a commit, found again, and asked anew when the name has moved
+        let asked = std::cell::Cell::new(0);
+        let ask = |says: &str| {
+            asked.set(asked.get() + 1);
+            Some(says.to_string())
+        };
+        let at = |d: &Path| commit_at(d, "HEAD");
+        assert_eq!(
+            answered_for(&d, "history", at(&d).as_deref(), || ask("first\nlines")).as_deref(),
+            Some("first\nlines")
+        );
+        assert_eq!(
+            answered_for(&d, "history", at(&d).as_deref(), || ask("not asked")).as_deref(),
+            Some("first\nlines")
+        );
+        assert_eq!(asked.get(), 1, "the same commit is asked of once");
+        std::fs::write(d.join(".git/refs/heads/main"), format!("{two}\n")).unwrap();
+        assert_eq!(
+            answered_for(&d, "history", at(&d).as_deref(), || ask("second")).as_deref(),
+            Some("second")
+        );
+        assert_eq!(asked.get(), 2, "a name that has moved is asked of anew");
+        // where the commit is not known, git is asked each time - nothing is kept that could be wrong
+        assert_eq!(
+            answered_for(&d, "other", None, || ask("each time")).as_deref(),
+            Some("each time")
+        );
+        assert_eq!(
+            answered_for(&d, "other", None, || ask("each time")).as_deref(),
+            Some("each time")
+        );
+        assert_eq!(asked.get(), 4);
     }
 }

@@ -1190,6 +1190,17 @@ pub fn beam(
                 .sum();
             if all >= WORTH_SAYING {
                 line.push_str(&format!(" - gathered in {all} ms"));
+                // the graph says where its own making went, stretch by stretch
+                if crate::relations::OF_THE_GRAPH.contains(&table.as_str()) {
+                    let said: Vec<String> = crate::relations::stretches()
+                        .into_iter()
+                        .filter(|(_, ms)| *ms >= 5)
+                        .map(|(name, ms)| format!("{name} {ms}"))
+                        .collect();
+                    if !said.is_empty() {
+                        line.push_str(&format!(": {}", said.join(", ")));
+                    }
+                }
             }
         }
         for read in &found.lens.reads {
