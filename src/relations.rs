@@ -215,13 +215,14 @@ pub(crate) struct Held {
     also: BTreeMap<String, String>,
     gathers: Vec<String>,
     pub(crate) tables: BTreeMap<String, Vec<serde_json::Value>>,
+    /// What it has, by table and id: asked for every link, so kept to be found - not gone through each
+    /// time. Made once all its rows are read.
+    ids: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Held {
     fn has(&self, table: &str, id: &str) -> bool {
-        self.tables
-            .get(table)
-            .is_some_and(|rows| rows.iter().any(|r| r["id"].as_str() == Some(id)))
+        self.ids.get(table).is_some_and(|ids| ids.contains(id))
     }
 }
 
@@ -249,6 +250,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
                     also: mark.also.clone(),
                     gathers,
                     tables: BTreeMap::new(),
+                    ids: BTreeMap::new(),
                 },
             );
         } else if dir.join("projects.json").is_file() {
@@ -283,6 +285,7 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
                     also,
                     gathers,
                     tables: BTreeMap::new(),
+                    ids: BTreeMap::new(),
                 });
             }
             tables.extend(
@@ -361,6 +364,21 @@ pub(crate) fn held(dirs: &[PathBuf]) -> BTreeMap<String, Held> {
                     .filter(|r| r["id"].as_str().is_some_and(|id| !known.contains(id))),
             );
         }
+    }
+    // what each place has, by table and id - made once, now that all its rows are read
+    for held in places.values_mut() {
+        held.ids = held
+            .tables
+            .iter()
+            .map(|(table, rows)| {
+                (
+                    table.clone(),
+                    rows.iter()
+                        .filter_map(|r| r["id"].as_str().map(str::to_string))
+                        .collect(),
+                )
+            })
+            .collect();
     }
     places
 }
