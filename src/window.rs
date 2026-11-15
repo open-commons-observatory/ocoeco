@@ -121,7 +121,14 @@ fn kept_as_the_lens_says(
         .replace('-', " ");
     Ok((
         format!("{place}/{}:{id}", declared.table),
-        format!("entered: {place} | a {name}: {called}\n"),
+        format!(
+            "entered: {place} | {} {name}: {called}\n",
+            if name.starts_with(['a', 'e', 'i', 'o', 'u']) {
+                "an"
+            } else {
+                "a"
+            }
+        ),
     ))
 }
 
@@ -218,8 +225,9 @@ pub fn said(
             ))
         })
         .collect();
+    // one thing marked once, by whichever of its names it was said first
     marked.sort();
-    marked.dedup();
+    marked.dedup_by_key(|(mark, _)| *mark);
     let things: Vec<String> = marked.into_iter().map(|(_, thing)| thing).collect();
     crate::trail::mark(who, &things);
     let laid = crate::focus::brought(&format!("{SURFACE}@{looked}"), &dirs, today, engine)?;

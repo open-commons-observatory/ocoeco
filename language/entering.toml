@@ -72,7 +72,7 @@ LEFT JOIN (SELECT r."from" AS field, string_agg(DISTINCT CASE WHEN r."to" = '*' 
 [[focus]]
 named = "stood"
 sql = """
-SELECT k.short AS thing, s."where" AS said, k.place, k.says
+SELECT k.short AS thing, s."where" AS said, k.place, k.says, k.of_table
 FROM (SELECT * FROM steps WHERE "by" = '{who}' ORDER BY "at" DESC, id DESC LIMIT 1) s
 JOIN known k ON s."where" IN (k.id, k.short)
 WHERE NOT coalesce(s.up, false)
@@ -146,24 +146,39 @@ SELECT name, how FROM asked WHERE nth IS NULL AND name <> 'id' ORDER BY ordinal
 """
 line = "{name}{how}"
 
-# What here would name, and what a mark would: said again where they are needed, so that the marks shown
-# here are the ones to say.
+# What here would name, and what a mark would - only where it fits: the thing one stands on, and what was
+# marked in what was last shown, each with the fields of the entry that can point at a thing of its kind.
+# Said again here so that the marks shown are the ones to say: choosing, in place of typing.
+[[focus]]
+named = "fitting"
+sql = """
+SELECT o.thing, o.says, o.is_here, o.nth, string_agg(DISTINCT a.name, ', ' ORDER BY a.name) AS fits
+FROM (SELECT s.thing, s.says, s.of_table, true AS is_here, 0 AS nth FROM stood s
+      UNION ALL
+      SELECT k.short, k.says, k.of_table, false, m.seq FROM marked m JOIN known k ON m.thing IN (k.id, k.short)
+      WHERE k.of_table <> 'lens_entries') o
+JOIN asked a ON a.points_at IS NOT NULL
+     AND (contains(a.points_at, 'any thing') OR list_contains(string_split(replace(a.points_at, ' ', ''), ','), o.of_table))
+GROUP BY o.thing, o.says, o.is_here, o.nth
+"""
+
 [[focus]]
 title = "where you stand ({count})"
 sql = """
-SELECT s.thing, s.says FROM stood s JOIN entry e ON true
+SELECT s.thing, s.says, coalesce(' (here fits: ' || (SELECT min(f.fits) FROM fitting f WHERE f.is_here) || ')', '') AS fits
+FROM stood s JOIN entry e ON true
 """
-line = "{thing} - {says}"
+line = "{thing} - {says}{fits}"
 
 [[focus]]
-title = "marked, in what you were last shown ({count})"
+title = "marked in what you were last shown, where it fits ({count})"
 sql = """
-SELECT k.short AS thing, k.says
-FROM entry e CROSS JOIN marked m JOIN known k ON m.thing IN (k.id, k.short)
-WHERE k.of_table <> 'lens_entries' AND k.short NOT IN (SELECT thing FROM stood)
-ORDER BY m.seq LIMIT 40
+SELECT f.thing, min(f.says) AS says, min(f.fits) AS fits
+FROM fitting f JOIN entry e ON true
+WHERE NOT f.is_here AND f.thing NOT IN (SELECT thing FROM stood)
+GROUP BY f.thing ORDER BY min(f.nth) LIMIT 40
 """
-line = "{thing} - {says}"
+line = "{thing} - {says} (fits: {fits})"
 
 [[focus]]
 title = "it would be kept in ({count})"
