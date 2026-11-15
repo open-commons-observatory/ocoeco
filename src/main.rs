@@ -598,7 +598,10 @@ fn run() -> Result<()> {
             // an entry can be made only where one place is stood in: it has somewhere to go
             let single = observed.is_none() && root.is_none();
             let (places, scale) = match (observed, root) {
-                (Some(observed), _) => (vec![observed], "every place observed".to_string()),
+                (Some(observed), _) => (
+                    ocoeco::board::observed_from(&dir, observed),
+                    "every place observed".to_string(),
+                ),
                 (None, Some(root)) => (
                     ocoeco::board::projects(&std::path::PathBuf::from(root.replacen(
                         '~',
@@ -762,7 +765,7 @@ fn run() -> Result<()> {
             passing,
         } => {
             let places = match (observed, root) {
-                (Some(observed), _) => vec![observed],
+                (Some(observed), _) => ocoeco::board::observed_from(&dir, observed),
                 (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
                     root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
                 )),
@@ -907,7 +910,7 @@ fn run() -> Result<()> {
             dir,
         } => {
             let places = match (observed, root) {
-                (Some(observed), _) => vec![observed],
+                (Some(observed), _) => ocoeco::board::observed_from(&dir, observed),
                 (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
                     root.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1),
                 )),
