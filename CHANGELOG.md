@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.69.0...ocoeco-v0.70.0) (2026-11-16)
+
+
+### Features
+
+* a change to the language is checked where it is read, in every place's lenses ([#398](https://github.com/open-commons-observatory/ocoeco/issues/398)) ([fd75caf](https://github.com/open-commons-observatory/ocoeco/commit/fd75caf117dbedbee29ee388d4d371fa8458f66e))
+
 ## [0.69.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.68.1...ocoeco-v0.69.0) (2026-11-16)
 
 
