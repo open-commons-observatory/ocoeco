@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.65.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.65.0...ocoeco-v0.65.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* what an entry changed in a lens kept as a file is what its record touched ([#377](https://github.com/open-commons-observatory/ocoeco/issues/377)) ([a6a467a](https://github.com/open-commons-observatory/ocoeco/commit/a6a467a7e39a02ef4bcebd3260e5d89f2a5c7ec5))
+
 ## [0.65.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.64.0...ocoeco-v0.65.0) (2026-11-16)
 
 
