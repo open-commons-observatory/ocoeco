@@ -848,7 +848,12 @@ pub fn written(
                 .find(|folder| folder.is_dir())
             {
                 Some(folder) => folder.join(format!("{id}.toml")),
-                None => return Ok(None),
+                // and a place that keeps no lenses yet keeps its first as a file of its own
+                None => {
+                    let folder = dir.join("lenses");
+                    std::fs::create_dir_all(&folder)?;
+                    folder.join(format!("{id}.toml"))
+                }
             }
         }
         None => return Ok(None),
@@ -915,6 +920,33 @@ mod tests {
         )
         .unwrap();
         (d, file)
+    }
+
+    #[test]
+    fn a_place_that_keeps_no_lenses_yet_keeps_its_first_as_a_file() {
+        let d = std::env::temp_dir().join(format!("ocoeco-lens-file-first-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("oco.toml"),
+            "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n",
+        )
+        .unwrap();
+        let said = written(
+            &d,
+            false,
+            "lenses",
+            "firsts",
+            &[change("says", "The first lens this place keeps.")],
+        )
+        .unwrap()
+        .unwrap();
+        assert!(said.contains("lenses/firsts.toml"), "{said}");
+        let lens: crate::lenses::Lens =
+            toml::from_str(&std::fs::read_to_string(d.join("lenses/firsts.toml")).unwrap())
+                .unwrap();
+        assert_eq!(lens.lens.says, "The first lens this place keeps.");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
