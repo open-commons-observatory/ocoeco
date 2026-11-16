@@ -145,7 +145,7 @@ pub fn said(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<String> {
-    let dirs = crate::board::in_view(dir).0;
+    let mut dirs = crate::board::in_view(dir).0;
     let mut through: Option<String> = None;
     let mut entered = String::new();
     // an entry is said as the lens of entering says it - by its name, or by its mark where it is marked.
@@ -220,6 +220,9 @@ pub fn said(
                     Ok((thing, says)) => {
                         crate::trail::step(who, &thing);
                         entered.push_str(&says);
+                        // a first step keeps the trail as a place of its own: what is in view is read
+                        // again, so that here and back name what was just made in this same saying
+                        dirs = crate::board::in_view(dir).0;
                         // what was entered may be a part of the language itself: it is read again, so
                         // that what is said and shown next is by the language as it now is
                         crate::lenses::as_kept_among(&dirs);
