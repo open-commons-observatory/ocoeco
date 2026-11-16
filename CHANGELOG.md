@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.66.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.65.1...ocoeco-v0.66.0) (2026-11-16)
+
+
+### Features
+
+* a part goes by the name it was made with, and says what is written above it ([#380](https://github.com/open-commons-observatory/ocoeco/issues/380)) ([e098957](https://github.com/open-commons-observatory/ocoeco/commit/e0989578c36a9954736a61e16f7077b5ad753c63))
+
 ## [0.65.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.65.0...ocoeco-v0.65.1) (2026-11-16)
 
 
