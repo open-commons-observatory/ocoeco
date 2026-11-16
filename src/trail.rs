@@ -189,6 +189,22 @@ fn leave_in(home: Option<PathBuf>, who: &str) {
     }
 }
 
+/// The language the driver reads in: said once, it stays - kept beside the trail, as where one stands is.
+pub fn reads_in(who: &str) -> Option<String> {
+    let lang = std::fs::read_to_string(kept(home(), who)?.with_extension("reads")).ok()?;
+    Some(lang.trim().to_string()).filter(|lang| !lang.is_empty())
+}
+
+/// From now on the driver reads in this language.
+pub fn read_in(who: &str, lang: &str) {
+    if let Some(file) = kept(home(), who) {
+        if let Some(dir) = file.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(file.with_extension("reads"), lang.trim());
+    }
+}
+
 /// Who is driving: as the program is told, else as the machine knows them.
 pub fn who() -> String {
     std::env::var("OCOECO_BY")

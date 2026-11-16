@@ -23,7 +23,7 @@ SELECT text FROM (
          AND (SELECT count(*) FROM plane WHERE kind = 'lens' AND coalesce(depth, 0) = 0) = 1
          AND NOT EXISTS (SELECT 1 FROM plane WHERE kind = 'line' AND coalesce(depth, 0) = 0))
   UNION ALL
-  SELECT 9223372036854775807, '- say a mark to stand on what it marks - or a thing by its name; a lens by its name to look through it from where you stand; an entry by its name to be shown what it asks; called and a name to give what you stand on another name; back, or up'
+  SELECT 9223372036854775807, '- say a mark to stand on what it marks - or a thing by its name; a lens by its name to look through it from where you stand; an entry by its name to be shown what it asks; called and a name to give what you stand on another name; in and a language to read in it; back, or up'
 ) ORDER BY ordinal
 """
 line = "{text}"
