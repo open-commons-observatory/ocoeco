@@ -203,7 +203,7 @@ pub fn said(
     let stands = crate::trail::stands(who);
     let looked = match (&asks, &through, &stands) {
         (Some(entry), _, _) => format!("{ENTERING}@{entry}"),
-        (None, Some(lens), Some(thing)) if crate::focus::stands_somewhere(lens, &dirs) => {
+        (None, Some(lens), Some(thing)) if crate::focus::looks_from(lens, thing, &dirs) => {
             format!("{lens}@{thing}")
         }
         (None, Some(lens), _) => lens.clone(),

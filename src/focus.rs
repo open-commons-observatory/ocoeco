@@ -102,6 +102,33 @@ impl Named {
 }
 
 /// Whether the lens of that name says where one stands: it is looked through from a thing.
+/// Whether a lens is looked through from this thing: it looks from a thing, and - where it says the kinds
+/// it looks from - from a thing of this kind.
+pub fn looks_from(lens: &str, thing: &str, dirs: &[PathBuf]) -> bool {
+    crate::lenses::with(dirs).is_ok_and(|all| {
+        all.iter()
+            .any(|l| l.lens.id == lens && says_here(l) && looks_from_this(l, Some(thing)))
+    })
+}
+
+/// Whether a lens looks from a thing of this kind: every lens does, but one that says the kinds it looks
+/// from - and from nowhere there is no kind to ask of.
+fn looks_from_this(lens: &Lens, here: Option<&str>) -> bool {
+    let Some(here) = here else {
+        return true;
+    };
+    lens.lens.looks_from.is_empty()
+        || kind_of(here).is_some_and(|table| lens.lens.looks_from.iter().any(|from| from == table))
+}
+
+/// The kind of a thing, as its name says it - where it is held, its table, its id: the table.
+fn kind_of(thing: &str) -> Option<&str> {
+    thing
+        .split_once(':')
+        .and_then(|(held, _)| held.rsplit_once('/'))
+        .map(|(_, table)| table)
+}
+
 pub fn stands_somewhere(lens: &str, dirs: &[PathBuf]) -> bool {
     crate::lenses::with(dirs).is_ok_and(|all| all.iter().any(|l| l.lens.id == lens && says_here(l)))
 }
@@ -867,6 +894,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             ),
             grew_from: None,
             reads: Vec::new(),
+            looks_from: Vec::new(),
         },
         keeps_out: Vec::new(),
         route: Vec::new(),
@@ -1045,6 +1073,8 @@ fn brought_anew(
                                 // from a thing, every lens is every lens that looks from a thing;
                                 // and from nowhere a lens that looks from a thing places none
                                 && says_here(l) == here.is_some()
+                                // and of those, only the ones that look from a thing of this kind
+                                && looks_from_this(l, here)
                                 && (here.is_some() || !says_here(found))
                                 && !l.focus.iter().any(|p| p.places.as_deref() == Some("*"))
                                 && !found.focus[..at]
@@ -2443,6 +2473,44 @@ mod tests {
             "{said:?}"
         );
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_lens_that_says_the_kinds_it_looks_from_is_not_asked_from_another_kind() {
+        let around = |kinds: &[&str]| {
+            let mut lens = crate::lenses::lenses()
+                .into_iter()
+                .find(|l| l.lens.id == "around")
+                .unwrap();
+            lens.lens.looks_from = kinds.iter().map(|kind| kind.to_string()).collect();
+            lens
+        };
+        assert!(
+            looks_from_this(&around(&[]), Some("o/r/notes:a")),
+            "a lens that names no kind looks from any thing"
+        );
+        assert!(looks_from_this(&around(&["notes"]), Some("o/r/notes:a")));
+        assert!(
+            looks_from_this(&around(&["notes"]), Some("r/notes:a")),
+            "by the star's shorter name too"
+        );
+        assert!(!looks_from_this(
+            &around(&["notes"]),
+            Some("o/r/decisions:a")
+        ));
+        assert!(
+            looks_from_this(&around(&["notes"]), None),
+            "from nowhere there is no kind to ask of"
+        );
+        // the lens of entering looks from an entry, and from nothing else
+        let entering = crate::lenses::lenses()
+            .into_iter()
+            .find(|l| l.lens.id == "entering")
+            .unwrap();
+        assert!(
+            looks_from_this(&entering, Some("ocoeco/lens_entries:signs/sign"))
+                && !looks_from_this(&entering, Some("ocoeco/decisions:x"))
+        );
     }
 
     #[test]
