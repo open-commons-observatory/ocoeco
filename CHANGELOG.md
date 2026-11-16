@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.1...ocoeco-v0.70.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* what entries add to a lens file is written apart, and a table's fields last ([#404](https://github.com/open-commons-observatory/ocoeco/issues/404)) ([c0bc04d](https://github.com/open-commons-observatory/ocoeco/commit/c0bc04d9360e7f809bbafabd36d46ad5dd4c4587))
+
 ## [0.70.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.0...ocoeco-v0.70.1) (2026-11-16)
 
 
