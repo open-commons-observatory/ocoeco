@@ -570,7 +570,8 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     continue;
                 };
                 things.push(json!({"id": format!("{id}/{table}:{of}"), "of_table": table, "place": id, "star": short(id),
-                                   "says": in_a_few_words(row), "at": when(row, dated.get(table).map(String::as_str))}));
+                                   "says": in_a_few_words(row), "at": when(row, dated.get(table).map(String::as_str)),
+                                   "rows_kept": row.get("rows_kept")}));
             }
         }
     }

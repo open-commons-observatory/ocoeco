@@ -106,6 +106,7 @@ fields = [
     { name = "per", type = "string" },
     { name = "named", type = "string" },
     { name = "urgent", type = "boolean" },
+    { name = "stops", type = "boolean" },
 ]
 
 # The glimpse of the lens of language: a lens is entered like anything else. A lens says what it is and
@@ -127,7 +128,7 @@ asks = ["lens", "of_table", "from", "which", "shape"]
 entry = "part"
 says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
 table = "lens_parts"
-asks = ["lens", "part", "title", "named", "urgent", "query", "lays_out", "places", "only", "through", "measure", "whole", "chain", "per"]
+asks = ["lens", "part", "title", "named", "urgent", "stops", "query", "lays_out", "places", "only", "through", "measure", "whole", "chain", "per"]
 
 [[glimpse]]
 entry = "table"

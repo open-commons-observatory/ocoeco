@@ -194,6 +194,7 @@
 {"id":"status","term":"status","means":"Where an item stands, as someone said: open, next, in progress, waiting, done, parked. More and more it is read off what is done, and not said."}
 {"id":"step","term":"step","means":"Standing on a neighbour of where one stands."}
 {"id":"steps","term":"steps","means":"Where the drivers of a machine stood, each step with who and when."}
+{"id":"stops","term":"stops","means":"Said by a part of a lens: what it shows does not hold, and a place that shows any of it does not pass its check. The lens says it; the check carries it, deciding nothing.","decided":"decisions:2026-11-16-the-check-is-what-lenses-say-must-not-land"}
 {"id":"subject","term":"subject","means":"What a milestone is about: the device, the feature, the part of the whole."}
 {"id":"summary","term":"summary","means":"A concept's own text: what it is, in a sentence or two.","not":"statement (the word two projects used for the same role, retired 2026-11-11)","decided":"2026-11-11-language-on-tad"}
 {"id":"supplies","term":"supplies","means":"What an entry fills in by itself: the moment, who, a name for the row."}

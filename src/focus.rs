@@ -565,6 +565,9 @@ pub struct Brought {
     /// What newly comes into view here is to be said urgently, as the lens says.
     #[serde(default)]
     pub urgent: bool,
+    /// What is shown here must not land, as the lens says: the check of a place carries each line.
+    #[serde(default)]
+    pub stops: bool,
     /// A plane placed within this one - a whole lens, placed - its own shapes kept: this part is then that
     /// lens's name (title) and what it says of itself (about), or why it brought nothing.
     #[serde(default)]
@@ -885,6 +888,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             per: None,
             named: None,
             urgent: false,
+            stops: false,
             id: format!("{table}/1"),
         }],
     })
@@ -1217,6 +1221,7 @@ fn brought_anew(
                     }),
                     lines: rows.iter().map(|row| laid_out(&part.line, row)).collect(),
                     urgent: part.urgent,
+                    stops: part.stops,
                     within: Vec::new(),
                     about: None,
                     nothing_because: None,
@@ -1963,6 +1968,12 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
                         format!("the lens {} is not sound here - {doubt}", lens.lens.id)
                     }));
                 }
+                // and what a lens says must not land stops the place: each line of a part that stops is
+                // carried as the lens says it - the check decides nothing itself
+                for part in parts.iter().filter(|p| p.stops) {
+                    let heading = part.title.as_deref().unwrap_or(&lens.lens.id);
+                    problems.extend(part.lines.iter().map(|line| format!("{heading}: {line}")));
+                }
             }
         }
     }
@@ -2344,6 +2355,48 @@ mod tests {
             light[0].lines,
             ["in_full - 2 rows: the thing stood on, each field as it is kept"]
         );
+    }
+
+    #[test]
+    fn what_a_lens_says_must_not_land_stops_the_check_of_a_place() {
+        let d = std::env::temp_dir().join(format!("ocoeco-stops-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: what must not land is held where there is one");
+            return;
+        };
+        // one id, two rows: the lens of signs says it is kept twice, and that it stops - the check of the
+        // place carries it
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"one\"}\n{\"id\":\"a\",\"n\":\"another\"}\n{\"id\":\"b\",\"n\":\"alone\"}\n",
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &engine);
+        assert!(
+            said.iter()
+                .any(|line| line.contains("kept twice") && line.contains("o/r/notes:a")),
+            "{said:?}"
+        );
+        assert!(
+            !said.iter().any(|line| line.contains("o/r/notes:b")),
+            "{said:?}"
+        );
+        // each row by an id of its own: nothing stops
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"one\"}\n{\"id\":\"b\",\"n\":\"alone\"}\n",
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &engine);
+        assert!(
+            !said.iter().any(|line| line.contains("kept twice")),
+            "{said:?}"
+        );
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
