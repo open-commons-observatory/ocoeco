@@ -850,11 +850,17 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             }
         }
         let of_kind = |table: &str| language.get(table).cloned().unwrap_or_default();
-        // the thing a lens is; and the thing a table is, by the lens that defines it
-        let lens_thing = |lens: &str| {
-            of_kind("lenses")
+        // the thing a lens is, as the row that names it means it - a lens is of its place: the one of that
+        // name its own place keeps; else the one lens of that name in view. Where several places keep one
+        // and its own keeps none, the name alone is no one lens. And the thing a table is, by the lens that
+        // defines it
+        let lens_thing = |lens: &str, star: &str| {
+            let lenses = of_kind("lenses");
+            let called: Vec<&Row> = lenses.iter().filter(|l| said(l, "id") == lens).collect();
+            called
                 .iter()
-                .find(|l| said(l, "id") == lens)
+                .find(|l| said(l, "star") == star)
+                .or_else(|| called.first().filter(|_| called.len() == 1))
                 .map(|l| named("lenses", l))
         };
         let table_thing = |table: &str| {
@@ -894,7 +900,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 link(
                     named(kind, &row),
                     "of",
-                    lens_thing(&said(&row, "lens")),
+                    lens_thing(&said(&row, "lens"), &said(&row, "star")),
                     "is part of",
                 );
             }
@@ -936,7 +942,12 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
             let from = named("lens_parts", part);
             let placed = said(part, "places");
             if !placed.is_empty() && placed != "*" {
-                link(from.clone(), "places", lens_thing(&placed), "places");
+                link(
+                    from.clone(),
+                    "places",
+                    lens_thing(&placed, &said(part, "star")),
+                    "places",
+                );
             }
             // and the lens it is seen through: the lens behind what it places
             let behind = said(part, "through");
@@ -944,7 +955,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 link(
                     from.clone(),
                     "through",
-                    lens_thing(&behind),
+                    lens_thing(&behind, &said(part, "star")),
                     "is seen through",
                 );
             }
@@ -1766,5 +1777,42 @@ mod a_part_by_its_name {
             ["o/a/lens_parts:sheet/5", "o/a/lens_parts:sheet/9"],
             "each part is one thing, by one name"
         );
+    }
+
+    #[test]
+    fn a_lens_s_rows_mean_the_lens_their_own_place_keeps() {
+        let root =
+            std::env::temp_dir().join(format!("ocoeco-lens-of-its-place-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let place = |id: &str| {
+            let d = root.join(id);
+            std::fs::create_dir_all(d.join("data")).unwrap();
+            std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"{id}\"\nname = \"A place: {id}\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nlenses = \"data/lenses.json\"\nlens_parts = \"data/lens_parts.json\"\n")).unwrap();
+            std::fs::write(
+                d.join("data/lenses.json"),
+                format!("{{\"id\":\"site\",\"says\":\"The pages of {id}.\"}}\n"),
+            )
+            .unwrap();
+            std::fs::write(
+                d.join("data/lens_parts.json"),
+                "{\"id\":\"site/1\",\"lens\":\"site\",\"part\":1,\"places\":\"work\"}\n",
+            )
+            .unwrap();
+            d
+        };
+        let graph = as_graph(&[place("o/a"), place("o/b")]).unwrap();
+        let to = |from: &str, how: &str| -> Vec<String> {
+            graph["edges"]
+                .iter()
+                .filter(|e| e["from"] == from && e["how"] == how)
+                .filter_map(|e| e["to"].as_str().map(str::to_string))
+                .collect()
+        };
+        // two places, each keeping a lens called site: each part is of its own place's lens
+        assert_eq!(to("o/a/lens_parts:site/1", "of"), ["o/a/lenses:site"]);
+        assert_eq!(to("o/b/lens_parts:site/1", "of"), ["o/b/lenses:site"]);
+        // and a lens of a name only one place keeps is that one, from anywhere
+        assert_eq!(to("o/b/lens_parts:site/1", "places").len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
