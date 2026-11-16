@@ -142,6 +142,13 @@ pub fn glimpse(dir: &Path, g: &Glimpse, now: &str, id: &str) -> Result<String> {
         &std::fs::read_to_string(dir.join("oco.toml")).unwrap_or_default(),
     )
     .ok();
+    let remembered = lines(dir, PENDING);
+    // a row of a lens the place keeps as a file is there as the file has it - read where one was remembered
+    let of_lenses = if remembered.iter().any(|link| link.starts_with("lens")) {
+        crate::lenses::as_rows(&[dir.to_path_buf()]).unwrap_or_default()
+    } else {
+        Default::default()
+    };
     let there = |link: &String| {
         let Some((table, id)) = link.split_once(':') else {
             return false;
@@ -150,9 +157,12 @@ pub fn glimpse(dir: &Path, g: &Glimpse, now: &str, id: &str) -> Result<String> {
             crate::join::rows(dir, mark, table)
                 .iter()
                 .any(|row| row["id"].as_str() == Some(id))
+        }) || of_lenses.get(table).is_some_and(|rows| {
+            rows.iter()
+                .any(|row| row.get("id").and_then(|v| v.as_str()) == Some(id))
         })
     };
-    let touches: Vec<String> = lines(dir, PENDING).into_iter().filter(there).collect();
+    let touches: Vec<String> = remembered.into_iter().filter(there).collect();
     let adv = if g.advances.is_empty() {
         advances(dir, &touches)?
     } else {
@@ -360,6 +370,36 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("commit title"));
+    }
+
+    #[test]
+    fn what_an_entry_changed_in_a_lens_kept_as_a_file_is_what_the_record_touched() {
+        let d = std::env::temp_dir().join(format!("ocoeco-glimpse-lens-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("oco")).unwrap();
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R\"\nkind = \"tool\"\nparent = \"open-commons-observatory\"\n\n[exports]\nglimpses = \"oco/glimpses.json\"\n").unwrap();
+        std::fs::write(d.join("lenses/notes.toml"), "[lens]\nid = \"notes\"\nsays = \"Notes.\"\n\n[[focus]]\ntitle = \"notes ({count})\"\nsql = \"SELECT 1\"\nline = \"x\"\n").unwrap();
+        // a part the file has, and one remembered that is not there - a trial put back
+        remember(&d, "lens_parts", "notes/1").unwrap();
+        remember(&d, "lens_parts", "notes/9").unwrap();
+        remember(&d, "lenses", "notes").unwrap();
+        let g = Glimpse {
+            summary: "A part changed".into(),
+            kind: "docs".into(),
+            breaking: None,
+            advances: vec![],
+            minutes: None,
+            load: None,
+            by: "mll".into(),
+            stood_on: vec![],
+        };
+        glimpse(&d, &g, "2026-11-16T10:00:00Z", "g-20261116-100000").unwrap();
+        let line = std::fs::read_to_string(d.join("oco/glimpses.json")).unwrap();
+        assert!(
+            line.contains("\"touches\":\"lens_parts:notes/1 lenses:notes\""),
+            "{line}"
+        );
     }
 
     #[test]
