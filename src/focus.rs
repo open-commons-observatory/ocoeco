@@ -1,4 +1,4 @@
-//! Focus: a lens brings data into view. A lens's focus is declared as data (language/*.toml): parts, each
+//! Focus: a filter(|more| !all.iter().any(|l| l.lens.id == more.lens.id || more.lens.id.ends_with(&format!("/{}", l.lens.id))))ens brings data into view. A lens's focus is declared as data (language/*.toml): parts, each
 //! a query over the lens's tables and a line saying how one answer is laid out. The data of every place
 //! asked for is gathered - each row with its star - and the queries are run by tad's SQL engine. Nothing
 //! is made: the same data, brought into focus; and what is seen is laid out as plain text - the first
@@ -977,6 +977,13 @@ fn brought_anew(
     // a lens of that name - or else a table of that name, looked through as itself
     let itself = identity(lens, &all, dirs);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
+        let several = crate::lenses::called_in_full(&all, lens);
+        if !several.is_empty() {
+            bail!(
+                "several lenses are called {lens}: {} - name it in full",
+                several.join(", ")
+            );
+        }
         bail!(
             "no lens or table is called {lens}: there are the lenses {}",
             all.iter()
@@ -1534,6 +1541,13 @@ pub fn beam(
     // a lens of that name - or else a table of that name, looked through as itself
     let itself = identity(lens, &all, dirs);
     let Some(found) = all.iter().find(|l| l.lens.id == lens).or(itself.as_ref()) else {
+        let several = crate::lenses::called_in_full(&all, lens);
+        if !several.is_empty() {
+            bail!(
+                "several lenses are called {lens}: {} - name it in full",
+                several.join(", ")
+            );
+        }
         bail!(
             "no lens or table is called {lens}: there are the lenses {}",
             all.iter()
