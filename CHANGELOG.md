@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.73.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.72.0...ocoeco-v0.73.0) (2026-11-16)
+
+
+### Features
+
+* what the gatherer writes is said once, where it writes it: no mark need name it ([#411](https://github.com/open-commons-observatory/ocoeco/issues/411)) ([27a1a4c](https://github.com/open-commons-observatory/ocoeco/commit/27a1a4cec155aa48b48694fb62bad177df79f92a))
+
 ## [0.72.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.71.0...ocoeco-v0.72.0) (2026-11-16)
 
 
