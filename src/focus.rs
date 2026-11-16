@@ -1471,7 +1471,10 @@ fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
 pub(crate) fn names_table(sql: &str, table: &str) -> bool {
     let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
     sql.match_indices(table).any(|(at, _)| {
-        !word(sql[..at].chars().next_back()) && !word(sql[at + table.len()..].chars().next())
+        !word(sql[..at].chars().next_back())
+            && !word(sql[at + table.len()..].chars().next())
+            // and not as a word in what is compared or said: within quotes, a name is words
+            && sql[..at].matches('\'').count().is_multiple_of(2)
     })
 }
 
@@ -2473,6 +2476,14 @@ mod tests {
             "{said:?}"
         );
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_table_is_named_where_its_name_stands_as_a_word_outside_what_is_quoted() {
+        assert!(names_table("SELECT * FROM here WHERE x = 1", "here"));
+        assert!(!names_table("SELECT * FROM there WHERE x = 'here'", "here"));
+        assert!(!names_table("SELECT * FROM nowhere", "here"));
+        assert!(names_table("SELECT 'it''s' AS said, n FROM here", "here"));
     }
 
     #[test]

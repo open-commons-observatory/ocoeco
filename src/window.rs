@@ -209,12 +209,28 @@ pub fn said(
         if given.trim().is_empty() {
             asks = Some(entry);
         } else {
-            let (thing, says) = kept_as_the_lens_says(&entry, &given, &all, &dirs, today, engine)?;
-            crate::trail::step(who, &thing);
-            entered = says;
-            // what was entered may be a part of the language itself: it is read again, so that what is
-            // shown next is the language as it now is
-            crate::lenses::as_kept_among(&dirs);
+            // what is given may be for more than one entry: each is kept as the lens of entering says, one
+            // after the other, and one stands on what was made last. Where one of them is not entered, what
+            // came before it stays entered, and what was not is said
+            for (at, (entry, given)) in given_entry_by_entry(&entry, &given, &all)
+                .into_iter()
+                .enumerate()
+            {
+                match kept_as_the_lens_says(&entry, &given, &all, &dirs, today, engine) {
+                    Ok((thing, says)) => {
+                        crate::trail::step(who, &thing);
+                        entered.push_str(&says);
+                        // what was entered may be a part of the language itself: it is read again, so
+                        // that what is said and shown next is by the language as it now is
+                        crate::lenses::as_kept_among(&dirs);
+                    }
+                    Err(e) if at == 0 => return Err(e),
+                    Err(e) => {
+                        entered.push_str(&format!("not entered: {e:#}\n"));
+                        break;
+                    }
+                }
+            }
         }
     }
     // what is looked through: the lens named, from where one stands if it looks from a thing; else what
@@ -256,6 +272,28 @@ pub fn said(
     ))
 }
 
+/// What was given, entry by entry: first for the entry said; then, after each line that says `and` and the
+/// name of an entry in view, for that one.
+fn given_entry_by_entry(said: &str, given: &str, all: &[Lens]) -> Vec<(String, String)> {
+    let mut acts: Vec<(String, String)> = vec![(said.to_string(), String::new())];
+    for line in given.lines() {
+        let another = line
+            .strip_prefix("and ")
+            .map(str::trim)
+            .filter(|name| !name.contains(' ') && the_entry(name, all).is_some());
+        match another {
+            Some(entry) => acts.push((entry.to_string(), String::new())),
+            None => {
+                if let Some((_, words)) = acts.last_mut() {
+                    words.push_str(line);
+                    words.push('\n');
+                }
+            }
+        }
+    }
+    acts
+}
+
 /// What was given for an entry: each FIELD: words - a line that names no field of it goes on with the
 /// field before, on a line of its own. What is given keeps its lines: a query stays the lines it was.
 fn given_as_fields(given: &str, known: &[String]) -> Vec<(String, String)> {
@@ -295,6 +333,30 @@ fn place_called(name: &str, dirs: &[PathBuf]) -> Option<(String, PathBuf)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_is_given_may_be_for_more_than_one_entry() {
+        let all = crate::lenses::lenses();
+        assert_eq!(
+            given_entry_by_entry(
+                "sign",
+                "what: one thing\nkind: lacking\nand connection\nfrom: here\nhow: led to\nand so on, which is words\nand nothing-so-called\n",
+                &all
+            ),
+            [
+                (
+                    "sign".to_string(),
+                    "what: one thing\nkind: lacking\n".to_string()
+                ),
+                (
+                    "connection".to_string(),
+                    "from: here\nhow: led to\nand so on, which is words\nand nothing-so-called\n"
+                        .to_string()
+                ),
+            ],
+            "after a line that says and, and the name of an entry, what follows is for that one; any other line is words"
+        );
+    }
 
     #[test]
     fn what_is_given_for_an_entry_is_read_field_by_field() {
