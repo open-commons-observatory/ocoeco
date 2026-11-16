@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.79.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.78.0...ocoeco-v0.79.0) (2026-11-16)
+
+
+### Features
+
+* what is in view is read in another language, where rows are read: in ru ([#428](https://github.com/open-commons-observatory/ocoeco/issues/428)) ([522aff3](https://github.com/open-commons-observatory/ocoeco/commit/522aff331c4bbc238b4900a4af99c84a36eb8d5c))
+
 ## [0.78.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.77.0...ocoeco-v0.78.0) (2026-11-16)
 
 
