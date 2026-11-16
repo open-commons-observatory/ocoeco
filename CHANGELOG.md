@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.74.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.73.0...ocoeco-v0.74.0) (2026-11-16)
+
+
+### Features
+
+* a lens is of its place: two places may each keep a lens of one name ([#414](https://github.com/open-commons-observatory/ocoeco/issues/414)) ([5cff85e](https://github.com/open-commons-observatory/ocoeco/commit/5cff85e4782a56a719443d39dca510bc76b4a23a))
+
 ## [0.73.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.72.0...ocoeco-v0.73.0) (2026-11-16)
 
 
