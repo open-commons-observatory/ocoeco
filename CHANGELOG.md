@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.59.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.58.0...ocoeco-v0.59.0) (2026-11-16)
+
+
+### Features
+
+* the language is kept by its place: a lens changed there is changed, no program built ([#340](https://github.com/open-commons-observatory/ocoeco/issues/340)) ([d5c8735](https://github.com/open-commons-observatory/ocoeco/commit/d5c8735611899f4f6456d14e41e4668cfce4b47c))
+
 ## [0.58.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.57.1...ocoeco-v0.58.0) (2026-11-15)
 
 
