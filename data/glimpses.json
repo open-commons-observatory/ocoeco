@@ -266,3 +266,4 @@
 {"id":"g-20261116-171942","at":"2026-11-16T17:19:42Z","by":"claude","kind":"feat","summary":"a thing takes another name in one act, said in the window: called NAME","touches":"decisions:2026-11-16-a-thing-takes-another-name-in-one-act decisions:2026-11-16-the-check-looks-through-a-lens-as-it-is-called","where":"problems:a-thing-takes-another-name-by-hand marshall-oco/conversation/turns:turn-2026-11-16-continue-31"}
 {"id":"g-20261116-172537","at":"2026-11-16T17:25:37Z","by":"claude","kind":"docs","summary":"what pointed at turn-2026-11-16-continue-31 says site/1"}
 {"id":"g-20261116-172857","at":"2026-11-16T17:28:57Z","by":"claude","kind":"docs","summary":"what pointed at site/1 says turn-2026-11-16-continue-31"}
+{"id":"g-20261116-173237","at":"2026-11-16T17:32:37Z","by":"claude","kind":"docs","summary":"a sign: an act on where one stands follows a step that failed","touches":"problems:an-act-on-where-one-stands-follows-a-step-that-failed"}
