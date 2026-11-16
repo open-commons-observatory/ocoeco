@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.68.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.67.0...ocoeco-v0.68.0) (2026-11-16)
+
+
+### Features
+
+* the language is read as its place keeps it wherever that place is held ([#386](https://github.com/open-commons-observatory/ocoeco/issues/386)) ([d758ff0](https://github.com/open-commons-observatory/ocoeco/commit/d758ff051e620c9c02e4b45fa6dc4b944b53b780))
+
 ## [0.67.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.66.0...ocoeco-v0.67.0) (2026-11-16)
 
 
