@@ -147,56 +147,6 @@ pub fn escaped(text: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// How a page offers itself in the other languages it can be read in: for its head, where each other one
-/// is; and for a reader, every language by its own name - the one being read as it is, each other as a way
-/// to the same page in it. The site is laid out once for each language: the one it is written in - the
-/// first of `languages` - where it always was, each other under a folder of its tag, the same paths within.
-/// Nothing where there is one language only.
-pub fn in_other_languages(
-    path: &str,
-    lang: &str,
-    languages: &[(String, String)],
-) -> (String, String) {
-    let Some((written_in, _)) = languages.first().filter(|_| languages.len() > 1) else {
-        return Default::default();
-    };
-    let deep = path.matches('/').count() + usize::from(lang != written_in);
-    let way = |to: &str| {
-        let under = if to == written_in {
-            String::new()
-        } else {
-            format!("{to}/")
-        };
-        escaped(&format!("{}{under}{path}", "../".repeat(deep)))
-    };
-    let others = languages.iter().filter(|(tag, _)| tag != lang);
-    let head = others
-        .clone()
-        .map(|(tag, _)| {
-            format!(
-                "<link rel=\"alternate\" hreflang=\"{tag}\" href=\"{}\">\n",
-                way(tag)
-            )
-        })
-        .collect();
-    let offered = languages
-        .iter()
-        .map(|(tag, name)| {
-            if tag == lang {
-                format!("<span lang=\"{tag}\">{}</span>", escaped(name))
-            } else {
-                format!(
-                    "<a href=\"{}\" hreflang=\"{tag}\" lang=\"{tag}\">{}</a>",
-                    way(tag),
-                    escaped(name)
-                )
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" · ");
-    (head, format!("<p class=\"tongues\">{offered}</p>\n"))
-}
-
 /// How many columns a text takes on a screen of monospaced cells.
 fn wide(text: &str) -> usize {
     unicode_width::UnicodeWidthStr::width(text)
@@ -398,32 +348,6 @@ pub fn surface(name: &str, width: usize) -> Result<Box<dyn Dome>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_page_offers_itself_in_each_other_language_by_its_own_name() {
-        let both = [
-            ("en".to_string(), "English".to_string()),
-            ("ru".to_string(), "Русский".to_string()),
-        ];
-        let (head, offered) = in_other_languages("places/a.html", "en", &both);
-        assert_eq!(
-            head,
-            "<link rel=\"alternate\" hreflang=\"ru\" href=\"../ru/places/a.html\">\n"
-        );
-        assert_eq!(offered, "<p class=\"tongues\"><span lang=\"en\">English</span> · <a href=\"../ru/places/a.html\" hreflang=\"ru\" lang=\"ru\">Русский</a></p>\n");
-        // from the other language, the same page is one folder further up
-        let (head, offered) = in_other_languages("places/a.html", "ru", &both);
-        assert!(head.contains("href=\"../../places/a.html\""), "{head}");
-        assert!(
-            offered.contains("<span lang=\"ru\">Русский</span>"),
-            "{offered}"
-        );
-        // one language only: nothing to offer
-        assert_eq!(
-            in_other_languages("a.html", "en", &both[..1]),
-            Default::default()
-        );
-    }
 
     fn parts() -> Vec<Brought> {
         vec![
