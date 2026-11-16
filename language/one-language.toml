@@ -38,3 +38,12 @@ SELECT overlay, form, left(means, 100) AS means FROM (
 ) WHERE nth <= 6 ORDER BY overlay, form
 """
 line = "{overlay} has no word for {form} - {means}"
+
+[[focus]]
+id = "nameless"
+title = "forms no overlay has a word for yet ({count})"
+sql = """
+SELECT of_table AS kind, count(*) AS forms, string_agg(id, ', ' ORDER BY id) FILTER (WHERE id IS NOT NULL) AS which
+FROM things WHERE coalesce(trim(says), '') = '' GROUP BY of_table ORDER BY forms DESC, kind
+"""
+line = "{forms} {kind} with no word in any overlay: {which}"
