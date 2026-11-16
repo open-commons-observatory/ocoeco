@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.82.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.81.0...ocoeco-v0.82.0) (2026-11-16)
+
+
+### Features
+
+* the language read is in view for every lens: a surface says its own offer of them ([#437](https://github.com/open-commons-observatory/ocoeco/issues/437)) ([d026447](https://github.com/open-commons-observatory/ocoeco/commit/d0264471327448738bfd45ab115d90fdd62a9039))
+
 ## [0.81.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.80.0...ocoeco-v0.81.0) (2026-11-16)
 
 
