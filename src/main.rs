@@ -1241,9 +1241,9 @@ fn run() -> Result<()> {
             println!("all is well: the harvest would read this repository");
         }
         Cmd::Gather { repo, out } => {
-            let [a, r, c] = gather::gather(&gh, &repo, &out)?;
+            let [a, r] = gather::gather(&gh, &repo, &out)?;
             println!(
-                "{repo}: {a} days of activity, {r} releases, {c} workflows -> {}",
+                "{repo}: {a} days of activity, {r} releases -> {}",
                 out.display()
             );
         }
