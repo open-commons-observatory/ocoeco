@@ -116,7 +116,8 @@ line = "{project} - {workflow}: {conclusion} since {day} - {url}"
 title = "a link pointing nowhere ({count})"
 stops = true
 sql = """
-SELECT from_star || '/' || from_table || ':' || from_id AS this, how, to_star || '/' || to_table || ':' || to_id AS that
+SELECT from_star || '/' || from_table || ':' || from_id AS this, how, to_star || '/' || to_table || ':' || to_id AS that,
+       from_star || '/' || from_table || ':' || from_id AS thing
 FROM nowhere ORDER BY 1, how LIMIT 20
 """
 line = "{this} - {how} - {that}"
