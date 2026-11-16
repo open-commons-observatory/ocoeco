@@ -2,8 +2,10 @@
 //! mark before everything one can stand on; one says a mark to stand on what it marks, a lens by its name
 //! to look through it from where one stands, an entry by its name to make one from there, called and a
 //! name to give what one stands on another name, back, or up -
-//! words that were just shown, never a flag to remember. What is shown is what the lenses bring into
-//! focus - around the thing stood on, or what the place shows first - laid out by a surface a lens says;
+//! words that were just shown, never a flag to remember. A saying that comes to nothing leaves one
+//! standing on nothing: nothing said after it acts on a place one meant to leave. What is shown is what
+//! the lenses bring into focus - around the thing stood on, or what the place shows first - laid out by
+//! a surface a lens says;
 //! what was marked is kept beside the trail, so that the mark said next names what was shown. What a
 //! window shows is decided by lenses; this carries what is said, and what an entry is given.
 
@@ -138,7 +140,33 @@ fn kept_as_the_lens_says(
 /// name: it is looked through, from where one stands if it looks from a thing. An entry by its name: what
 /// it asks, from where one stands - or, with what it asks `given`, the entry is made, and one stands on
 /// it. Back: where one stood before. Up: one stands on nothing, and is shown what the place shows first.
+/// A saying that comes to nothing leaves one standing on nothing, and says where one stood.
 pub fn said(
+    words: &[String],
+    given: &dyn Fn() -> String,
+    dir: &Path,
+    who: &str,
+    today: &str,
+    engine: &dyn SqlEngine,
+) -> Result<String> {
+    let stood = crate::trail::stands(who);
+    match said_standing(words, given, dir, who, today, engine) {
+        // what is said next from where one stands - an act on it, an entry kept where it is held - would
+        // act on a place one meant to leave: standing on nothing, it finds nothing to act on, and asks
+        Err(e) => {
+            crate::trail::leave(who);
+            Err(match stood {
+                Some(thing) => {
+                    anyhow::anyhow!("{e:#}\n- you stand on nothing now: you stood on {thing}")
+                }
+                None => e,
+            })
+        }
+        shown => shown,
+    }
+}
+
+fn said_standing(
     words: &[String],
     given: &dyn Fn() -> String,
     dir: &Path,
@@ -272,8 +300,12 @@ pub fn said(
                         crate::lenses::as_kept_among(&dirs);
                     }
                     Err(e) if at == 0 => return Err(e),
+                    // the saying stopped there: one stands on nothing, as after any saying that
+                    // comes to nothing - what came before it stays entered
                     Err(e) => {
                         entered.push_str(&format!("not entered: {e:#}\n"));
+                        crate::trail::leave(who);
+                        entered.push_str("- you stand on nothing now: the saying stopped there\n");
                         break;
                     }
                 }
