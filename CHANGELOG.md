@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.63.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.62.0...ocoeco-v0.63.0) (2026-11-16)
+
+
+### Features
+
+* a thing is stood on by its name; what was just changed is shown as it now is ([#366](https://github.com/open-commons-observatory/ocoeco/issues/366)) ([24d0bea](https://github.com/open-commons-observatory/ocoeco/commit/24d0bea1613e95a75d6c949d2275aee7353943e1))
+
 ## [0.62.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.61.0...ocoeco-v0.62.0) (2026-11-16)
 
 
