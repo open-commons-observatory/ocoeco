@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.67.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.66.0...ocoeco-v0.67.0) (2026-11-16)
+
+
+### Features
+
+* a link may be said of what was: a record of work points at what it touched then ([#383](https://github.com/open-commons-observatory/ocoeco/issues/383)) ([e5cbf89](https://github.com/open-commons-observatory/ocoeco/commit/e5cbf8958ecd9d80f27649cd78b4ef7601c67f54))
+
 ## [0.66.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.65.1...ocoeco-v0.66.0) (2026-11-16)
 
 
