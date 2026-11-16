@@ -2358,6 +2358,43 @@ mod tests {
     }
 
     #[test]
+    fn a_link_that_leads_nowhere_within_its_star_stops_by_the_lens_of_signs() {
+        let d = std::env::temp_dir().join(format!("ocoeco-stops-a-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\ndecisions = \"data/decisions.json\"\n").unwrap();
+        // held where there is an engine to ask: where there is none, the program's own telling stands in
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: that a link stops is held where there is one");
+            return;
+        };
+        std::fs::write(
+            d.join("data/decisions.json"),
+            "{\"id\":\"one\",\"decision\":\"One.\"}\n{\"id\":\"two\",\"decision\":\"Two.\",\"refines\":\"decisions:none\"}\n",
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &engine);
+        assert!(
+            said.iter()
+                .any(|line| line.contains("a link pointing nowhere")
+                    && line.contains("decisions:none")),
+            "{said:?}"
+        );
+        // set right, nothing stops
+        std::fs::write(
+            d.join("data/decisions.json"),
+            "{\"id\":\"one\",\"decision\":\"One.\"}\n{\"id\":\"two\",\"decision\":\"Two.\",\"refines\":\"decisions:one\"}\n",
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &engine);
+        assert!(
+            !said.iter().any(|line| line.contains("pointing nowhere")),
+            "{said:?}"
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
     fn what_a_lens_says_must_not_land_stops_the_check_of_a_place() {
         let d = std::env::temp_dir().join(format!("ocoeco-stops-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);

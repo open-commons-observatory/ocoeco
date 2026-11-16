@@ -530,11 +530,26 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                 .get(place)
                 .map(|held| held.has(&named(place, table), &link.id))
         };
+        // a star may be written by its shorter name: it is then the place that goes by it, where one place
+        // in view does - so a link written so is told like one written in full, and ends at the thing
+        let in_full = |star: &str| -> String {
+            if places.contains_key(star) {
+                return star.to_string();
+            }
+            let mut by = places.keys().filter(|id| short(id) == star);
+            match (by.next(), by.next()) {
+                (Some(one), None) => one.clone(),
+                _ => star.to_string(),
+            }
+        };
         match (&link.star, &link.table) {
-            (Some(star), Some(table)) => (
-                format!("{star}/{}:{}", named(star, table), link.id),
-                has(star, table),
-            ),
+            (Some(star), Some(table)) => {
+                let star = in_full(star);
+                (
+                    format!("{star}/{}:{}", named(&star, table), link.id),
+                    has(&star, table),
+                )
+            }
             (_, Some(table)) => (
                 format!("{here}/{}:{}", named(here, table), link.id),
                 has(here, table),
@@ -1499,6 +1514,60 @@ mod a_thing_says_when {
 #[cfg(test)]
 mod a_part_by_its_name {
     use super::*;
+
+    #[test]
+    fn a_star_written_by_its_shorter_name_is_the_place_that_goes_by_it() {
+        let base = std::env::temp_dir().join(format!("ocoeco-short-star-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let place = |star: &str, rows: &str, with_a_lens: bool| {
+            let d = base.join(star);
+            std::fs::create_dir_all(d.join("data")).unwrap();
+            std::fs::create_dir_all(d.join("lenses")).unwrap();
+            std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"o/{star}\"\nname = \"{star}: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n")).unwrap();
+            std::fs::write(d.join("data/notes.json"), rows).unwrap();
+            if with_a_lens {
+                std::fs::write(d.join("lenses/notes.toml"), "[lens]\nid = \"notes\"\nsays = \"Notes, and what each is about.\"\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"about\", type = \"string\" }]\n[[relation]]\nfrom = \"notes.about\"\nto = [\"notes\"]\n[[focus]]\ntitle = \"notes ({count})\"\nsql = \"SELECT id FROM notes ORDER BY id\"\nline = \"{id}\"\n").unwrap();
+            }
+            d
+        };
+        let a = place(
+            "a",
+            "{\"id\":\"p\",\"about\":\"b/notes:x\"}\n{\"id\":\"q\",\"about\":\"b/notes:none\"}\n{\"id\":\"r\",\"about\":\"zz/notes:x\"}\n",
+            true,
+        );
+        let b = place("b", "{\"id\":\"x\"}\n", false);
+        let graph = as_graph(&[a, b]).unwrap();
+        let about = |from: &str| {
+            graph["edges"]
+                .iter()
+                .find(|e| e.get("from").and_then(|v| v.as_str()) == Some(from))
+                .map(|e| {
+                    (
+                        e.get("to")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string(),
+                        e.get("holds").and_then(|v| v.as_bool()),
+                    )
+                })
+        };
+        assert_eq!(
+            about("o/a/notes:p"),
+            Some(("o/b/notes:x".to_string(), Some(true))),
+            "a star by its shorter name is the place that goes by it: the link holds, and ends at the thing"
+        );
+        assert_eq!(
+            about("o/a/notes:q"),
+            Some(("o/b/notes:none".to_string(), Some(false))),
+            "and where the thing is not there, it points nowhere - told, not passed over"
+        );
+        assert_eq!(
+            about("o/a/notes:r").map(|(_, holds)| holds),
+            Some(None),
+            "a star that is not in view is still not told"
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn a_part_of_a_lens_kept_as_rows_is_known_by_the_id_it_is_kept_as() {

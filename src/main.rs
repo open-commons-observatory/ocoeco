@@ -1188,12 +1188,20 @@ fn run() -> Result<()> {
                     }
                 }
             }
-            problems.extend(ocoeco::relations::broken(&dir, &others)?);
+            // where there is an engine to ask, that every link within this star leads somewhere is what the
+            // lens of signs says must not land - carried below, with whatever else a lens says stops. The
+            // program's own telling stands in where there is none, and tells of the links into the places
+            // beside this one
+            let engine = tad::sql::DuckDb::find().ok();
+            if engine.is_none() || !others.is_empty() {
+                problems.extend(ocoeco::relations::broken(&dir, &others)?);
+            }
             // and nothing this place keeps holds what is kept out: seen here, before it lands
             problems.extend(ocoeco::kept::showing(&dir));
-            // and every lens must come into focus over this place: a lens that cannot is not landed
-            if let Ok(engine) = tad::sql::DuckDb::find() {
-                problems.extend(ocoeco::focus::every_lens_focuses(&dir, &engine));
+            // and every lens must come into focus over this place - and what a lens says must not land,
+            // must not: a place that shows any of it is not landed
+            if let Some(engine) = &engine {
+                problems.extend(ocoeco::focus::every_lens_focuses(&dir, engine));
             }
             for w in &well {
                 println!("ok   {w}");
