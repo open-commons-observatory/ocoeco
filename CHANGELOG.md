@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.63.0...ocoeco-v0.64.0) (2026-11-16)
+
+
+### Features
+
+* every row of a lens file is written by its entry; what one saying enters lands as one ([#369](https://github.com/open-commons-observatory/ocoeco/issues/369)) ([6700908](https://github.com/open-commons-observatory/ocoeco/commit/670090847bf17e284cf19a7546d4fa2fc60c292f))
+
 ## [0.63.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.62.0...ocoeco-v0.63.0) (2026-11-16)
 
 
