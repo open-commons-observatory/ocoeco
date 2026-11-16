@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.75.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.74.0...ocoeco-v0.75.0) (2026-11-16)
+
+
+### Features
+
+* a thing takes another name in one act, said in the window: called NAME ([#417](https://github.com/open-commons-observatory/ocoeco/issues/417)) ([7f40dd5](https://github.com/open-commons-observatory/ocoeco/commit/7f40dd575ca9f3062d93888e3b0438a3af6d9932))
+
 ## [0.74.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.73.0...ocoeco-v0.74.0) (2026-11-16)
 
 
