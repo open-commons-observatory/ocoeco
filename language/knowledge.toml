@@ -91,6 +91,12 @@ asks = ["table", "row", "column", "lang", "text", "by"]
 table = "translations"
 says = "What one field of one of a place's own rows says in another language: read in that language, the row says this there. By a person or by a machine - a machine's is never passed off as a person's. It goes by table:row:column:lang."
 
+[[glimpse]]
+entry = "language"
+asks = ["name", "written_in"]
+table = "languages"
+says = "A language what is in view can be read in, by its tag (ru, en): its own name for itself, as its speakers write it - and whether it is the one everything here is written in."
+
 # The focus of the lens of knowledge: what was looked into lately, and the words and what they mean.
 [[focus]]
 title = "looked into lately ({count})"
@@ -129,4 +135,14 @@ fields = [
     { name = "lang", type = "string", required = true },
     { name = "text", type = "string", required = true },
     { name = "by", type = "string", enum = ["human", "machine"] },
+]
+
+[tables.languages]
+key = ["id"]
+extra_fields = true
+tells = "name"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "name", type = "string", required = true },
+    { name = "written_in", type = "boolean" },
 ]
