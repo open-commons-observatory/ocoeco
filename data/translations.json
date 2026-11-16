@@ -21,6 +21,18 @@
 {"id":"lens_parts:around/7:title:ru","table":"lens_parts","row":"around/7","column":"title","lang":"ru","text":"что хранит, по видам ({count})","by":"machine"}
 {"id":"lens_parts:around/8:title:ru","table":"lens_parts","row":"around/8","column":"title","lang":"ru","text":"к чему стремится ({count})","by":"machine"}
 {"id":"lens_parts:around/9:title:ru","table":"lens_parts","row":"around/9","column":"title","lang":"ru","text":"зачем оно существует, своими словами ({count})","by":"machine"}
+{"id":"vocabulary:chain:term:ru","table":"vocabulary","row":"chain","column":"term","lang":"ru","text":"цепь","by":"machine"}
+{"id":"vocabulary:decision:term:ru","table":"vocabulary","row":"decision","column":"term","lang":"ru","text":"решение","by":"machine"}
+{"id":"vocabulary:entry:term:ru","table":"vocabulary","row":"entry","column":"term","lang":"ru","text":"запись","by":"machine"}
+{"id":"vocabulary:lens:term:ru","table":"vocabulary","row":"lens","column":"term","lang":"ru","text":"линза","by":"machine"}
+{"id":"vocabulary:part:term:ru","table":"vocabulary","row":"part","column":"term","lang":"ru","text":"часть","by":"machine"}
+{"id":"vocabulary:plane:term:ru","table":"vocabulary","row":"plane","column":"term","lang":"ru","text":"плоскость","by":"machine"}
+{"id":"vocabulary:relation:term:ru","table":"vocabulary","row":"relation","column":"term","lang":"ru","text":"связь","by":"machine"}
+{"id":"vocabulary:shape:term:ru","table":"vocabulary","row":"shape","column":"term","lang":"ru","text":"форма","by":"machine"}
+{"id":"vocabulary:sign:term:ru","table":"vocabulary","row":"sign","column":"term","lang":"ru","text":"знак","by":"machine"}
+{"id":"vocabulary:surface:term:ru","table":"vocabulary","row":"surface","column":"term","lang":"ru","text":"поверхность","by":"machine"}
+{"id":"vocabulary:thing:term:ru","table":"vocabulary","row":"thing","column":"term","lang":"ru","text":"вещь","by":"machine"}
+{"id":"vocabulary:trail:term:ru","table":"vocabulary","row":"trail","column":"term","lang":"ru","text":"след","by":"machine"}
 {"id":"workings:w-01:how:ru","table":"workings","row":"w-01","column":"how","lang":"ru","text":"Договорённости, записанные: метка, общие таблицы, то, как данные одного проекта питают другой.","by":"machine"}
 {"id":"workings:w-01:what:ru","table":"workings","row":"w-01","column":"what","lang":"ru","text":"Спецификация","by":"machine"}
 {"id":"workings:w-01:why:ru","table":"workings","row":"w-01","column":"why","lang":"ru","text":"Без одного языка ничего нельзя собрать.","by":"machine"}
