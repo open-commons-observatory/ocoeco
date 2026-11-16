@@ -6,7 +6,7 @@
 # something is said here, where it can be read, changed and looked through like anything else.
 [lens]
 id = "entering"
-says = "From one entry: what it asks, and what it may also carry; where the one looking stands, and what was marked in what they were last shown - what here and a mark point at; and, given what it asks, the row it would keep and the place it would be kept in - or what is still lacking. Looked through from an entry: entering@sign."
+says = "From one entry: what it asks, and what it may also carry; where the one looking stands and stood before, and what was marked in what they were last shown - what here, back and a mark point at; and, given what it asks, the row it would keep and the place it would be kept in - or what is still lacking. Looked through from an entry: entering@sign."
 reads = ["things", "lenses", "lens_entries", "lens_fields", "lens_relations", "steps", "given", "marked"]
 looks_from = ["lens_entries"]
 
@@ -61,7 +61,7 @@ sql = """
 SELECT f.name, f.ordinal,
        nullif(list_position(string_split(replace(e.asks, ' ', ''), ','), f.name), 0) AS nth,
        p.points_at,
-       CASE WHEN p.points_at IS NOT NULL THEN ' - points at ' || p.points_at || ': here names where you stand, a mark what it marks' ELSE '' END
+       CASE WHEN p.points_at IS NOT NULL THEN ' - points at ' || p.points_at || ': here names where you stand, back where you stood before, a mark what it marks' ELSE '' END
        || CASE WHEN coalesce(f.allowed, '') <> '' THEN ' - one of: ' || f.allowed ELSE '' END
        || coalesce(' - where it is not given: ' || split_part(list_filter(string_split(e.supplies, '; '), lambda s: split_part(s, ' ', 1) = f.name)[1], ' ', 2), '') AS how
 FROM entry e JOIN lens_fields f ON f.lens = e.lens AND f.of_table = e.fills
@@ -103,7 +103,9 @@ SELECT g.field, trim(g.value) AS value, g.seq FROM given g WHERE g.field <> 'in'
 named = "pointing"
 sql = """
 SELECT w.field,
-       string_agg(coalesce(CASE WHEN w.word = 'here' THEN (SELECT min(said) FROM stood) END, m.thing, w.word), ' ' ORDER BY w.nth) AS value
+       string_agg(coalesce(CASE WHEN w.word = 'here' THEN (SELECT min(said) FROM stood)
+                                WHEN w.word = 'back' THEN (SELECT min(said) FROM stood_before) END,
+                           m.thing, w.word), ' ' ORDER BY w.nth) AS value
 FROM (SELECT t.field, unnest(string_split(t.value, ' ')) AS word, generate_subscripts(string_split(t.value, ' '), 1) AS nth
       FROM told t JOIN asked a ON a.name = t.field WHERE a.points_at IS NOT NULL) w
 LEFT JOIN marked m ON m.id = w.word
@@ -124,6 +126,8 @@ FROM (SELECT (SELECT min(value) FROM told WHERE field = 'id') AS named,
                              WHERE t.field <> 'id' AND a.points_at IS NULL ORDER BY t.seq LIMIT 1) f), '') AS slug,
              CASE WHEN EXISTS (SELECT 1 FROM entry e JOIN lens_fields p ON p.lens = e.lens AND p.of_table = e.fills AND p.name = 'id'
                                WHERE starts_with(coalesce(p.pattern, ''), '^[0-9]{4}'))
+                    OR (SELECT count(*) FILTER (WHERE regexp_matches(k.short, ':[0-9]{4}-[0-9]{2}-[0-9]{2}-')) * 2 > count(*)
+                        FROM known k JOIN entry e ON k.of_table = e.fills)
                   THEN '{today}-' ELSE '' END AS dated) i
 """
 
@@ -178,10 +182,18 @@ GROUP BY o.thing, o.says, o.is_here, o.nth
 """
 
 [[focus]]
-title = "where you stand ({count})"
+title = "where you stand, and stood before ({count})"
 sql = """
-SELECT s.thing, s.says, coalesce(' (here fits: ' || (SELECT min(f.fits) FROM fitting f WHERE f.is_here) || ')', '') AS fits
-FROM stood s JOIN entry e ON true
+SELECT o.thing, o.says, o.fits
+FROM (SELECT s.thing, s.says, coalesce(' (here fits: ' || (SELECT min(f.fits) FROM fitting f WHERE f.is_here) || ')', '') AS fits, 0 AS nth
+      FROM stood s
+      UNION ALL
+      SELECT b.thing, min(b.says), ' (back fits: ' || string_agg(DISTINCT a.name, ', ' ORDER BY a.name) || ')', 1
+      FROM stood_before b JOIN asked a ON a.points_at IS NOT NULL
+           AND (contains(a.points_at, 'any thing') OR list_contains(string_split(replace(a.points_at, ' ', ''), ','), b.of_table))
+      GROUP BY b.thing) o
+JOIN entry e ON true
+ORDER BY o.nth
 """
 line = "{thing} - {says}{fits}"
 
@@ -246,7 +258,14 @@ FROM (SELECT 'nothing to name it by: give what it asks, or id: NAME' AS lacking 
       UNION ALL
       SELECT w.place || ' already keeps one called ' || c.id || ': give id: NAME to name this one - or id: ' || c.id || ', to change that one'
       FROM called c, where_kept w, entry e
-      WHERE NOT c.was_given AND EXISTS (SELECT 1 FROM known k WHERE k.id = w.place || '/' || e.fills || ':' || c.id)) l
+      WHERE NOT c.was_given AND EXISTS (SELECT 1 FROM known k WHERE k.id = w.place || '/' || e.fills || ':' || c.id)
+      UNION ALL
+      SELECT p.field || ' says ' || p.word || ', which names nothing: '
+             || CASE WHEN p.word = 'here' THEN 'you stand on no thing in view' ELSE 'there is no step before this one' END
+      FROM (SELECT t.field, unnest(string_split(t.value, ' ')) AS word
+            FROM told t JOIN asked a ON a.name = t.field WHERE a.points_at IS NOT NULL) p
+      WHERE (p.word = 'here' AND NOT EXISTS (SELECT 1 FROM stood))
+         OR (p.word = 'back' AND NOT EXISTS (SELECT 1 FROM stood_before))) l
 JOIN entry e ON true
 WHERE EXISTS (SELECT 1 FROM given)
 """
@@ -255,8 +274,17 @@ line = "{lacking}"
 # How it is said - shown where nothing was given yet.
 [[focus]]
 sql = """
-SELECT '- say ' || e.entry || ' with what it asks beneath it, each as FIELD: words on a line of its own - what goes on over more lines keeps them; in: PLACE keeps it elsewhere; id: NAME names it, and id: here changes the one you stand on' AS how
+SELECT '- say ' || e.entry || ' with what it asks beneath it, each as FIELD: words on a line of its own - what goes on over more lines keeps them; in: PLACE keeps it elsewhere; id: NAME names it, and id: here changes the one you stand on; and ENTRY on a line of its own goes on to another entry in the same saying - here then names what was just made, back what was made before it' AS how
 FROM entry e WHERE NOT EXISTS (SELECT 1 FROM given)
 """
 line = "{how}"
 title = "how it is said ({count})"
+
+[[focus]]
+named = "stood_before"
+sql = """
+SELECT k.short AS thing, b."where" AS said, k.place, k.says, k.of_table
+FROM (SELECT * FROM steps WHERE "by" = '{who}' AND NOT coalesce(up, false) ORDER BY "at" DESC, id DESC LIMIT 1 OFFSET 1) b
+JOIN known k ON b."where" IN (k.id, k.short)
+LIMIT 1
+"""
