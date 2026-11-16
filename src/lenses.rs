@@ -818,19 +818,28 @@ pub fn kept_in(dir: &Path, this: &str) -> Option<Vec<(String, String)>> {
     Some(files)
 }
 
-/// Says where the language is kept, among the places in view from where one looks: the first of them that
-/// keeps it and is not behind this program. From then on its lenses are the language - a lens changed
-/// there is changed, with no program built anew. Returns the folder of that place.
+/// Says where the language is kept, among the places in view from where one looks - and after them, where
+/// this machine says the language's place is held (OCOECO_LANGUAGE): the first of them that keeps it and is
+/// not behind this program. From then on its lenses are the language - a lens changed there is changed,
+/// with no program built anew - and a place's own check, made where it is held, reads the language as its
+/// place keeps it. Returns the folder of that place.
 pub fn as_kept_among(dirs: &[PathBuf]) -> Option<PathBuf> {
-    let (dir, kept) = dirs
-        .iter()
-        .find_map(|dir| Some((dir, kept_in(dir, env!("CARGO_PKG_VERSION"))?)))?;
+    let (dir, kept) = where_kept(dirs, std::env::var_os("OCOECO_LANGUAGE").map(PathBuf::from))?;
     // said again where the language may have changed - an entry made in the window: what is looked through
     // after is the language as it now is
     if let Ok(mut said) = KEPT.write() {
         *said = Some(std::sync::Arc::new(kept));
     }
-    Some(dir.clone())
+    Some(dir)
+}
+
+/// The first of these places that keeps the language and is not behind this program - those in view, then
+/// the one held where the machine says - with what it keeps.
+fn where_kept(dirs: &[PathBuf], held: Option<PathBuf>) -> Option<(PathBuf, Vec<(String, String)>)> {
+    dirs.iter().cloned().chain(held).find_map(|dir| {
+        let kept = kept_in(&dir, env!("CARGO_PKG_VERSION"))?;
+        Some((dir, kept))
+    })
 }
 
 /// The lenses of the language: where its place keeps it, each lens as kept there - one whose text is no
@@ -1268,6 +1277,36 @@ mod kept_as_rows {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_language_is_found_where_the_machine_says_its_place_is_held() {
+        let d = std::env::temp_dir().join(format!("ocoeco-held-language-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("language")).unwrap();
+        std::fs::write(
+            d.join("Cargo.toml"),
+            "[package]\nname = \"ocoeco\"\nversion = \"999.0.0\"\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("language/language.toml"),
+            "[lens]\nid = \"language\"\nsays = \"Held here.\"\n",
+        )
+        .unwrap();
+        let elsewhere =
+            std::env::temp_dir().join(format!("ocoeco-no-language-{}", std::process::id()));
+        // not among the places in view: found where the machine says it is held
+        let (found, kept) = where_kept(std::slice::from_ref(&elsewhere), Some(d.clone()))
+            .expect("found where it is held");
+        assert_eq!(found, d);
+        assert!(
+            kept.iter().any(|(name, _)| name == "language.toml"),
+            "{kept:?}"
+        );
+        // where nothing says where it is held, and it is not in view, it is not found
+        assert!(where_kept(&[elsewhere], None).is_none());
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
