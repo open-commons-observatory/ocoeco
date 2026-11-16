@@ -1,5 +1,5 @@
 name: gather
-# ocoeco's gatherers, for any repository: its activity, releases and CI, written into oco/gathered/
+# ocoeco's gatherers, for any repository: its activity and releases, written into oco/gathered/
 # on its own oco-data branch as light tad - data made by work (SPEC.md section 7). Other repositories call it:
 #
 #   on: { schedule: [{ cron: "41 3 * * *" }], workflow_dispatch: {} }
@@ -40,8 +40,9 @@ jobs:
           branch="${{ inputs.branch || 'oco-data' }}"; out="${{ inputs.out || 'oco/gathered' }}"
           if git fetch -q origin "$branch" 2>/dev/null; then git checkout -q -B "$branch" FETCH_HEAD
           else git checkout -q --orphan "$branch"; git rm -rfq . >/dev/null 2>&1 || true; fi
-          mkdir -p "$out" && cp "$RUNNER_TEMP"/gathered/*.json "$out"/
-          git add "$out"
+          # the folder is what was gathered this time: what is no longer gathered is no longer there
+          mkdir -p "$out" && rsync -a --delete "$RUNNER_TEMP/gathered/" "$out/"
+          git add -A "$out"
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git -c user.name="ocoeco gather" -c user.email="actions@users.noreply.github.com" commit -q -m "data: gathered by ocoeco"
           git push -q origin "$branch"

@@ -16,7 +16,7 @@ pub struct Join {
 
 /// The five-line caller of ocoeco's gatherer.
 pub const CALLER: &str = r#"name: gather
-# ocoeco gathers this repository's activity, releases and CI onto its oco-data branch - data made by work.
+# ocoeco gathers this repository's activity and releases onto its oco-data branch - data made by work.
 on:
   schedule:
     - cron: "41 3 * * *"
@@ -54,7 +54,6 @@ decisions = "oco/decisions.json"
 problems = "oco/problems.json"
 activity = "oco/gathered/activity.json@oco-data"
 releases = "oco/gathered/releases.json@oco-data"
-ci = "oco/gathered/ci.json@oco-data"
 "#,
         j.id, j.name, j.kind, j.parent
     )
@@ -466,7 +465,7 @@ mod tests {
             well.iter().any(|w| w == "session_log: 1 rows")
                 && well
                     .iter()
-                    .any(|w| w.starts_with("ci: on the oco-data branch"))
+                    .any(|w| w.starts_with("releases: on the oco-data branch"))
         );
         let _ = std::fs::remove_dir_all(&d);
     }
