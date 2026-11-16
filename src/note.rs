@@ -211,6 +211,13 @@ fn as_given(dir: &Path, table: &str, id: &str, changes: &[Change], today: &str) 
         &std::fs::read_to_string(dir.join("oco.toml"))
             .context("no oco.toml here: this repository has no mark")?,
     )?;
+    // an entry writes where the row is kept: the row of a lens this place keeps as a file is written into
+    // that file, in place
+    if let Some(said) =
+        crate::lens_file::written(dir, mark.exports.contains_key(table), table, id, changes)?
+    {
+        return Ok(said);
+    }
     let path = mark.exports.get(table).with_context(|| {
         format!("this repository does not export a {table} table (add it to [exports] in oco.toml)")
     })?;
