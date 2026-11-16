@@ -294,6 +294,9 @@ fn main() -> Result<()> {
         }
         as_before(why);
     }));
+    // the language is kept by its place: where that place is in view from here, and not behind this
+    // program, its lenses are the language - the program's own copy stands in everywhere else
+    ocoeco::lenses::as_kept_among(&ocoeco::board::in_view(std::path::Path::new(".")).0);
     // what writes rows - glimpse, in both its forms, and note - is guarded: a write that would add a link
     // pointing nowhere is refused, and the place's tables are put back as they were
     let said: Vec<String> = std::env::args().collect();

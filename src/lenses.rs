@@ -743,15 +743,119 @@ pub fn meanings(dirs: &[PathBuf]) -> std::collections::BTreeMap<String, String> 
     all
 }
 
-pub fn lenses() -> Vec<Lens> {
-    LENSES
-        .iter()
-        .map(|(name, text)| {
-            named_by_where_they_stand(
-                toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")),
-            )
+/// The language as its place keeps it, where that place is in view from where one looks: each lens file's
+/// name and its text - said once, as the program begins. Where it is not said, the language is the
+/// program's own copy, carried as it was when the program was built.
+static KEPT: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+
+/// The language a place keeps in `dir`, if it keeps it and is not behind the program numbered `this`:
+/// every lens file of its language folder - name and text, in the order of their names. A place keeps
+/// the language where that folder holds the lens called language; it is behind where the program it
+/// builds - its Cargo.toml says which - is older than this one: what it keeps is then older than what
+/// this program carries.
+pub fn kept_in(dir: &Path, this: &str) -> Option<Vec<(String, String)>> {
+    let folder = dir.join("language");
+    if !folder.join("language.toml").is_file() {
+        return None;
+    }
+    let numbered = |version: &str| -> Vec<u64> {
+        version
+            .split('.')
+            .map(|n| n.trim().parse().unwrap_or(0))
+            .collect()
+    };
+    let builds = std::fs::read_to_string(dir.join("Cargo.toml"))
+        .ok()
+        .and_then(|text| {
+            text.lines().find_map(|line| {
+                line.trim()
+                    .strip_prefix("version = \"")
+                    .and_then(|rest| rest.split('"').next())
+                    .map(str::to_string)
+            })
+        });
+    if builds.is_some_and(|builds| numbered(&builds) < numbered(this)) {
+        return None;
+    }
+    let mut files: Vec<(String, String)> = std::fs::read_dir(&folder)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|x| x == "toml"))
+        .filter_map(|path| {
+            Some((
+                path.file_name()?.to_string_lossy().to_string(),
+                std::fs::read_to_string(&path).ok()?,
+            ))
         })
-        .collect()
+        .collect();
+    files.sort();
+    Some(files)
+}
+
+/// Says where the language is kept, among the places in view from where one looks: the first of them that
+/// keeps it and is not behind this program. From then on its lenses are the language - a lens changed
+/// there is changed, with no program built anew. Returns the folder of that place.
+pub fn as_kept_among(dirs: &[PathBuf]) -> Option<PathBuf> {
+    let (dir, kept) = dirs
+        .iter()
+        .find_map(|dir| Some((dir, kept_in(dir, env!("CARGO_PKG_VERSION"))?)))?;
+    let _ = KEPT.set(kept);
+    Some(dir.clone())
+}
+
+/// The lenses of the language: where its place keeps it, each lens as kept there - one whose text is no
+/// lens yet stands as the program carries it, and one the place no longer keeps is gone; else all as the
+/// program carries them. One set, sound as a whole: where what the place keeps names a lens, a table or a
+/// shape twice - which the building of the program would have stopped - the program's own copy is the
+/// language, never half of each.
+fn of_the_language(own: &[(&str, &str)], kept: Option<&[(String, String)]>) -> Vec<Lens> {
+    let carried = |name: &str, text: &str| -> Lens {
+        named_by_where_they_stand(toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")))
+    };
+    let all_carried = || -> Vec<Lens> {
+        own.iter()
+            .map(|&(name, text)| carried(name, text))
+            .collect()
+    };
+    let Some(kept) = kept else {
+        return all_carried();
+    };
+    let as_kept: Vec<Lens> = kept
+        .iter()
+        .filter_map(|(name, text)| {
+            toml::from_str::<Lens>(text)
+                .ok()
+                .map(named_by_where_they_stand)
+                .or_else(|| {
+                    own.iter()
+                        .find(|&&(carried_name, _)| carried_name == name.as_str())
+                        .map(|&(name, text)| carried(name, text))
+                })
+        })
+        .collect();
+    let mut named: std::collections::BTreeSet<String> = Default::default();
+    let sound = as_kept.iter().all(|lens| {
+        named.insert(format!("lens {}", lens.lens.id))
+            && lens
+                .tables
+                .keys()
+                .all(|table| named.insert(format!("table {table}")))
+            && lens
+                .focus
+                .iter()
+                .filter_map(|part| part.named.as_deref())
+                .all(|shape| named.insert(format!("shape {shape}")))
+    });
+    if sound && !as_kept.is_empty() {
+        as_kept
+    } else {
+        all_carried()
+    }
+}
+
+pub fn lenses() -> Vec<Lens> {
+    of_the_language(LENSES, KEPT.get().map(Vec::as_slice))
 }
 
 /// The shared language: every lens's tables together.
@@ -838,6 +942,68 @@ mod tests {
                 was.from, was.to
             );
         }
+    }
+
+    #[test]
+    fn the_language_is_what_its_place_keeps_where_it_is_not_behind() {
+        let d = std::env::temp_dir().join(format!("ocoeco-language-kept-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("language")).unwrap();
+        // no place keeps the language where its folder does not hold the lens called language
+        assert!(kept_in(&d, "0.5.0").is_none());
+        for &(name, text) in LENSES {
+            std::fs::write(d.join("language").join(name), text).unwrap();
+        }
+        std::fs::write(
+            d.join("Cargo.toml"),
+            "[package]\nname = \"ocoeco\"\nversion = \"0.5.0\"\n",
+        )
+        .unwrap();
+        // kept, where the place is not behind the program - and not, where it is
+        let kept = kept_in(&d, "0.5.0").unwrap();
+        assert_eq!(kept.len(), LENSES.len());
+        assert!(kept_in(&d, "0.4.9").is_some() && kept_in(&d, "0.10.0").is_none());
+        // as the program carries it, where no place keeps it
+        assert_eq!(of_the_language(LENSES, None).len(), LENSES.len());
+        // a lens changed in the place is changed; one whose text is no lens yet stands as carried; one
+        // the place no longer keeps is gone
+        let at = |all: &[(String, String)], name: &str| {
+            all.iter().position(|(file, _)| file == name).unwrap()
+        };
+        let mut changed = kept.clone();
+        let around = at(&changed, "around.toml");
+        changed[around].1 =
+            changed[around]
+                .1
+                .replacen("says = \"", "says = \"As the place keeps it. ", 1);
+        let flow = at(&changed, "flow.toml");
+        changed[flow].1 = "this is no lens".to_string();
+        let gone = at(&changed, "insight.toml");
+        changed.remove(gone);
+        let now = of_the_language(LENSES, Some(&changed));
+        assert!(now
+            .iter()
+            .find(|l| l.lens.id == "around")
+            .unwrap()
+            .lens
+            .says
+            .starts_with("As the place keeps it. "));
+        assert!(
+            now.iter().any(|l| l.lens.id == "flow") && !now.iter().any(|l| l.lens.id == "insight")
+        );
+        assert_eq!(now.len(), LENSES.len() - 1);
+        // and what the place keeps is the language only as a sound whole: a table named twice, and the
+        // program's own copy is looked through - all of it
+        let mut twice = kept.clone();
+        twice.push((
+            "zz-again.toml".to_string(),
+            kept[around]
+                .1
+                .replacen("id = \"around\"", "id = \"around-again\"", 1),
+        ));
+        let whole = of_the_language(LENSES, Some(&twice));
+        assert!(whole.len() == LENSES.len() && !whole.iter().any(|l| l.lens.id == "around-again"));
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]

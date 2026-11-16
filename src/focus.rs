@@ -2389,6 +2389,15 @@ mod tests {
                 )),
             "{links:?}"
         );
+        // and the part says what it is, in a few words: so that walking a lens one passes no blank line
+        let says = graph["things"]
+            .iter()
+            .find(|t| t.get("id").and_then(|v| v.as_str()) == Some("o/r/lens_parts:both/1"))
+            .and_then(|t| t.get("says"))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        assert!(says.starts_with("places notes"), "{says}");
         // held where there is an engine to ask: where there is none - the check on GitHub - it steps aside
         let Ok(engine) = tad::sql::DuckDb::find() else {
             eprintln!("no engine here: a lens behind a lens is held where there is one");
