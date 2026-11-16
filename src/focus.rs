@@ -2021,12 +2021,20 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
                 )
             })),
         }
-        match brought(
-            &looked_at(lens, dir),
-            &[dir.to_path_buf()],
-            "2026-01-01",
-            engine,
-        ) {
+        let looks = looked_at(lens, dir);
+        // and from the few things it looks from before the last: what it asks is asked with what each brings
+        if let Some(e) = looks
+            .iter()
+            .skip(1)
+            .find_map(|looked| brought(looked, &[dir.to_path_buf()], "2026-01-01", engine).err())
+        {
+            problems.push(format!(
+                "the lens {} cannot come into focus here, looked through from a thing it looks from: {}",
+                lens.lens.id,
+                e.to_string().lines().next().unwrap_or_default()
+            ));
+        }
+        match brought(&looks[0], &[dir.to_path_buf()], "2026-01-01", engine) {
             Err(e) => problems.push(format!(
                 "the lens {} cannot come into focus here: {}",
                 lens.lens.id,
@@ -2102,8 +2110,8 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
         }
     }
     // the language's own place, with the places beside it: a change to the language changes what every
-    // place's lenses read - each lens a place beside keeps comes into focus over that place, with the
-    // language as it is here
+    // place's lenses read - each lens a place beside keeps comes into focus with all of them in view, as it
+    // is looked through where the whole is seen, and with the language as it is here
     if !beside.is_empty() && crate::lenses::kept_in(dir, env!("CARGO_PKG_VERSION")).is_some() {
         for place in beside {
             let goes_by = std::fs::read_to_string(place.join("oco.toml"))
@@ -2115,12 +2123,10 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
                 .iter()
                 .filter(|(_, l)| l.focus.iter().any(|p| p.places.is_none()))
             {
-                if let Err(e) = brought(
-                    &looked_at(lens, place),
-                    std::slice::from_ref(place),
-                    "2026-01-01",
-                    engine,
-                ) {
+                if let Some(e) = looked_at(lens, place)
+                    .iter()
+                    .find_map(|looked| brought(looked, beside, "2026-01-01", engine).err())
+                {
                     problems.push(format!(
                         "the lens {} kept by {goes_by} cannot come into focus with the language as it is here: {}",
                         lens.lens.id,
@@ -2133,27 +2139,52 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
     problems
 }
 
-/// A lens as the check looks through it in a place: from the last thing of the kind it looks from that the
-/// place keeps - so that what it asks is asked with rows passing through - or, where it looks from no kind
-/// or the place keeps none of it, from nowhere.
-fn looked_at(lens: &Lens, place: &Path) -> String {
-    lens.lens
+/// A lens as the check looks through it in a place: from the few things of the kind it looks from that came
+/// last in the place - the last first, and the others so that what it asks is asked with rows passing
+/// through, for the last may have nothing yet - or, where it looks from no kind or the place keeps none of
+/// it, from nowhere.
+fn looked_at(lens: &Lens, place: &Path) -> Vec<String> {
+    let things = lens
+        .lens
         .looks_from
         .iter()
-        .find_map(|table| last_thing_of(place, table))
-        .map_or_else(
-            || lens.lens.id.clone(),
-            |thing| format!("{}@{thing}", lens.lens.id),
-        )
+        .map(|table| last_things_of(place, table, 5))
+        .find(|things| !things.is_empty())
+        .unwrap_or_default();
+    if things.is_empty() {
+        return vec![lens.lens.id.clone()];
+    }
+    things
+        .into_iter()
+        .map(|thing| format!("{}@{thing}", lens.lens.id))
+        .collect()
 }
 
-/// The last thing of a kind a place keeps, by its full name.
-fn last_thing_of(place: &Path, table: &str) -> Option<String> {
-    let mark =
-        crate::mark::Mark::parse(&std::fs::read_to_string(place.join("oco.toml")).ok()?).ok()?;
-    let rows = crate::join::rows(place, &mark, table);
-    let id = rows.last()?.get("id")?.as_str()?.to_string();
-    Some(format!("{}/{table}:{id}", mark.project.id))
+/// The few things of a kind a place keeps that came last - by when each says it was, and where none says,
+/// by where it is kept - by their full names, the last first.
+fn last_things_of(place: &Path, table: &str, few: usize) -> Vec<String> {
+    let Some(mark) = std::fs::read_to_string(place.join("oco.toml"))
+        .ok()
+        .and_then(|text| crate::mark::Mark::parse(&text).ok())
+    else {
+        return Vec::new();
+    };
+    let mut rows: Vec<(Option<String>, usize, String)> = crate::join::rows(place, &mark, table)
+        .iter()
+        .enumerate()
+        .filter_map(|(at, row)| {
+            Some((
+                crate::relations::when(row, None),
+                at,
+                row.get("id")?.as_str()?.to_string(),
+            ))
+        })
+        .collect();
+    rows.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    rows.into_iter()
+        .take(few)
+        .map(|(_, _, id)| format!("{}/{table}:{id}", mark.project.id))
+        .collect()
 }
 
 #[cfg(test)]
@@ -2924,23 +2955,31 @@ mod tests {
         std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nturns = \"oco/turns.json\"\n").unwrap();
         std::fs::write(
             d.join("oco/turns.json"),
-            "{\"id\":\"t1\"}\n{\"id\":\"t2\"}\n",
+            "{\"id\":\"t1\",\"at\":\"2026-01-01T10:00:00Z\"}\n{\"id\":\"t2\",\"at\":\"2026-01-03T10:00:00Z\"}\n{\"id\":\"t3\",\"at\":\"2026-01-02T10:00:00Z\"}\n",
         )
         .unwrap();
         let after: Lens = toml::from_str(
             "[lens]\nid = \"after\"\nsays = \"From a turn.\"\nlooks_from = [\"turns\"]\n",
         )
         .unwrap();
-        assert_eq!(looked_at(&after, &d), "after@o/r/turns:t2");
+        // from the few that came last, by when each was: the last first
+        assert_eq!(
+            looked_at(&after, &d),
+            [
+                "after@o/r/turns:t2",
+                "after@o/r/turns:t3",
+                "after@o/r/turns:t1"
+            ]
+        );
         // a lens that looks from no kind, or from one the place keeps none of, is looked through from nowhere
         let plain: Lens =
             toml::from_str("[lens]\nid = \"plain\"\nsays = \"From nowhere.\"\n").unwrap();
-        assert_eq!(looked_at(&plain, &d), "plain");
+        assert_eq!(looked_at(&plain, &d), ["plain"]);
         let elsewhere: Lens = toml::from_str(
             "[lens]\nid = \"elsewhere\"\nsays = \"From a kind not kept here.\"\nlooks_from = [\"notes\"]\n",
         )
         .unwrap();
-        assert_eq!(looked_at(&elsewhere, &d), "elsewhere");
+        assert_eq!(looked_at(&elsewhere, &d), ["elsewhere"]);
         let _ = std::fs::remove_dir_all(&d);
     }
 
