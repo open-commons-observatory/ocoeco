@@ -74,6 +74,7 @@ fields = [
     { name = "nature", type = "string" },
     { name = "of_what_was", type = "boolean" },
 ]
+tells = "{from} - {to}"
 
 # A route a lens says: the table whose rows are read from a surface, and the kind of surface.
 [tables.lens_routes]
@@ -87,6 +88,7 @@ fields = [
     { name = "which", type = "string" },
     { name = "shape", type = "string" },
 ]
+tells = "{of_table}, from {from}"
 
 [tables.lens_parts]
 key = ["id"]

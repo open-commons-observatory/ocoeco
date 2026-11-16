@@ -49,6 +49,7 @@ fields = [
     { name = "automated_by", type = "string" },
     { name = "minutes", type = "number" },
 ]
+tells = "action"
 
 [tables.manual_events]
 key = ["id"]
@@ -62,6 +63,7 @@ fields = [
     { name = "effort", type = "number" },
     { name = "change", type = "string" },
 ]
+tells = "{record}, {minutes} minute(s) by hand"
 
 # What was changed, as git has it: each change to a place's repository - its name, when, by whom, and
 # what it says of itself. Not kept by a place: read from the history of the repository where the place is
