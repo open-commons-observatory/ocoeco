@@ -179,3 +179,16 @@ SELECT (SELECT count(*) FROM things) AS things, (SELECT count(*) FROM edges) AS 
        (SELECT count(*) FROM edges WHERE holds IS NULL) AS unseen
 """
 line = "{things} things in view, {edges} links between them; {alone} things nothing points at, {islands} of them joined to nothing; {unseen} links point where this place cannot see"
+
+# What says nothing of itself: the things a look names with no words beside them, kind by kind, and one of
+# each to stand on.
+[[focus]]
+id = "says-nothing"
+title = "what says nothing of itself, by kind ({count})"
+sql = """
+SELECT of_table, count(*) AS n,
+       min(star || '/' || of_table || ':' || substr(id, length(place) + length(of_table) + 3)) AS one
+FROM things WHERE coalesce(says, '') = ''
+GROUP BY of_table ORDER BY n DESC, of_table
+"""
+line = "{of_table} - {n} say nothing of themselves, as {one}"
