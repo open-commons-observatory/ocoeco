@@ -555,8 +555,9 @@ fn of_a_table(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) -
             "key" => set_listed(table, "key", &change.value),
             "extra_fields" => set_whether(table, "extra_fields", &change.value)?,
             "dated" => set_words(table, "dated", &change.value),
+            "tells" => set_words(table, "tells", &change.value),
             other => {
-                bail!("{other} is not something a table of a lens says: key, extra_fields, dated")
+                bail!("{other} is not something a table of a lens says: key, extra_fields, dated, tells")
             }
         }
         said.push(change.field.clone());
