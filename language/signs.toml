@@ -45,6 +45,7 @@ fields = [
     { name = "at", type = "string" },
     { name = "url", type = "string" },
 ]
+tells = "{workflow}: {conclusion}"
 
 # where a sign was seen is a link to a row
 [[relation]]

@@ -17,6 +17,7 @@ fields = [
     { name = "lines", type = "integer" },
     { name = "bytes", type = "integer" },
 ]
+tells = "{lines} lines"
 
 [tables.guards]
 key = ["id"]
