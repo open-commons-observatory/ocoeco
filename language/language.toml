@@ -71,6 +71,7 @@ fields = [
     { name = "passes_over", type = "string" },
     { name = "level", type = "string" },
     { name = "nature", type = "string" },
+    { name = "of_what_was", type = "boolean" },
 ]
 
 # A route a lens says: the table whose rows are read from a surface, and the kind of surface.

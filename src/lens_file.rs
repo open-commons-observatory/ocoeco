@@ -758,7 +758,8 @@ fn of_a_link(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) ->
             }
             "from" | "level" | "nature" => set_words(link, &change.field, &change.value),
             "to" | "passes_over" => set_listed(link, &change.field, &change.value),
-            other => bail!("{other} is not something a link of a lens says: from, to, passes_over, level, nature"),
+            "of_what_was" => set_whether(link, &change.field, &change.value)?,
+            other => bail!("{other} is not something a link of a lens says: from, to, passes_over, level, nature, of_what_was"),
         }
         said.push(change.field.clone());
     }

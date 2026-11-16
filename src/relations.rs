@@ -24,6 +24,12 @@ pub struct Relation {
     /// field's own name is its nature.
     #[serde(default)]
     pub nature: Option<String>,
+    /// The rows of `from` say what was: each link points at a thing as it was when the row was written - a
+    /// record of work, at what it touched and where it was made; a step, at what was stood on. A thing taken
+    /// back since is what the row said then: the link does not point nowhere, and it keeps nothing from
+    /// being taken back.
+    #[serde(default)]
+    pub of_what_was: bool,
 }
 
 /// The relations of the shared language: those every lens declares.
@@ -186,6 +192,12 @@ pub fn broken(dir: &Path, others: &BTreeMap<String, PathBuf>) -> Result<Vec<Stri
     };
     let mut said: Vec<String> = Vec::new();
     for e in &graph["edges"] {
+        // a link said of what was, whose thing was taken back since, points at what was - not nowhere
+        if e.get("of_what_was").and_then(|v| v.as_bool()) == Some(true)
+            && e.get("holds").and_then(|v| v.as_bool()) == Some(false)
+        {
+            continue;
+        }
         let through = text(e, "via_id");
         let from = if through.is_empty() {
             format!("{} {}", text(e, "from_table"), text(e, "from_id"))
@@ -608,7 +620,8 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     written: String,
                     level: String,
                     nature: String,
-                    (from_written, from_holds): (String, Option<bool>)| {
+                    (from_written, from_holds): (String, Option<bool>),
+                    was: bool| {
         let id = if via.is_empty() {
             format!("{from} {how} {to}")
         } else {
@@ -629,7 +642,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                    "to_place": tp, "to_star": short(&tp), "to_table": tt, "to_id": ti,
                    "via_star": short(&vp), "via_id": vi,
                    "written": written, "from_written": from_written, "from_holds": from_holds,
-                   "level": level, "nature": nature}),
+                   "level": level, "nature": nature, "of_what_was": was}),
         );
     };
     for (here, held) in places
@@ -701,6 +714,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         level,
                         relation.nature.clone().unwrap_or_else(|| field.to_string()),
                         (String::new(), Some(true)),
+                        relation.of_what_was,
                     );
                 }
             }
@@ -726,6 +740,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     String::new(),
                     "gathers".to_string(),
                     (String::new(), Some(true)),
+                    false,
                 );
             }
         }
@@ -752,6 +767,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                         String::new(),
                         how.to_string(),
                         (written(&this), near_holds),
+                        false,
                     );
                 }
             }
@@ -835,6 +851,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     String::new(),
                     nature.to_string(),
                     (String::new(), Some(true)),
+                    false,
                 );
             }
         };
@@ -1009,6 +1026,48 @@ mod tests {
             in_a_few_words(&serde_json::json!({"id": "x", "says": "A lens."})),
             "A lens."
         );
+    }
+
+    #[test]
+    fn a_link_said_of_what_was_points_at_what_was_and_keeps_nothing_from_being_taken_back() {
+        let d = std::env::temp_dir().join(format!("ocoeco-what-was-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("oco")).unwrap();
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nmemos = \"oco/memos.json\"\nnotes = \"oco/notes.json\"\n").unwrap();
+        std::fs::write(d.join("lenses/memos.toml"), "[lens]\nid = \"memos\"\nsays = \"Memos, and what each touched.\"\n[tables.memos]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"touched\", type = \"string\" }]\n[tables.notes]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }]\n[[relation]]\nfrom = \"memos.touched\"\nto = [\"*\"]\nof_what_was = true\n").unwrap();
+        std::fs::write(
+            d.join("oco/notes.json"),
+            "{\"id\":\"kept\"}\n{\"id\":\"left\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("oco/memos.json"),
+            "{\"id\":\"m1\",\"touched\":\"notes:kept notes:gone\"}\n{\"id\":\"m2\",\"touched\":\"notes:left\"}\n",
+        )
+        .unwrap();
+        let graph = as_graph(std::slice::from_ref(&d)).unwrap();
+        let to = |id: &str| -> (Option<bool>, Option<bool>) {
+            graph["edges"]
+                .iter()
+                .find(|e| e["to"] == format!("o/r/notes:{id}"))
+                .map(|e| (e["holds"].as_bool(), e["of_what_was"].as_bool()))
+                .unwrap_or_default()
+        };
+        assert_eq!(to("kept"), (Some(true), Some(true)));
+        assert_eq!(to("gone"), (Some(false), Some(true)));
+        // what was taken back since is no link pointing nowhere
+        assert!(
+            broken(&d, &BTreeMap::new()).unwrap().is_empty(),
+            "{:?}",
+            broken(&d, &BTreeMap::new())
+        );
+        // and a link said of what was keeps nothing from being taken back
+        crate::note::take_back(&d, "notes", "left").unwrap();
+        assert!(!std::fs::read_to_string(d.join("oco/notes.json"))
+            .unwrap()
+            .contains("left"));
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
