@@ -92,10 +92,10 @@ table = "translations"
 says = "What one field of one of a place's own rows says in another language: read in that language, the row says this there. By a person or by a machine - a machine's is never passed off as a person's. It goes by table:row:column:lang."
 
 [[glimpse]]
-entry = "language"
+entry = "overlay"
 asks = ["name", "written_in"]
 table = "languages"
-says = "A language what is in view can be read in, by its tag (ru, en): its own name for itself, as its speakers write it - and whether it is the one everything here is written in."
+says = "A so-called language - English, Русский - by its tag: an overlay the one language is read through, a partial projection of it. Its own name for itself, as its speakers write it; and whether it is the one the words here happen to be kept in."
 
 # The focus of the lens of knowledge: what was looked into lately, and the words and what they mean.
 [[focus]]
