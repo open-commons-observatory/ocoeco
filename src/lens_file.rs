@@ -147,6 +147,14 @@ fn standing(lens: &str, id: &str, what: &str) -> Result<usize> {
         })
 }
 
+/// A table of a lens file, new: written apart from what is before it by an empty line, as the language's
+/// files write their tables.
+fn apart() -> Table {
+    let mut table = Table::new();
+    table.decor_mut().set_prefix("\n");
+    table
+}
+
 /// One of a kind a lens file writes as tables one after another and knows by where it stands - its links:
 /// the one standing at `at`, or a new one where `at` is the place after the last. Returns it, and whether
 /// it was added.
@@ -162,7 +170,7 @@ fn standing_at<'a>(
         .with_context(|| format!("what the lens keeps as [[{kind}]] is not written so"))?;
     let added = at == all.len() + 1;
     if added {
-        all.push(Table::new());
+        all.push(apart());
     }
     let count = all.len();
     match all.get_mut(at - 1) {
@@ -191,7 +199,7 @@ fn named_so<'a>(
         .iter()
         .position(|one| one.get(key).and_then(|named| named.as_str()) == Some(name));
     if at.is_none() {
-        let mut one = Table::new();
+        let mut one = apart();
         one[key] = value(name);
         all.push(one);
     }
@@ -424,7 +432,7 @@ fn of_a_part(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) ->
                     count + 1
                 );
             }
-            let mut part = Table::new();
+            let mut part = apart();
             if number.is_none() {
                 part.insert("id", value(name.as_str()));
             }
@@ -536,6 +544,7 @@ fn of_a_table(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) -
             .cloned()
             .context("a table could not be written")?;
         table.set_position(usize::MAX / 2);
+        table.decor_mut().set_prefix("\n");
         tables.insert(name, Item::Table(table));
     }
     let table = tables[name]
@@ -562,6 +571,9 @@ fn of_a_table(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) -
         }
         said.push(change.field.clone());
     }
+    // what a table says of itself is written before its fields, as the language's files write it
+    table
+        .sort_values_by(|one, _, other, _| (one.get() == "fields").cmp(&(other.get() == "fields")));
     Ok(format!(
         "{} the table {name} of the lens {lens}: {}",
         if added { "added" } else { "changed" },
@@ -1152,6 +1164,43 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(parts()[2].2, "");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn what_entries_add_to_a_lens_file_is_written_apart_and_a_table_s_fields_last() {
+        let (d, file) = a_place_with_a_lens("apart");
+        written(
+            &d,
+            false,
+            "lens_tables",
+            "notes/kept",
+            &[change("tells", "{id}")],
+        )
+        .unwrap()
+        .unwrap();
+        written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/3",
+            &[
+                change("title", "a third"),
+                change("query", "SELECT 1 AS n"),
+                change("lays_out", "{n}"),
+            ],
+        )
+        .unwrap()
+        .unwrap();
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(
+            text.contains("\n\n[tables.kept]\nkey = [\"id\"]\ntells = \"{id}\"\nfields = ["),
+            "{text}"
+        );
+        assert!(
+            text.contains("\n\n[[focus]]\ntitle = \"a third\""),
+            "{text}"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 

@@ -1,22 +1,26 @@
+# The lens of what is gathered: what the gatherer writes into each place of its own repository's work, read
+# off GitHub and never written by hand (src/gather.rs) - its commits day by day, and its releases.
 [lens]
 id = "gathered"
 says = "What the gatherer writes into each place of its own repository's work, read off GitHub and never written by hand: its commits day by day, and its releases - what each row is, how it is told, and when it was."
+
 [tables.activity]
 key = ["id"]
+extra_fields = true
+tells = "{commits} commit(s)"
 fields = [
     { name = "id", type = "string", required = true },
     { name = "commits", type = "integer" },
 ]
-extra_fields = true
-tells = "{commits} commit(s)"
+
 [tables.releases]
 key = ["id"]
+dated = "published"
+extra_fields = true
+tells = "name"
 fields = [
     { name = "id", type = "string", required = true },
     { name = "name", type = "string" },
     { name = "published", type = "string" },
     { name = "link", type = "string" },
 ]
-dated = "published"
-extra_fields = true
-tells = "name"
