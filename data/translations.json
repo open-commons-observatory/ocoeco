@@ -9,6 +9,18 @@
 {"id":"idea:05-limit:text:ru","table":"idea","row":"05-limit","column":"text","lang":"ru","text":"Оно может собрать то, что произошло. Оно не соберёт то, что никто не записал и ни один инструмент не наблюдал. Поэтому его настоящая работа — превращать всё больше важного в то, что производит сама работа.","by":"machine"}
 {"id":"idea:06-start:heading:ru","table":"idea","row":"06-start","column":"heading","lang":"ru","text":"Где мы сейчас","by":"machine"}
 {"id":"idea:06-start:text:ru","table":"idea","row":"06-start","column":"text","lang":"ru","text":"Работает. Оно находит помеченные проекты, ежедневно собирает их активность, выпуски и результаты тестов и читает их таблицы в обсерваторию. Впереди: путешествовать в каждый репозиторий как собственная часть, а не копия.","by":"machine"}
+{"id":"lens_parts:around/11:title:ru","table":"lens_parts","row":"around/11","column":"title","lang":"ru","text":"отсюда — на что оно указывает ({count})","by":"machine"}
+{"id":"lens_parts:around/12:title:ru","table":"lens_parts","row":"around/12","column":"title","lang":"ru","text":"сюда — что указывает на него ({count})","by":"machine"}
+{"id":"lens_parts:around/13:title:ru","table":"lens_parts","row":"around/13","column":"title","lang":"ru","text":"что для него изменилось — изменения работы, которая была о нём ({count})","by":"machine"}
+{"id":"lens_parts:around/14:title:ru","table":"lens_parts","row":"around/14","column":"title","lang":"ru","text":"само изменение, там, где его хранит git ({count})","by":"machine"}
+{"id":"lens_parts:around/15:title:ru","table":"lens_parts","row":"around/15","column":"title","lang":"ru","text":"во времени — что было прямо до и после него, в том же месте ({count})","by":"machine"}
+{"id":"lens_parts:around/2:title:ru","table":"lens_parts","row":"around/2","column":"title","lang":"ru","text":"вы стоите на ({count})","by":"machine"}
+{"id":"lens_parts:around/3:title:ru","table":"lens_parts","row":"around/3","column":"title","lang":"ru","text":"само, целиком ({count})","by":"machine"}
+{"id":"lens_parts:around/5:title:ru","table":"lens_parts","row":"around/5","column":"title","lang":"ru","text":"что можно внести отсюда ({count})","by":"machine"}
+{"id":"lens_parts:around/6:title:ru","table":"lens_parts","row":"around/6","column":"title","lang":"ru","text":"где хранится ({count})","by":"machine"}
+{"id":"lens_parts:around/7:title:ru","table":"lens_parts","row":"around/7","column":"title","lang":"ru","text":"что хранит, по видам ({count})","by":"machine"}
+{"id":"lens_parts:around/8:title:ru","table":"lens_parts","row":"around/8","column":"title","lang":"ru","text":"к чему стремится ({count})","by":"machine"}
+{"id":"lens_parts:around/9:title:ru","table":"lens_parts","row":"around/9","column":"title","lang":"ru","text":"зачем оно существует, своими словами ({count})","by":"machine"}
 {"id":"workings:w-01:how:ru","table":"workings","row":"w-01","column":"how","lang":"ru","text":"Договорённости, записанные: метка, общие таблицы, то, как данные одного проекта питают другой.","by":"machine"}
 {"id":"workings:w-01:what:ru","table":"workings","row":"w-01","column":"what","lang":"ru","text":"Спецификация","by":"machine"}
 {"id":"workings:w-01:why:ru","table":"workings","row":"w-01","column":"why","lang":"ru","text":"Без одного языка ничего нельзя собрать.","by":"machine"}
