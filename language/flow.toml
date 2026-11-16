@@ -29,6 +29,7 @@ fields = [
 from = "steps.where"
 to = ["*"]
 nature = "is about"
+of_what_was = true
 
 # where each driver stands now: their latest step - read off the act of looking, said by no one
 [[focus]]

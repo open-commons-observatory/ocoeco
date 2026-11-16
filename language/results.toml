@@ -88,11 +88,13 @@ nature = "is part of"
 from = "glimpses.advances"
 to = ["*"]
 nature = "is for"
+of_what_was = true
 
 [[relation]]
 from = "glimpses.touches"
 to = ["*"]
 nature = "is about"
+of_what_was = true
 
 # Where a record of work was made: the things stood on while it was done - supplied by the act of looking
 # through a lens from a thing, never typed. The work is seen where it happens.
@@ -100,6 +102,7 @@ nature = "is about"
 from = "glimpses.where"
 to = ["*"]
 nature = "is about"
+of_what_was = true
 
 # each time it was done by hand is one more time of that work done by hand
 [[relation]]
