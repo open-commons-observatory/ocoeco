@@ -1921,7 +1921,7 @@ pub fn shape_among(lens: &Lens, among: &[Lens], engine: &dyn SqlEngine) -> Resul
 
 /// Every lens with a focus: whether its shape is sound, and whether it comes into focus over the place
 /// at `dir` - what does not, and why.
-pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
+pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine) -> Vec<String> {
     let _one_look = crate::relations::one_look();
     let mut problems: Vec<String> = crate::lenses::differing(dir)
         .into_iter()
@@ -1969,10 +1969,61 @@ pub fn every_lens_focuses(dir: &Path, engine: &dyn SqlEngine) -> Vec<String> {
                     }));
                 }
                 // and what a lens says must not land stops the place: each line of a part that stops is
-                // carried as the lens says it - the check decides nothing itself
-                for part in parts.iter().filter(|p| p.stops) {
+                // carried as the lens says it - the check decides nothing itself. With places beside this
+                // one, it is asked over all of them, below
+                for part in parts.iter().filter(|p| p.stops && beside.is_empty()) {
                     let heading = part.title.as_deref().unwrap_or(&lens.lens.id);
                     problems.extend(part.lines.iter().map(|line| format!("{heading}: {line}")));
+                }
+            }
+        }
+    }
+    // with the places beside it in view, what must not land is asked over all of them - a link into another
+    // of them that leads nowhere is seen only so - and what is carried is what is about this place: each
+    // line of a part that stops says the thing it is about
+    if !beside.is_empty() {
+        let goes_by = |place: &Path| {
+            std::fs::read_to_string(place.join("oco.toml"))
+                .ok()
+                .and_then(|text| crate::mark::Mark::parse(&text).ok())
+                .map(|mark| mark.project.id)
+                .unwrap_or_default()
+        };
+        let own = goes_by(dir);
+        let star = own.rsplit('/').next().unwrap_or_default().to_string();
+        let mut wider = vec![dir.to_path_buf()];
+        wider.extend(
+            beside
+                .iter()
+                .filter(|place| goes_by(place.as_path()) != own)
+                .cloned(),
+        );
+        for lens in all.iter().filter(|l| l.focus.iter().any(|p| p.stops)) {
+            match brought(&lens.lens.id, &wider, "2026-01-01", engine) {
+                Err(e) => problems.push(format!(
+                    "the lens {} cannot come into focus with the places beside this one: {}",
+                    lens.lens.id,
+                    e.to_string().lines().next().unwrap_or_default()
+                )),
+                Ok(parts) => {
+                    for part in parts.iter().filter(|p| p.stops) {
+                        let heading = part.title.as_deref().unwrap_or(&lens.lens.id);
+                        let heading = heading.rsplit_once(" (").map_or(heading, |(said, _)| said);
+                        problems.extend(
+                            part.lines
+                                .iter()
+                                .zip(&part.values)
+                                .filter(|(_, row)| {
+                                    row.get("thing")
+                                        .and_then(Value::as_str)
+                                        .is_some_and(|thing| {
+                                            thing.starts_with(&format!("{own}/"))
+                                                || thing.starts_with(&format!("{star}/"))
+                                        })
+                                })
+                                .map(|(line, _)| format!("{heading}: {line}")),
+                        );
+                    }
                 }
             }
         }
@@ -2373,7 +2424,7 @@ mod tests {
             "{\"id\":\"one\",\"decision\":\"One.\"}\n{\"id\":\"two\",\"decision\":\"Two.\",\"refines\":\"decisions:none\"}\n",
         )
         .unwrap();
-        let said = every_lens_focuses(&d, &engine);
+        let said = every_lens_focuses(&d, &[], &engine);
         assert!(
             said.iter()
                 .any(|line| line.contains("a link pointing nowhere")
@@ -2386,12 +2437,96 @@ mod tests {
             "{\"id\":\"one\",\"decision\":\"One.\"}\n{\"id\":\"two\",\"decision\":\"Two.\",\"refines\":\"decisions:one\"}\n",
         )
         .unwrap();
-        let said = every_lens_focuses(&d, &engine);
+        let said = every_lens_focuses(&d, &[], &engine);
         assert!(
             !said.iter().any(|line| line.contains("pointing nowhere")),
             "{said:?}"
         );
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn what_is_kept_though_kept_out_stops_by_the_lens_that_tells_it() {
+        let d = std::env::temp_dir().join(format!("ocoeco-stops-kept-out-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/p\"\nname = \"P: a place\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        // held where there is an engine to ask: where there is none, the program's own telling stands in
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: that what is kept out stops is held where there is one");
+            return;
+        };
+        // an address of a machine, written past the entry and told by its shape - made here, so that none
+        // is written in this file
+        let address = [203u8, 0, 113, 7].map(|n| n.to_string()).join(".");
+        std::fs::write(
+            d.join("data/notes.json"),
+            format!("{{\"id\":\"a\",\"text\":\"ask the machine at {address}\"}}\n"),
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &[], &engine);
+        assert!(
+            said.iter()
+                .any(|line| line.contains("to be kept out")
+                    && line.contains("an address of a machine")),
+            "{said:?}"
+        );
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"text\":\"ask the machine\"}\n",
+        )
+        .unwrap();
+        let said = every_lens_focuses(&d, &[], &engine);
+        assert!(
+            !said.iter().any(|line| line.contains("to be kept out")),
+            "{said:?}"
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn with_the_places_beside_it_what_stops_is_asked_over_all_and_carried_for_this_one() {
+        let base = std::env::temp_dir().join(format!("ocoeco-stops-beside-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let place = |star: &str, rows: &str| {
+            let d = base.join(star);
+            std::fs::create_dir_all(d.join("data")).unwrap();
+            std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"o/{star}\"\nname = \"{star}: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\ndecisions = \"data/decisions.json\"\n")).unwrap();
+            std::fs::write(d.join("data/decisions.json"), rows).unwrap();
+            d
+        };
+        // a link into the place beside it that leads nowhere - and, in that place, a link of its own that
+        // leads nowhere
+        let a = place(
+            "a",
+            "{\"id\":\"two\",\"decision\":\"Two.\",\"refines\":\"b/decisions:none\"}\n",
+        );
+        let b = place(
+            "b",
+            "{\"id\":\"x\",\"decision\":\"X.\"}\n{\"id\":\"y\",\"decision\":\"Y.\",\"refines\":\"decisions:gone\"}\n",
+        );
+        let Ok(engine) = tad::sql::DuckDb::find() else {
+            eprintln!("no engine here: the check with places beside it is held where there is one");
+            return;
+        };
+        let alone = every_lens_focuses(&a, &[], &engine);
+        assert!(
+            !alone.iter().any(|line| line.contains("pointing nowhere")),
+            "alone, a link into another star is not told: {alone:?}"
+        );
+        let beside = every_lens_focuses(&a, std::slice::from_ref(&b), &engine);
+        assert!(
+            beside
+                .iter()
+                .any(|line| line.contains("a link pointing nowhere")
+                    && line.contains("b/decisions:none")),
+            "{beside:?}"
+        );
+        assert!(
+            !beside.iter().any(|line| line.contains("decisions:gone")),
+            "what is another place's does not stop this one: {beside:?}"
+        );
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]
@@ -2412,7 +2547,7 @@ mod tests {
             "{\"id\":\"a\",\"n\":\"one\"}\n{\"id\":\"a\",\"n\":\"another\"}\n{\"id\":\"b\",\"n\":\"alone\"}\n",
         )
         .unwrap();
-        let said = every_lens_focuses(&d, &engine);
+        let said = every_lens_focuses(&d, &[], &engine);
         assert!(
             said.iter()
                 .any(|line| line.contains("kept twice") && line.contains("o/r/notes:a")),
@@ -2428,7 +2563,7 @@ mod tests {
             "{\"id\":\"a\",\"n\":\"one\"}\n{\"id\":\"b\",\"n\":\"alone\"}\n",
         )
         .unwrap();
-        let said = every_lens_focuses(&d, &engine);
+        let said = every_lens_focuses(&d, &[], &engine);
         assert!(
             !said.iter().any(|line| line.contains("kept twice")),
             "{said:?}"

@@ -63,8 +63,9 @@ unless = '^(10\.|127\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|169\.254\.|0\.0\.
 [[focus]]
 title = "showing, where it is to be kept out ({count})"
 urgent = true
+stops = true
 sql = """
-SELECT star || '/' || of_table || ':' || substr(thing, length(place) + length(of_table) + 3) AS where_it_is, what, times
+SELECT star || '/' || of_table || ':' || substr(thing, length(place) + length(of_table) + 3) AS where_it_is, what, times, thing
 FROM kept WHERE state = 'showing' ORDER BY thing, what
 """
 line = "{where_it_is} - holds {what}, {times} time(s)"
