@@ -756,7 +756,10 @@ pub fn meanings(dirs: &[PathBuf]) -> std::collections::BTreeMap<String, String> 
 /// The language as its place keeps it, where that place is in view from where one looks: each lens file's
 /// name and its text - said once, as the program begins. Where it is not said, the language is the
 /// program's own copy, carried as it was when the program was built.
-static KEPT: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+static KEPT: std::sync::RwLock<Option<Kept>> = std::sync::RwLock::new(None);
+
+/// The lens files of the language as its place keeps them: each file's name, and its text.
+type Kept = std::sync::Arc<Vec<(String, String)>>;
 
 /// The language a place keeps in `dir`, if it keeps it and is not behind the program numbered `this`:
 /// every lens file of its language folder - name and text, in the order of their names. A place keeps
@@ -810,7 +813,11 @@ pub fn as_kept_among(dirs: &[PathBuf]) -> Option<PathBuf> {
     let (dir, kept) = dirs
         .iter()
         .find_map(|dir| Some((dir, kept_in(dir, env!("CARGO_PKG_VERSION"))?)))?;
-    let _ = KEPT.set(kept);
+    // said again where the language may have changed - an entry made in the window: what is looked through
+    // after is the language as it now is
+    if let Ok(mut said) = KEPT.write() {
+        *said = Some(std::sync::Arc::new(kept));
+    }
     Some(dir.clone())
 }
 
@@ -865,7 +872,8 @@ fn of_the_language(own: &[(&str, &str)], kept: Option<&[(String, String)]>) -> V
 }
 
 pub fn lenses() -> Vec<Lens> {
-    of_the_language(LENSES, KEPT.get().map(Vec::as_slice))
+    let kept = KEPT.read().ok().and_then(|said| said.clone());
+    of_the_language(LENSES, kept.as_deref().map(Vec::as_slice))
 }
 
 /// The shared language: every lens's tables together.
