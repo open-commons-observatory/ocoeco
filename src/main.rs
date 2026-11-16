@@ -284,6 +284,9 @@ enum Cmd {
     },
 }
 
+/// The lens that says which languages what is in view can be read in.
+const READING: &str = "reading";
+
 fn main() -> Result<()> {
     // a look cut short by whoever reads it - piped to something that takes its first lines and stops -
     // ends there, quietly: that the reader stopped reading is no failure of the look
@@ -720,6 +723,8 @@ fn run() -> Result<()> {
                                         .unwrap_or_else(|| "The fulldome".to_string()),
                                 ),
                             )
+                            .replace("{path}", "")
+                            .replace("{root}", "")
                             // and what it says of itself, under that: what the whole says it shows
                             .replacen(
                                 "{says}",
@@ -938,6 +943,8 @@ fn run() -> Result<()> {
                                 "{scale}",
                                 &ocoeco::dome::escaped(&format!("{lens}, {today}")),
                             )
+                            .replace("{path}", "")
+                            .replace("{root}", "")
                             .replace("{title}", &ocoeco::dome::escaped(&lens))
                             // and what the page says of itself: what the lens looked through says it shows
                             .replacen(
@@ -1061,18 +1068,30 @@ fn run() -> Result<()> {
                 .copied()
                 .map(|row| (said(row, "path"), said(row, "says")))
                 .collect();
-            // the language the site is being laid out in, and the others it can be read in: each page
-            // says its own, and offers the same page in every other
-            let languages = ocoeco::routes::languages(&places);
+            // the languages what is in view can be read in, read off the lens that says them: each by its
+            // tag, the one read now, the one everything is written in. None where no lens in view says
+            let read_in: Vec<(String, bool, bool)> =
+                ocoeco::focus::brought(READING, &places, &today, &engine)
+                    .map(|of| {
+                        ocoeco::focus::every_answer(&of)
+                            .iter()
+                            .map(|row| {
+                                let is = |key: &str| {
+                                    row.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
+                                };
+                                (said(row, "tag"), is("read"), is("written"))
+                            })
+                            .filter(|(tag, ..)| !tag.is_empty())
+                            .collect()
+                    })
+                    .unwrap_or_default();
             let fanned_out = ocoeco::routes::reading_in().is_none();
-            let lang = ocoeco::routes::reading_in()
-                .filter(|lang| languages.iter().any(|(tag, _)| tag == lang))
-                .unwrap_or_else(|| ocoeco::routes::WRITTEN_IN.to_string());
-            let home = if lang == ocoeco::routes::WRITTEN_IN {
-                "/".to_string()
-            } else {
-                format!("/{lang}/")
-            };
+            // read in another language than the one written in, the site rests one folder down
+            let (lang, under) = read_in
+                .iter()
+                .find(|(_, read, _)| *read)
+                .map(|(tag, _, written)| (tag.clone(), !written))
+                .unwrap_or_default();
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
                     &format!("{surface}@{looks}"),
@@ -1096,13 +1115,14 @@ fn run() -> Result<()> {
                     &ocoeco::dome::escaped(saying.get(path).map_or("", String::as_str)),
                     1,
                 );
-                let (alternates, tongues) =
-                    ocoeco::dome::in_other_languages(path, &lang, &languages);
+                // what a page alone cannot know: where it is written, and the way from there up to
+                // where the site in every language rests - the surface says the rest
                 let text = text
-                    .replace("{in}", &lang)
-                    .replace("{home}", &home)
-                    .replace("{alternates}", &alternates)
-                    .replace("{tongues}", &tongues);
+                    .replace("{path}", &ocoeco::dome::escaped(path))
+                    .replace(
+                        "{root}",
+                        &"../".repeat(path.matches('/').count() + usize::from(under)),
+                    );
                 let file = out.join(path);
                 if let Some(folder) = file.parent() {
                     std::fs::create_dir_all(folder)?;
@@ -1111,14 +1131,19 @@ fn run() -> Result<()> {
             }
             ocoeco::focus::pages_are(Default::default());
             println!(
-                "{} page(s) laid out on {surface}, in {lang} -> {}",
+                "{} page(s) laid out on {surface}{} -> {}",
                 pages.len(),
+                if lang.is_empty() {
+                    String::new()
+                } else {
+                    format!(", read in {lang}")
+                },
                 out.display()
             );
             // and once more for each other language, under a folder of its tag: the same site, read in
             // it - each laid out by this program afresh, so that nothing read in one is kept for another
             if fanned_out {
-                for (tag, _) in languages.iter().skip(1) {
+                for (tag, ..) in read_in.iter().filter(|(_, read, _)| !read) {
                     let mut again = std::process::Command::new(std::env::current_exe()?);
                     again
                         .args([

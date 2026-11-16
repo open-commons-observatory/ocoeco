@@ -287,40 +287,6 @@ pub fn rows_by_place(
 /// rows in another language (SPEC.md section 9) - table, row, column, lang, text.
 pub const TRANSLATIONS: &str = "translations";
 
-/// The language everything is written in.
-pub const WRITTEN_IN: &str = "en";
-
-/// The languages what is in view can be read in, each with its own name for itself: the one it is written
-/// in, first; then each one a translation in view is in. A language's own name is what a place in view
-/// says it is (languages: id, name) - else its tag.
-pub fn languages(dirs: &[PathBuf]) -> Vec<(String, String)> {
-    let said = |row: &serde_json::Map<String, serde_json::Value>, key: &str| {
-        row.get(key)
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .trim()
-            .to_string()
-    };
-    let mut tags: Vec<String> = vec![WRITTEN_IN.to_string()];
-    let read: std::collections::BTreeSet<String> = rows_by_place(TRANSLATIONS, dirs)
-        .iter()
-        .map(|(_, row)| said(row, "lang"))
-        .filter(|tag| !tag.is_empty() && tag != WRITTEN_IN)
-        .collect();
-    tags.extend(read);
-    let names: std::collections::BTreeMap<String, String> = rows_by_place("languages", dirs)
-        .iter()
-        .map(|(_, row)| (said(row, "id"), said(row, "name")))
-        .filter(|(_, name)| !name.is_empty())
-        .collect();
-    tags.into_iter()
-        .map(|tag| {
-            let name = names.get(&tag).cloned().unwrap_or_else(|| tag.clone());
-            (tag, name)
-        })
-        .collect()
-}
-
 /// What a row says in another language, field by field.
 type OtherWords = std::collections::BTreeMap<String, String>;
 /// Every row's other words, by the place that keeps it, its table and its id.

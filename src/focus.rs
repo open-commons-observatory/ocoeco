@@ -1056,6 +1056,7 @@ fn brought_anew(
                 found.focus[*at]
                     .sql
                     .replace("{today}", today)
+                    .replace("{in}", &crate::routes::reading_in().unwrap_or_default())
                     .replace("{who}", &whose())
             })
             .collect();
@@ -1201,6 +1202,7 @@ fn brought_anew(
                     &part
                         .sql
                         .replace("{today}", today)
+                        .replace("{in}", &crate::routes::reading_in().unwrap_or_default())
                         .replace("{who}", &whose()),
                 )?,
             };
@@ -1472,6 +1474,7 @@ fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
         script.push_str(&format!(
             "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
             sql.replace("{today}", today)
+                .replace("{in}", &crate::routes::reading_in().unwrap_or_default())
                 .replace("{who}", &whose())
                 .trim()
                 .trim_end_matches(';')
@@ -1751,6 +1754,7 @@ pub fn beam(
                         &part
                             .sql
                             .replace("{today}", today)
+                            .replace("{in}", &crate::routes::reading_in().unwrap_or_default())
                             .replace("{who}", &whose()),
                     )?
                     .len();
