@@ -1,6 +1,6 @@
 [lens]
 id = "one-language"
-reads = ["vocabulary", "translations", "languages"]
+reads = ["vocabulary", "translations", "languages", "things"]
 says = "The one language: each form a word of it names, and how each overlay words it - English one overlay among the others. Where an overlay words several forms alike, the forms meet in one word; where an overlay has no word for a form, that is a gap, shown until it is filled."
 
 [[focus]]
