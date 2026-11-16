@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.61.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.2...ocoeco-v0.61.0) (2026-11-16)
+
+
+### Features
+
+* a lens says the kinds it looks from, and is not asked from another kind ([#356](https://github.com/open-commons-observatory/ocoeco/issues/356)) ([0ba47cf](https://github.com/open-commons-observatory/ocoeco/commit/0ba47cf6ff44ca8d990105bd0ec02e0d123f7a25))
+
 ## [0.60.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.1...ocoeco-v0.60.2) (2026-11-16)
 
 
