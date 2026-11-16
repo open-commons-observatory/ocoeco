@@ -338,9 +338,253 @@ pub fn move_rows(
     done.map_err(|e| e.context("nothing moved - every file is as it was"))
 }
 
+/// Gives the row `old` of `table`, in the place at `dir`, another name: `new`. A name is what others
+/// point at, so it is one act with every link to it: each is rewritten to the name it now has - in its own
+/// place, and in every place `others` holds - and, a lens kept as rows, the rows that are of it say its
+/// new name. If anything would then point nowhere, nothing is renamed: every file is put back as it was.
+pub fn rename(
+    dir: &Path,
+    table: &str,
+    old: &str,
+    new: &str,
+    others: &BTreeMap<String, PathBuf>,
+) -> Result<Moved> {
+    let m = mark(dir)?;
+    let here = m.project.id.clone();
+    // a place is named by its id, or by its star alone
+    let is_here = |star: &str| star == here || here.rsplit('/').next() == Some(star);
+    if new.is_empty() || new.contains(|c: char| c == ':' || c == ',' || c.is_whitespace()) {
+        bail!("{new:?} cannot be a name: a name has no spaces, commas or colons");
+    }
+    if old == new {
+        bail!("{table} {old} is already called so");
+    }
+    let file = kept(dir, &m, table).with_context(|| {
+        format!("{here} does not keep a table {table} as rows of its own to rename")
+    })?;
+    let mut rows = read(&file)?;
+    if !rows.iter().any(|row| id(row) == old) {
+        bail!("{here} has no {table} called {old}");
+    }
+    if rows.iter().any(|row| id(row) == new) {
+        bail!("{here} already has a {table} called {new}");
+    }
+    // which table of the place holds each id: a bare id is told by it
+    let in_place: BTreeMap<String, BTreeSet<String>> = m
+        .exports
+        .keys()
+        .filter_map(|t| {
+            kept(dir, &m, t).map(|p| {
+                (
+                    t.clone(),
+                    read(&p).unwrap_or_default().iter().map(id).collect(),
+                )
+            })
+        })
+        .collect();
+    let all: BTreeMap<String, PathBuf> = others
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .chain([(here.clone(), dir.to_path_buf())])
+        .collect();
+    // what pointed nowhere before, anywhere: only what renaming would leave pointing nowhere stops it
+    let broken_before: BTreeSet<String> = all
+        .values()
+        .flat_map(|d| broken(d, &all).unwrap_or_default())
+        .collect();
+    let mut before: BTreeMap<PathBuf, String> = BTreeMap::new();
+    let done = (|| -> Result<Moved> {
+        let mut renamed = Moved {
+            rows: 1,
+            ..Default::default()
+        };
+        // the row itself
+        before.insert(
+            file.clone(),
+            std::fs::read_to_string(&file).unwrap_or_default(),
+        );
+        for row in rows.iter_mut().filter(|row| id(row) == old) {
+            if let Some(entry) = row.0.iter_mut().find(|(k, _)| k == "id") {
+                entry.1 = Value::String(new.to_string());
+            }
+        }
+        std::fs::write(
+            &file,
+            rows.iter().map(|r| r.line() + "\n").collect::<String>(),
+        )?;
+        // what pointed at it in its own place, as it was written there
+        let mut n = relink(dir, &m, &mut before, |relation, token| {
+            let link = links(token).into_iter().next()?;
+            if link.id != old {
+                return None;
+            }
+            match (&link.star, &link.table) {
+                (Some(star), Some(t)) if is_here(star) && t == table => {
+                    Some(format!("{star}/{t}:{new}"))
+                }
+                (None, Some(t)) if t == table => Some(format!("{t}:{new}")),
+                (None, None) => relation
+                    .to
+                    .iter()
+                    .find(|t| in_place.get(*t).is_some_and(|s| s.contains(old)))
+                    .filter(|t| *t == table)
+                    .map(|_| new.to_string()),
+                _ => None,
+            }
+        })?;
+        // a lens kept as rows: the rows that are of it say whose they are by its name
+        if table == "lenses" {
+            for of_it in [
+                "lens_tables",
+                "lens_fields",
+                "lens_relations",
+                "lens_entries",
+                "lens_parts",
+                "lens_routes",
+            ] {
+                let Some(path) = kept(dir, &m, of_it) else {
+                    continue;
+                };
+                let mut its = read(&path)?;
+                let mut changed = 0;
+                for row in &mut its {
+                    if let Some(entry) = row
+                        .0
+                        .iter_mut()
+                        .find(|(k, v)| k == "lens" && v.as_str() == Some(old))
+                    {
+                        entry.1 = Value::String(new.to_string());
+                        changed += 1;
+                    }
+                }
+                if changed > 0 {
+                    before
+                        .entry(path.clone())
+                        .or_insert(std::fs::read_to_string(&path).unwrap_or_default());
+                    std::fs::write(
+                        &path,
+                        its.iter().map(|r| r.line() + "\n").collect::<String>(),
+                    )?;
+                    n += changed;
+                }
+            }
+        }
+        if n > 0 {
+            renamed.rewritten.insert(here.clone(), n);
+        }
+        // and every other place held here that pointed at it, by its id or its star
+        for (other_id, other_dir) in others.iter().filter(|(i, _)| **i != here) {
+            let Ok(other) = mark(other_dir) else { continue };
+            let n = relink(other_dir, &other, &mut before, |_, token| {
+                let link = links(token).into_iter().next()?;
+                let star = link.star.as_deref()?;
+                (is_here(star) && link.table.as_deref() == Some(table) && link.id == old)
+                    .then(|| format!("{star}/{table}:{new}"))
+            })?;
+            if n > 0 {
+                renamed.rewritten.insert(other_id.clone(), n);
+            }
+        }
+        // where it is kept, and every place whose links were rewritten: nothing points nowhere that did not
+        let added: Vec<String> = std::iter::once(dir)
+            .chain(
+                renamed
+                    .rewritten
+                    .keys()
+                    .filter_map(|p| all.get(p).map(PathBuf::as_path)),
+            )
+            .flat_map(|d| broken(d, &all).unwrap_or_default())
+            .filter(|p| !broken_before.contains(p))
+            .collect();
+        if !added.is_empty() {
+            bail!(
+                "it would leave links pointing nowhere:\n  {}",
+                added.join("\n  ")
+            );
+        }
+        Ok(renamed)
+    })();
+    if done.is_err() {
+        for (path, text) in &before {
+            std::fs::write(path, text)?;
+        }
+    }
+    done.map_err(|e| e.context("nothing renamed - every file is as it was"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_thing_takes_another_name_and_every_link_goes_with_it() {
+        let a = place(
+            "ra",
+            "o/a",
+            &[
+                (
+                    "decisions",
+                    "{\"id\":\"d1\"}\n{\"id\":\"d2\",\"refines\":\"d1\"}\n",
+                ),
+                (
+                    "reflections",
+                    "{\"id\":\"x\",\"touches\":\"decisions:d1 o/a/decisions:d1 decisions:d2\"}\n",
+                ),
+            ],
+        );
+        let c = place(
+            "rc",
+            "o/c",
+            &[(
+                "reflections",
+                "{\"id\":\"y\",\"touches\":\"o/a/decisions:d1, a/decisions:d2 a/decisions:d1\"}\n",
+            )],
+        );
+        let others: BTreeMap<String, PathBuf> = [("o/c".to_string(), c.clone())].into();
+        let renamed = rename(&a, "decisions", "d1", "first", &others).unwrap();
+        assert_eq!(
+            renamed.rewritten,
+            [("o/a".to_string(), 3), ("o/c".to_string(), 2)].into()
+        );
+        assert_eq!(
+            table(&a, "decisions"),
+            "{\"id\":\"first\"}\n{\"id\":\"d2\",\"refines\":\"first\"}\n"
+        );
+        assert_eq!(
+            table(&a, "reflections"),
+            "{\"id\":\"x\",\"touches\":\"decisions:first o/a/decisions:first decisions:d2\"}\n"
+        );
+        // another place names it by its id or by its star alone, and says it as it said it
+        assert_eq!(
+            table(&c, "reflections"),
+            "{\"id\":\"y\",\"touches\":\"o/a/decisions:first, a/decisions:d2 a/decisions:first\"}\n"
+        );
+        // a name that is taken, or no name: nothing changes
+        let taken = rename(&a, "decisions", "first", "d2", &others).unwrap_err();
+        assert!(format!("{taken:#}").contains("already has a decisions called d2"));
+        assert!(rename(&a, "decisions", "first", "a name", &others).is_err());
+        assert_eq!(
+            table(&a, "decisions"),
+            "{\"id\":\"first\"}\n{\"id\":\"d2\",\"refines\":\"first\"}\n"
+        );
+        // a lens kept as rows: its parts say its new name
+        let l = place(
+            "rl",
+            "o/l",
+            &[
+                ("lenses", "{\"id\":\"commons-site\",\"says\":\"Pages.\"}\n"),
+                (
+                    "lens_parts",
+                    "{\"id\":\"commons-site/1\",\"lens\":\"commons-site\",\"part\":1}\n",
+                ),
+            ],
+        );
+        rename(&l, "lenses", "commons-site", "site", &BTreeMap::new()).unwrap();
+        assert_eq!(
+            table(&l, "lens_parts"),
+            "{\"id\":\"commons-site/1\",\"lens\":\"site\",\"part\":1}\n"
+        );
+    }
 
     fn place(name: &str, id: &str, tables: &[(&str, &str)]) -> PathBuf {
         let d = std::env::temp_dir().join(format!("ocoeco-moving-{name}-{}", std::process::id()));
