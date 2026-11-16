@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.68.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.68.0...ocoeco-v0.68.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* a first step brings the trail into view: here names what was made in that saying ([#389](https://github.com/open-commons-observatory/ocoeco/issues/389)) ([ca83123](https://github.com/open-commons-observatory/ocoeco/commit/ca83123f478bde6b9a8ca0752808641326a5bd07))
+
 ## [0.68.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.67.0...ocoeco-v0.68.0) (2026-11-16)
 
 
