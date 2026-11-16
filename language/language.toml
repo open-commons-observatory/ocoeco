@@ -108,6 +108,7 @@ fields = [
     { name = "named", type = "string" },
     { name = "urgent", type = "boolean" },
     { name = "stops", type = "boolean" },
+    { name = "says", type = "string" },
 ]
 
 # The glimpse of the lens of language: a lens is entered like anything else. A lens says what it is and

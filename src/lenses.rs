@@ -154,21 +154,30 @@ pub struct Part {
     /// pass its check. It is meaning too: the check carries each line, and decides nothing itself.
     #[serde(default)]
     pub stops: bool,
-    /// The id it is known by - what a record of work points at. A lens kept as rows names each part by the
-    /// id its row is kept as; a lens read from its file, by where the part stands in it (lens/2). Never
-    /// written in a file: a file's order is its parts' names.
-    #[serde(skip)]
+    /// The name it is known by - what a record of work points at. A lens kept as rows names each part by the
+    /// id its row is kept as. A lens file may write a part's name in it (id = "NAME": lens/NAME); a part it
+    /// writes none for is known by where it stands (lens/2). Either way a part keeps the name it was made
+    /// with wherever it comes to stand: its place among the others is not its name.
+    #[serde(default)]
     pub id: String,
+    /// What the part says of itself: in a lens kept as rows, its row's says - in a lens file, the words
+    /// written above it.
+    #[serde(skip)]
+    pub says: String,
 }
 
-/// A lens read from its file knows each part by where it stands: its own id and the part's place among
-/// its parts. A lens kept as rows knows each by the id its row is kept as, and is not renamed here.
-fn named_by_where_they_stand(mut lens: Lens) -> Lens {
+/// A lens read from its file: each part known by the name written for it - or, where none is, by where it
+/// stands (lens/2) - and saying what is written above it. A lens kept as rows knows each part by the id
+/// its row is kept as, and is not read here.
+fn as_its_file_says(mut lens: Lens, text: &str) -> Lens {
     let id = lens.lens.id.clone();
+    let above = crate::lens_file::said_above(text);
     for (at, part) in lens.focus.iter_mut().enumerate() {
-        if part.id.is_empty() {
-            part.id = format!("{id}/{}", at + 1);
-        }
+        part.id = match part.id.trim() {
+            "" => format!("{id}/{}", at + 1),
+            own => format!("{id}/{own}"),
+        };
+        part.says = above.get(at).cloned().unwrap_or_default();
     }
     lens
 }
@@ -221,7 +230,8 @@ fn brought_beside(
                 std::fs::read_to_string(&file).with_context(|| format!("{}", file.display()))?;
             let lens: Lens = toml::from_str(&text)
                 .with_context(|| format!("{} is not a lens", file.display()))?;
-            Ok((text, named_by_where_they_stand(lens)))
+            let lens = as_its_file_says(lens, &text);
+            Ok((text, lens))
         })
         .collect::<Result<_>>()?;
     // and the lenses the place keeps as rows: entered like anything else, looked through like any lens
@@ -598,6 +608,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         urgent: yes(p, "urgent"),
                         stops: yes(p, "stops"),
                         id: raw(p, "id").trim().to_string(),
+                        says: raw(p, "says").trim().to_string(),
                     })
                     .collect(),
             }
@@ -703,7 +714,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "through": part.through.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "stops": part.stops, "star": star}),
+                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "through": part.through.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "stops": part.stops, "says": part.says, "star": star}),
             );
         }
     }
@@ -828,7 +839,10 @@ pub fn as_kept_among(dirs: &[PathBuf]) -> Option<PathBuf> {
 /// language, never half of each.
 fn of_the_language(own: &[(&str, &str)], kept: Option<&[(String, String)]>) -> Vec<Lens> {
     let carried = |name: &str, text: &str| -> Lens {
-        named_by_where_they_stand(toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")))
+        as_its_file_says(
+            toml::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}")),
+            text,
+        )
     };
     let all_carried = || -> Vec<Lens> {
         own.iter()
@@ -843,7 +857,7 @@ fn of_the_language(own: &[(&str, &str)], kept: Option<&[(String, String)]>) -> V
         .filter_map(|(name, text)| {
             toml::from_str::<Lens>(text)
                 .ok()
-                .map(named_by_where_they_stand)
+                .map(|lens| as_its_file_says(lens, text))
                 .or_else(|| {
                     own.iter()
                         .find(|&&(carried_name, _)| carried_name == name.as_str())

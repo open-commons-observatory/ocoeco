@@ -3,8 +3,10 @@
 //! The rows of a lens - what it says of itself, its parts, the tables it defines and their fields, its
 //! entries, its links, its ways in - are read from its file wherever the language is read. This is the same
 //! way, the other way round: such a row given for a lens kept as a file is written into that file, in
-//! place - what is written around it, and every comment, as it was. A lens file names no part and no link:
-//! each is known by where it stands among its kind; a table, a field, an entry and a way in by their names.
+//! place - what is written around it, and every comment, as it was. A part goes by the name written for it
+//! or, where none is, by where it stands - and keeps that name wherever it comes to stand; a link is known by
+//! where it stands; a table, a field, an entry and a way in by their names. And what is written above a part
+//! is what it says.
 
 use crate::note::Change;
 use anyhow::{bail, Context, Result};
@@ -145,8 +147,9 @@ fn standing(lens: &str, id: &str, what: &str) -> Result<usize> {
         })
 }
 
-/// One of a kind a lens file writes as tables one after another - its parts, its links: the one standing at
-/// `at`, or a new one where `at` is the place after the last. Returns it, and whether it was added.
+/// One of a kind a lens file writes as tables one after another and knows by where it stands - its links:
+/// the one standing at `at`, or a new one where `at` is the place after the last. Returns it, and whether
+/// it was added.
 fn standing_at<'a>(
     doc: &'a mut DocumentMut,
     kind: &str,
@@ -228,10 +231,229 @@ fn of_the_lens(doc: &mut DocumentMut, lens: &str, changes: &[Change]) -> Result<
     Ok(format!("the lens {lens}: {}", said.join(", ")))
 }
 
-/// A part of a lens, set in its file: changed where it stands, or added after the last.
+/// How wide the lines written above a part may be: as wide as those around them.
+const WIDTH: usize = 106;
+
+/// What is written above each part of a lens, in the order its parts stand: the words of the comment lines
+/// right above it, each paragraph on a line of its own. In a lens file, this is what a part says. Read once
+/// for each text in a run: the language is read at every ask.
+pub fn said_above(text: &str) -> Vec<String> {
+    type Read = std::sync::Mutex<std::collections::HashMap<u64, Vec<String>>>;
+    static READ: std::sync::OnceLock<Read> = std::sync::OnceLock::new();
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        text.hash(&mut hasher);
+        hasher.finish()
+    };
+    let read = READ.get_or_init(Default::default);
+    if let Some(known) = read.lock().ok().and_then(|r| r.get(&key).cloned()) {
+        return known;
+    }
+    let said: Vec<String> = text
+        .parse::<DocumentMut>()
+        .ok()
+        .and_then(|doc| {
+            doc.get("focus")
+                .and_then(Item::as_array_of_tables)
+                .map(|parts| {
+                    parts
+                        .iter()
+                        .map(|part| {
+                            as_said(
+                                part.decor()
+                                    .prefix()
+                                    .and_then(|written| written.as_str())
+                                    .unwrap_or_default(),
+                            )
+                        })
+                        .collect()
+                })
+        })
+        .unwrap_or_default();
+    if let Ok(mut r) = read.lock() {
+        r.insert(key, said.clone());
+    }
+    said
+}
+
+/// The words of comment lines: a paragraph's lines run on, and each paragraph is a line of its own.
+fn as_said(written: &str) -> String {
+    let mut paragraphs: Vec<String> = Vec::new();
+    let mut going_on = false;
+    for line in written.lines() {
+        match line.trim().strip_prefix('#').map(str::trim) {
+            Some(words) if !words.is_empty() => {
+                match paragraphs.last_mut().filter(|_| going_on) {
+                    Some(paragraph) => {
+                        paragraph.push(' ');
+                        paragraph.push_str(words);
+                    }
+                    None => paragraphs.push(words.to_string()),
+                }
+                going_on = true;
+            }
+            _ => going_on = false,
+        }
+    }
+    paragraphs.join("\n")
+}
+
+/// Writes above a part what it says: each paragraph as comment lines no wider than those around them, a
+/// paragraph apart from the next by an empty one - after a line left empty, as parts are written apart.
+fn set_said_above(part: &mut Table, said: &str) {
+    let mut lines: Vec<String> = vec![String::new()];
+    for (nth, paragraph) in said
+        .lines()
+        .map(str::trim)
+        .filter(|paragraph| !paragraph.is_empty())
+        .enumerate()
+    {
+        if nth > 0 {
+            lines.push("#".to_string());
+        }
+        let mut line = String::from("#");
+        for word in paragraph.split_whitespace() {
+            if line.len() > 1 && line.chars().count() + 1 + word.chars().count() > WIDTH {
+                lines.push(std::mem::replace(&mut line, String::from("#")));
+            }
+            line.push(' ');
+            line.push_str(word);
+        }
+        lines.push(line);
+    }
+    part.decor_mut().set_prefix(lines.join("\n") + "\n");
+}
+
+/// The name each part goes by, in the order they stand: the name written for it - or, where none is, the
+/// place it stands at.
+fn names_of(parts: &ArrayOfTables) -> Vec<String> {
+    parts
+        .iter()
+        .enumerate()
+        .map(|(at, part)| {
+            part.get("id")
+                .and_then(Item::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| (at + 1).to_string())
+        })
+        .collect()
+}
+
+/// Puts the part standing at `from` at `to` - each counted from the first, as 0 - the others in their
+/// order. Each part whose place changes and that went by its place is written with that name, so that it
+/// still goes by it; and the parts are written where in the file the parts stood. Returns how many came to
+/// be written with the name they went by.
+fn put(parts: &mut ArrayOfTables, from: usize, to: usize) -> usize {
+    let names = names_of(parts);
+    let mut slots: Vec<usize> = parts.iter().filter_map(Table::position).collect();
+    slots.sort_unstable();
+    let mut order: Vec<usize> = (0..parts.len()).collect();
+    let moving = order.remove(from);
+    order.insert(to, moving);
+    let mut named = 0;
+    let mut all: Vec<Table> = Vec::new();
+    for (now, was) in order.into_iter().enumerate() {
+        let Some(mut part) = parts.get(was).cloned() else {
+            continue;
+        };
+        if now != was && part.get("id").is_none() {
+            part.insert("id", value(names[was].as_str()));
+            part.sort_values_by(|one, _, other, _| (other.get() == "id").cmp(&(one.get() == "id")));
+            named += 1;
+        }
+        if let Some(slot) = slots.get(now.min(slots.len().saturating_sub(1))) {
+            part.set_position(*slot);
+        }
+        all.push(part);
+    }
+    parts.clear();
+    for part in all {
+        parts.push(part);
+    }
+    named
+}
+
+/// A part of a lens, set in its file. A part goes by its name - the one written for it, or, where none is,
+/// the place it stands at - wherever it comes to stand. One not yet there is added after the last, or put
+/// where part says; one put among the others goes by a name of its own, for a number names a place. Every
+/// part whose place changes goes by the name it went by. What is written above a part is what it says.
 fn of_a_part(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) -> Result<String> {
-    let at = standing(lens, id, "a part")?;
-    let (part, added) = standing_at(doc, "focus", lens, at)?;
+    let name = after(lens, id)
+        .filter(|name| !name.contains('/'))
+        .with_context(|| {
+            format!("a part of a lens is known by the lens and its name - {lens}/1, {lens}/NAME: {id} is not so named")
+        })?
+        .to_string();
+    let to: Option<usize> = changes
+        .iter()
+        .find(|change| change.field == "part")
+        .map(|change| {
+            change
+                .value
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .filter(|place| *place >= 1)
+                .with_context(|| {
+                    format!(
+                        "part is where it stands among the parts - 1, 2 and so on: not '{}'",
+                        change.value.trim()
+                    )
+                })
+        })
+        .transpose()?;
+    let parts = doc["focus"]
+        .or_insert(Item::ArrayOfTables(ArrayOfTables::new()))
+        .as_array_of_tables_mut()
+        .context("what the lens keeps as [[focus]] is not written so")?;
+    let count = parts.len();
+    let number = name.parse::<usize>().ok();
+    let (mut at, added) = match names_of(parts).iter().position(|one| *one == name) {
+        Some(at) => (at, false),
+        None => {
+            if to.is_some_and(|place| place > count + 1) {
+                bail!(
+                    "the lens {lens} has {count} parts: one is added after the last, or put among them - part: 1 to {}",
+                    count + 1
+                );
+            }
+            if number.is_some_and(|n| n != count + 1 || to.is_some_and(|place| place <= count)) {
+                bail!(
+                    "a number names the place a part stands at: one added after the last is {lens}/{}, and one put among the others goes by a name of its own - {lens}/NAME",
+                    count + 1
+                );
+            }
+            let mut part = Table::new();
+            if number.is_none() {
+                part.insert("id", value(name.as_str()));
+            }
+            parts.push(part);
+            (count, true)
+        }
+    };
+    let mut moved = None;
+    if let Some(place) = to.filter(|place| *place != at + 1) {
+        if place > parts.len() {
+            bail!(
+                "the lens {lens} has {} parts: {place} is no place among them",
+                parts.len()
+            );
+        }
+        let named = put(parts, at, place - 1);
+        at = place - 1;
+        moved = Some((place, named));
+    }
+    let names = names_of(parts);
+    if let Some(twice) = names
+        .iter()
+        .find(|one| names.iter().filter(|other| other == one).count() > 1)
+    {
+        bail!("two parts of the lens {lens} would go by the name {twice}");
+    }
+    let part = parts
+        .get_mut(at)
+        .with_context(|| format!("no part stands at {} in the lens {lens}", at + 1))?;
     let mut given: Vec<&Change> = changes.iter().collect();
     given.sort_by_key(|change| {
         OF_A_PART
@@ -246,10 +468,8 @@ fn of_a_part(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) ->
                 is_still("lens", &change.value, lens, id)?;
                 continue;
             }
-            "part" => {
-                is_still("place among the parts", &change.value, &at.to_string(), id)?;
-                continue;
-            }
+            "part" => {}
+            "says" => set_said_above(part, &change.value),
             "title" | "named" | "places" | "only" | "through" | "per" | "measure" | "whole" => {
                 set_words(part, &change.field, &change.value)
             }
@@ -273,8 +493,15 @@ fn of_a_part(doc: &mut DocumentMut, lens: &str, id: &str, changes: &[Change]) ->
         said.push(change.field.clone());
     }
     Ok(format!(
-        "{} part {at} of the lens {lens}: {}",
+        "{} part {name} of the lens {lens}{}: {}",
         if added { "added" } else { "changed" },
+        match moved {
+            Some((place, 0)) => format!(", standing {place}"),
+            Some((place, named)) => format!(
+                ", standing {place} - and {named} part(s) whose place changed go by the name they went by"
+            ),
+            None => String::new(),
+        },
         said.join(", ")
     ))
 }
@@ -779,6 +1006,150 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_part_goes_by_its_name_wherever_it_stands_and_says_what_is_written_above_it() {
+        let (d, file) = a_place_with_a_lens("names");
+        // each part of the lens, as the rows of the language say it: its name, where it stands, what it says
+        let parts = || -> Vec<(String, i64, String)> {
+            let rows = crate::lenses::as_rows(std::slice::from_ref(&d)).unwrap();
+            let mut parts: Vec<(String, i64, String)> = rows["lens_parts"]
+                .iter()
+                .filter(|row| row["lens"] == "notes")
+                .map(|row| {
+                    (
+                        row["id"].as_str().unwrap_or_default().to_string(),
+                        row["part"].as_i64().unwrap_or_default(),
+                        row["says"].as_str().unwrap_or_default().to_string(),
+                    )
+                })
+                .collect();
+            parts.sort_by_key(|(_, at, _)| *at);
+            parts
+        };
+        let names = || -> Vec<String> { parts().into_iter().map(|(name, _, _)| name).collect() };
+        // what is written above a part is what it says
+        assert_eq!(
+            parts(),
+            [
+                (
+                    "notes/1".to_string(),
+                    1,
+                    "The first part: every note.".to_string()
+                ),
+                (
+                    "notes/2".to_string(),
+                    2,
+                    "The second part: how many.".to_string()
+                ),
+            ]
+        );
+        // a part put before the others goes by a name of its own - and those whose place changed, by theirs
+        let said = written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/newest",
+            &[
+                change("part", "1"),
+                change("title", "the newest"),
+                change("query", "SELECT id FROM notes ORDER BY id DESC LIMIT 1"),
+                change("lays_out", "{id}"),
+                change("says", "The newest note, first."),
+            ],
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            said.starts_with("added part newest of the lens notes, standing 1 - and 2 part(s)"),
+            "{said}"
+        );
+        assert_eq!(names(), ["notes/newest", "notes/1", "notes/2"]);
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(
+            text.contains(
+                "# The newest note, first.\n[[focus]]\nid = \"newest\"\ntitle = \"the newest\""
+            ) && text.contains(
+                "# The first part: every note.\n[[focus]]\nid = \"1\"\ntitle = \"notes ({count})\""
+            ),
+            "{text}"
+        );
+        // changed by its name wherever it stands; and put elsewhere
+        written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/2",
+            &[change("title", "how many, in all")],
+        )
+        .unwrap()
+        .unwrap();
+        let said = written(&d, false, "lens_parts", "notes/2", &[change("part", "1")])
+            .unwrap()
+            .unwrap();
+        assert!(
+            said.starts_with("changed part 2 of the lens notes, standing 1: part"),
+            "{said}"
+        );
+        assert_eq!(names(), ["notes/2", "notes/newest", "notes/1"]);
+        let lens: crate::lenses::Lens =
+            toml::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(lens.focus[0].title.as_deref(), Some("how many, in all"));
+        // one added after the last is named by its place, as before; a number names no part put among others
+        written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/4",
+            &[
+                change("title", "the fourth"),
+                change("query", "SELECT 1 AS n"),
+                change("lays_out", "{n}"),
+            ],
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(names(), ["notes/2", "notes/newest", "notes/1", "notes/4"]);
+        assert!(written(&d, false, "lens_parts", "notes/6", &[change("title", "x")]).is_err());
+        assert!(written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/5",
+            &[change("part", "1"), change("title", "x")]
+        )
+        .is_err());
+        assert!(written(
+            &d,
+            false,
+            "lens_parts",
+            "notes/far",
+            &[change("part", "9"), change("title", "x")]
+        )
+        .is_err());
+        // what a part says is written above it - each paragraph apart, no line wider than those around it -
+        // and read back as it was said; and taken away, where nothing is said
+        let long = "Every note, in the order of their names: a line of words long enough to be written over more than one line in the file.\nAnd a second paragraph.";
+        written(&d, false, "lens_parts", "notes/1", &[change("says", long)])
+            .unwrap()
+            .unwrap();
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(
+            text.lines()
+                .all(|line| !line.starts_with('#') || line.chars().count() <= WIDTH),
+            "{text}"
+        );
+        assert!(
+            text.contains("\n#\n# And a second paragraph.\n[[focus]]\nid = \"1\""),
+            "{text}"
+        );
+        assert_eq!(parts()[2].2, long);
+        written(&d, false, "lens_parts", "notes/1", &[change("says", "")])
+            .unwrap()
+            .unwrap();
+        assert_eq!(parts()[2].2, "");
         let _ = std::fs::remove_dir_all(&d);
     }
 

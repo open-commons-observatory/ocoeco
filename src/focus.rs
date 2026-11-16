@@ -918,6 +918,7 @@ fn identity(table: &str, all: &[Lens], dirs: &[PathBuf]) -> Option<Lens> {
             urgent: false,
             stops: false,
             id: format!("{table}/1"),
+            says: String::new(),
         }],
     })
 }
