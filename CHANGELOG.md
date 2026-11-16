@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.0...ocoeco-v0.60.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* a star by its shorter name is its place: links are told, and stop by the lens ([#347](https://github.com/open-commons-observatory/ocoeco/issues/347)) ([551fd75](https://github.com/open-commons-observatory/ocoeco/commit/551fd75076a3b22737744817e10446d173e01023))
+
 ## [0.60.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.59.0...ocoeco-v0.60.0) (2026-11-16)
 
 
