@@ -566,6 +566,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         passes_over: listed(raw(r, "passes_over")),
                         level: some(raw(r, "level")),
                         nature: some(raw(r, "nature")),
+                        of_what_was: yes(r, "of_what_was"),
                     })
                     .collect(),
                 glimpse: mine(&entries, &id)
@@ -701,7 +702,7 @@ pub fn as_rows(
                 "lens_relations",
                 json!({"id": format!("{id}/{}", at + 1), "lens": id, "from": relation.from, "to": relation.to.join(", "),
                        "passes_over": relation.passes_over.join(", "), "level": relation.level.clone().unwrap_or_default(),
-                       "nature": relation.nature.clone().unwrap_or_default(), "star": star}),
+                       "nature": relation.nature.clone().unwrap_or_default(), "of_what_was": relation.of_what_was, "star": star}),
             );
         }
         for route in &lens.route {

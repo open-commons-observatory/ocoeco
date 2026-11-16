@@ -46,6 +46,7 @@ fields = [
     { name = "from_holds", type = "boolean" },
     { name = "level", type = "string" },
     { name = "nature", type = "string" },
+    { name = "of_what_was", type = "boolean" },
 ]
 
 [[focus]]
@@ -141,9 +142,9 @@ FROM one GROUP BY nature ORDER BY faces DESC, nature
 """
 line = "{faces} faces of one: {which}"
 
-[[focus]]
 # What points nowhere is a shape this lens names and does not lay out: whether something fits is the lens
 # of signs' to say, and it asks of this shape - one place, read by whoever needs it.
+[[focus]]
 named = "nowhere"
 sql = """
 SELECT "from", how, "to", from_star, from_table, from_id, to_star, to_table, to_id FROM edges

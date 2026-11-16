@@ -176,6 +176,8 @@ pub fn take_back(dir: &Path, table: &str, id: &str) -> Result<String> {
         .into_iter()
         .flatten()
         .filter(|edge| edge.get("to").and_then(|v| v.as_str()) == Some(whole.as_str()))
+        // a link said of what was - a record of work's, a step's - points at what was, and keeps nothing here
+        .filter(|edge| edge.get("of_what_was").and_then(|v| v.as_bool()) != Some(true))
         .filter_map(|edge| edge.get("from").and_then(|v| v.as_str()).map(String::from))
         .collect();
     if !pointing.is_empty() {
