@@ -1448,23 +1448,57 @@ fn giver_of<'a>(shape: &str, all: &'a [Lens]) -> Option<&'a Lens> {
         .find(|g| g.focus.iter().any(|p| p.named.as_deref() == Some(shape)))
 }
 
-/// The shapes a lens names, made ready for its parts to ask of: each named part as a view, in the order
-/// the lens gives them - so a shape may ask of one named before it.
+/// The shapes a lens names, made ready for its parts to ask of: each named part as a view, each after
+/// those it asks of - wherever it stands in the lens. So a shape added after the last may be asked of by
+/// a part that stands before it.
 fn with_shapes(load: &str, lens: &Lens, today: &str) -> String {
+    let shapes: Vec<(&str, &str)> = lens
+        .focus
+        .iter()
+        .filter(|p| p.places.is_none())
+        .filter_map(|p| Some((p.named.as_deref()?, p.sql.as_str())))
+        .collect();
     let mut script = load.to_string();
-    for part in lens.focus.iter().filter(|p| p.places.is_none()) {
-        if let Some(name) = &part.named {
-            script.push_str(&format!(
-                "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
-                part.sql
-                    .replace("{today}", today)
-                    .replace("{who}", &whose())
-                    .trim()
-                    .trim_end_matches(';')
-            ));
-        }
+    for at in in_the_order_they_rest(&shapes) {
+        let (name, sql) = shapes[at];
+        script.push_str(&format!(
+            "CREATE OR REPLACE VIEW \"{name}\" AS {};\n",
+            sql.replace("{today}", today)
+                .replace("{who}", &whose())
+                .trim()
+                .trim_end_matches(';')
+        ));
     }
     script
+}
+
+/// The order in which shapes - each its name, and what it asks - are made ready: each after those it asks
+/// of, and where none asks of another, as they are given. Shapes that ask of each other in a ring are left
+/// as they are given: the engine says what it cannot make.
+fn in_the_order_they_rest(shapes: &[(&str, &str)]) -> Vec<usize> {
+    // what each asks of, looked at once
+    let asks: Vec<Vec<usize>> = (0..shapes.len())
+        .map(|at| {
+            (0..shapes.len())
+                .filter(|other| *other != at && names_table(shapes[at].1, shapes[*other].0))
+                .collect()
+        })
+        .collect();
+    let mut ready: Vec<usize> = Vec::new();
+    while ready.len() < shapes.len() {
+        // the first still waiting that asks of nothing still waiting
+        let next = (0..shapes.len())
+            .find(|at| !ready.contains(at) && asks[*at].iter().all(|other| ready.contains(other)));
+        match next {
+            Some(at) => ready.push(at),
+            None => {
+                let waiting: Vec<usize> =
+                    (0..shapes.len()).filter(|at| !ready.contains(at)).collect();
+                ready.extend(waiting);
+            }
+        }
+    }
+    ready
 }
 
 /// Whether a query names a table: the name standing as a word of its own.
@@ -2792,6 +2826,35 @@ mod tests {
             laid,
             [("asked (1)", &["one".to_string()][..])],
             "the shape is passed on through, not laid out; the part that asks of it is"
+        );
+    }
+
+    #[test]
+    fn the_shapes_of_a_lens_are_made_ready_in_the_order_they_rest_on_each_other() {
+        // each after those it asks of, wherever it stands; the others as they are given
+        let shapes = [
+            ("first", "SELECT * FROM last"),
+            ("second", "SELECT 1"),
+            ("last", "SELECT * FROM second"),
+        ];
+        assert_eq!(in_the_order_they_rest(&shapes), [1, 2, 0]);
+        // a name within quotes is words: it asks of nothing
+        let said = [("a", "SELECT 'b' AS word"), ("b", "SELECT 1")];
+        assert_eq!(in_the_order_they_rest(&said), [0, 1]);
+        // shapes that ask of each other in a ring are left as they are given
+        let ring = [
+            ("a", "SELECT * FROM b"),
+            ("b", "SELECT * FROM a"),
+            ("c", "SELECT 1"),
+        ];
+        assert_eq!(in_the_order_they_rest(&ring), [2, 0, 1]);
+        // and so the script that makes them ready: a shape added after the last is there for a part that
+        // stands before it
+        let lens: Lens = toml::from_str("[lens]\nid = \"l\"\nsays = \"A shape asks of one named after it.\"\n[[focus]]\nnamed = \"over\"\nsql = \"SELECT n FROM under\"\n[[focus]]\nnamed = \"under\"\nsql = \"SELECT 1 AS n\"\n").unwrap();
+        let script = with_shapes("", &lens, "2026-01-01");
+        assert!(
+            script.find("VIEW \"under\"").unwrap() < script.find("VIEW \"over\"").unwrap(),
+            "{script}"
         );
     }
 
