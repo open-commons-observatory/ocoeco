@@ -187,7 +187,10 @@ fn as_its_file_says(mut lens: Lens, text: &str) -> Lens {
 /// as rows (its tables lenses and lens_parts) - read as the program
 /// runs - each with its text, so that two bringings of one lens are known to be one.
 pub fn brought_by(dir: &Path) -> Result<Vec<(String, Lens)>> {
-    brought_beside(dir, &std::collections::BTreeSet::new())
+    Ok(brought_beside(dir, &std::collections::BTreeSet::new())?
+        .into_iter()
+        .map(|(text, lens, _)| (text, lens))
+        .collect())
 }
 
 /// The rows of a table a folder of what was observed holds, but those of the places `held` beside it: a
@@ -210,11 +213,12 @@ fn observed_rows(
 
 /// What the place at `dir` brings, beside the places `held` as they stand: of what a folder of what was
 /// observed holds, the lenses of a place held among those in view are passed over - where one stands is
-/// read as it stands, every other place as it was observed.
+/// read as it stands, every other place as it was observed. Each lens with its text and - where the folder
+/// holds what was observed of several places - the place that keeps it: a lens is of its place.
 fn brought_beside(
     dir: &Path,
     held: &std::collections::BTreeSet<String>,
-) -> Result<Vec<(String, Lens)>> {
+) -> Result<Vec<(String, Lens, Option<String>)>> {
     // a place may keep lens files, rows, both or neither: no folder of files is not the end of the looking
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir.join("lenses"))
         .into_iter()
@@ -223,7 +227,7 @@ fn brought_beside(
         .filter(|p| p.extension().is_some_and(|x| x == "toml"))
         .collect();
     files.sort();
-    let mut found: Vec<(String, Lens)> = files
+    let mut found: Vec<(String, Lens, Option<String>)> = files
         .into_iter()
         .map(|file| {
             let text =
@@ -231,7 +235,7 @@ fn brought_beside(
             let lens: Lens = toml::from_str(&text)
                 .with_context(|| format!("{} is not a lens", file.display()))?;
             let lens = as_its_file_says(lens, &text);
-            Ok((text, lens))
+            Ok((text, lens, None))
         })
         .collect::<Result<_>>()?;
     // and the lenses the place keeps as rows: entered like anything else, looked through like any lens
@@ -242,17 +246,36 @@ fn brought_beside(
         found.extend(
             from_rows(|table| crate::join::rows(dir, &mark, table))
                 .into_iter()
-                .map(|lens| (format!("{lens:?}"), lens)),
+                .map(|lens| (format!("{lens:?}"), lens, None)),
         );
     } else if dir.join("projects.json").is_file() {
         // by whatever route they arrived: what an observatory observed holds the lenses its places keep as
-        // rows, and they are looked through as where they are kept
-        let observed = |table: &str| observed_rows(dir, table, held);
-        found.extend(
-            from_rows(observed)
-                .into_iter()
-                .map(|lens| (format!("{lens:?}"), lens)),
-        );
+        // rows, and they are looked through as where they are kept - the rows of each place apart, so that
+        // two places keeping a lens of one name keep two lenses
+        let of_place = |row: &serde_json::Value| {
+            row.get("project")
+                .and_then(|p| p.as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        let places: std::collections::BTreeSet<String> = observed_rows(dir, "lenses", held)
+            .iter()
+            .map(of_place)
+            .collect();
+        for place in places {
+            let observed = |table: &str| -> Vec<serde_json::Value> {
+                observed_rows(dir, table, held)
+                    .into_iter()
+                    .filter(|row| of_place(row) == place)
+                    .collect()
+            };
+            let star = place.rsplit('/').next().unwrap_or_default().to_string();
+            found.extend(
+                from_rows(observed)
+                    .into_iter()
+                    .map(|lens| (format!("{lens:?}"), lens, Some(star.clone()))),
+            );
+        }
     }
     Ok(found)
 }
@@ -291,13 +314,97 @@ pub fn whole_said_at(dir: &Path) -> Option<String> {
         .map(|lens| lens.lens.id)
 }
 
-/// Every lens there is to look through from these places, each with where it is kept: those built into
-/// ocoeco, and those the places bring. A brought lens is held to what the build holds the built-in ones
-/// to, said when it is looked through: no id used twice, no table defined by two lenses. One lens brought
+/// Every lens there is to look through from these places, each with where it is kept, and called as it
+/// is called from where one stands - the first of the places. A lens is of its place, as a thing is: two
+/// places may each keep a lens of one name. Where they do, the one kept where one stands answers to the
+/// name alone, and every other is called in full - place/name; where none is kept there, each is called
+/// in full. What a lens says of another by name - what it places, what it looks through - means the one
+/// its own place keeps.
+pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
+    let mut all = as_kept(dirs)?;
+    let here = dirs.first().map(|dir| star_at(dir)).unwrap_or_default();
+    let mut times: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for (_, lens) in &all {
+        *times.entry(lens.lens.id.clone()).or_default() += 1;
+    }
+    // each lens called in full, by the place that keeps it and the name it keeps it under
+    let in_full: std::collections::BTreeSet<(String, String)> = all
+        .iter()
+        .filter(|(star, lens)| times[&lens.lens.id] > 1 && *star != here)
+        .map(|(star, lens)| (star.clone(), lens.lens.id.clone()))
+        .collect();
+    if in_full.is_empty() {
+        return Ok(all);
+    }
+    for (star, lens) in &mut all {
+        let called = |name: &str| format!("{star}/{name}");
+        let theirs = |name: &String| in_full.contains(&(star.clone(), name.clone()));
+        for part in &mut lens.focus {
+            for named in [&mut part.places, &mut part.through] {
+                let full = named
+                    .as_ref()
+                    .filter(|name| theirs(name))
+                    .map(|name| called(name));
+                if full.is_some() {
+                    *named = full;
+                }
+            }
+        }
+        let full = lens
+            .lens
+            .grew_from
+            .as_ref()
+            .filter(|name| theirs(name))
+            .map(|name| called(name));
+        if full.is_some() {
+            lens.lens.grew_from = full;
+        }
+        if theirs(&lens.lens.id) {
+            lens.lens.id = called(&lens.lens.id);
+        }
+    }
+    Ok(all)
+}
+
+/// The lenses of this name there are in view, each as it is called in full - where the name alone is no
+/// lens from here because several places keep one.
+pub fn called_in_full<'a>(all: &'a [Lens], name: &str) -> Vec<&'a str> {
+    all.iter()
+        .map(|lens| lens.lens.id.as_str())
+        .filter(|id| {
+            id.rsplit_once('/')
+                .is_some_and(|(_, kept_as)| kept_as == name)
+        })
+        .collect()
+}
+
+/// The place a folder is, by the name it is called: its mark's, or else the folder's own.
+fn star_at(dir: &Path) -> String {
+    std::fs::read_to_string(dir.join("oco.toml"))
+        .ok()
+        .and_then(|text| crate::mark::Mark::parse(&text).ok())
+        .map(|mark| {
+            mark.project
+                .id
+                .rsplit('/')
+                .next()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .unwrap_or_else(|| {
+            dir.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default()
+        })
+}
+
+/// Every lens in view as its place keeps it, each with where it is kept: those built into ocoeco, and
+/// those the places bring. A brought lens is held to what the build holds the built-in ones to, said when
+/// it is looked through: no name used twice in one place, no table defined by two lenses. One lens brought
 /// by several places is one lens. A lens a place keeps under the id of a built-in one is that built-in
 /// lens's own text: the one built in is looked through (whether the two still agree is the check's to
 /// say - `differing`).
-pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
+pub fn as_kept(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
     // the places held among these - each folder with a mark: what was observed of them is passed over
     let held: std::collections::BTreeSet<String> = dirs
         .iter()
@@ -310,34 +417,21 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
         .map(|lens| ("ocoeco".to_string(), lens))
         .collect();
     let built_in = all.len();
-    let mut brought: Vec<(String, String)> = Vec::new();
+    let mut brought: Vec<(String, String, String)> = Vec::new();
     for dir in dirs {
-        let kept_by = std::fs::read_to_string(dir.join("oco.toml"))
-            .ok()
-            .and_then(|text| crate::mark::Mark::parse(&text).ok())
-            .map(|mark| {
-                mark.project
-                    .id
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or_default()
-                    .to_string()
-            })
-            .unwrap_or_else(|| {
-                dir.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_default()
-            });
-        for (text, lens) in brought_beside(dir, &held)? {
+        let folder = star_at(dir);
+        for (text, lens, star) in brought_beside(dir, &held)? {
+            let kept_by = star.unwrap_or_else(|| folder.clone());
             let id = lens.lens.id.clone();
             if all[..built_in].iter().any(|(_, l)| l.lens.id == id)
-                || brought.iter().any(|(i, t)| *i == id && *t == text)
+                || brought.iter().any(|(i, t, _)| *i == id && *t == text)
             {
                 continue;
             }
-            if brought.iter().any(|(i, _)| *i == id) {
+            // a name is one in its place: another place may keep a lens of the same name
+            if brought.iter().any(|(i, _, by)| *i == id && *by == kept_by) {
                 bail!(
-                    "two lenses are called {id}: a second, differing, is brought by {}",
+                    "two lenses are called {id} in {kept_by}: a second, differing, is brought by {}",
                     dir.display()
                 );
             }
@@ -346,15 +440,20 @@ pub fn in_view(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
                     bail!("the table {table} is defined by two lenses, {} and {id} (brought by {}): one lens defines a piece of data, others read it", other.lens.id, dir.display());
                 }
             }
-            brought.push((id, text));
-            all.push((kept_by.clone(), lens));
+            brought.push((id, text, kept_by.clone()));
+            all.push((kept_by, lens));
         }
     }
     // what a place adds to a lens it does not keep is joined to that lens, wherever it is kept: the lens
     // as it is looked through is the one it names, and this besides
+    // - named in full where several places keep a lens of that name
     for dir in dirs {
         for more in added_beside(dir, &held) {
-            if let Some((_, lens)) = all.iter_mut().find(|(_, l)| l.lens.id == more.lens.id) {
+            let named = &more.lens.id;
+            let several = all.iter().filter(|(_, l)| l.lens.id == *named).count() > 1;
+            if let Some((_, lens)) = all.iter_mut().find(|(star, l)| {
+                format!("{star}/{}", l.lens.id) == *named || (!several && l.lens.id == *named)
+            }) {
                 lens.relation.extend(more.relation);
                 lens.focus.extend(more.focus);
                 lens.glimpse.extend(more.glimpse);
@@ -651,7 +750,7 @@ pub fn as_rows(
             into.push(row);
         }
     };
-    for (star, lens) in in_view(dirs)? {
+    for (star, lens) in as_kept(dirs)? {
         let id = &lens.lens.id;
         add(
             "lenses",
@@ -1137,13 +1236,44 @@ mod brought {
             built_in,
             "no place, no more lenses"
         );
-        // a second lens of that name, differing: said
-        let other_words = NOW.replace("What is happening.", "Something else.");
+        // a second lens of that name, differing, kept by another place: two lenses - the one kept where
+        // one stands answers to the name alone, the other is called in full
+        let other_words = NOW
+            .replace("What is happening.", "Something else.")
+            .replace("tables.journal", "tables.diary");
         let differs = place("differs", &[("now.toml", other_words.as_str())]);
-        assert!(with(&[lab.clone(), differs])
+        let far = differs.file_name().unwrap().to_string_lossy().to_string();
+        let both = with(&[lab.clone(), differs.clone()]).unwrap();
+        let says = |name: &str| {
+            both.iter()
+                .find(|l| l.lens.id == name)
+                .map(|l| l.lens.says.clone())
+        };
+        assert_eq!(says("now").as_deref(), Some("What is happening."));
+        assert_eq!(
+            says(&format!("{far}/now")).as_deref(),
+            Some("Something else.")
+        );
+        // from the other place, it is the other way round; from neither, each is called in full
+        let near = lab.file_name().unwrap().to_string_lossy().to_string();
+        let turned = with(&[differs.clone(), lab.clone()]).unwrap();
+        assert!(turned.iter().any(|l| l.lens.id == format!("{near}/now")));
+        let apart = place("apart", &[]);
+        let neither = with(&[apart, lab.clone(), differs.clone()]).unwrap();
+        assert!(!neither.iter().any(|l| l.lens.id == "now"));
+        assert_eq!(
+            called_in_full(&neither, "now"),
+            [format!("{near}/now"), format!("{far}/now")]
+        );
+        // and two of one name in one place: said
+        let twice_now = place(
+            "differs",
+            &[("now.toml", NOW), ("now-again.toml", other_words.as_str())],
+        );
+        assert!(with(&[twice_now])
             .unwrap_err()
             .to_string()
-            .contains("two lenses are called now"));
+            .contains("two lenses are called now in"));
         // a table a built-in lens defines: said, with both
         let twice = place("twice", &[("mine.toml", "[lens]\nid = \"mine\"\nsays = \"Mine.\"\n[tables.backlog]\nkey = [\"id\"]\nfields = []\n")]);
         let said = with(&[twice]).unwrap_err().to_string();
