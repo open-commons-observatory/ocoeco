@@ -115,8 +115,10 @@ GROUP BY w.field
 [[focus]]
 named = "called"
 sql = """
-SELECT coalesce(i.named, CASE WHEN i.slug <> '' THEN i.dated || i.slug END) AS id, i.named IS NOT NULL AS was_given
+SELECT CASE WHEN i.named = 'here' THEN i.stood_on WHEN i.named IS NOT NULL THEN i.named WHEN i.slug <> '' THEN i.dated || i.slug END AS id,
+       i.named IS NOT NULL AS was_given
 FROM (SELECT (SELECT min(value) FROM told WHERE field = 'id') AS named,
+             (SELECT min(substr(s.thing, strpos(s.thing, ':') + 1)) FROM stood s JOIN entry e ON s.of_table = e.fills) AS stood_on,
              coalesce((SELECT array_to_string(list_slice(list_filter(string_split_regex(lower(array_to_string(list_slice(string_split(f.value, ' '), 1, 8), ' ')), '[^[:alnum:]]+'), lambda part: part <> ''), 1, 7), '-')
                        FROM (SELECT t.value FROM told t LEFT JOIN asked a ON a.name = t.field
                              WHERE t.field <> 'id' AND a.points_at IS NULL ORDER BY t.seq LIMIT 1) f), '') AS slug,
