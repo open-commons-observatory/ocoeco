@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.71.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.2...ocoeco-v0.71.0) (2026-11-16)
+
+
+### Features
+
+* the latest runs are observed once, as runs: the gatherer no longer writes ci ([#406](https://github.com/open-commons-observatory/ocoeco/issues/406)) ([8333b56](https://github.com/open-commons-observatory/ocoeco/commit/8333b5680e8534309eb398b0ed1d5bf76ac808bd))
+
 ## [0.70.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.1...ocoeco-v0.70.2) (2026-11-16)
 
 
