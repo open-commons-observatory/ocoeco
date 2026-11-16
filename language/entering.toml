@@ -255,7 +255,8 @@ line = "{lacking}"
 # How it is said - shown where nothing was given yet.
 [[focus]]
 sql = """
-SELECT '- say ' || e.entry || ' with what it asks beneath it, each as FIELD: words on a line of its own; in: PLACE keeps it elsewhere, id: NAME names it' AS how
+SELECT '- say ' || e.entry || ' with what it asks beneath it, each as FIELD: words on a line of its own - what goes on over more lines keeps them; in: PLACE keeps it elsewhere; id: NAME names it, and id: here changes the one you stand on' AS how
 FROM entry e WHERE NOT EXISTS (SELECT 1 FROM given)
 """
 line = "{how}"
+title = "how it is said ({count})"
