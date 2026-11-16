@@ -146,6 +146,10 @@ pub struct Part {
     /// voice that carries what is new reads it, and decides nothing itself.
     #[serde(default)]
     pub urgent: bool,
+    /// What this part shows must not land: it does not hold, and a place that shows any of it does not
+    /// pass its check. It is meaning too: the check carries each line, and decides nothing itself.
+    #[serde(default)]
+    pub stops: bool,
     /// The id it is known by - what a record of work points at. A lens kept as rows names each part by the
     /// id its row is kept as; a lens read from its file, by where the part stands in it (lens/2). Never
     /// written in a file: a file's order is its parts' names.
@@ -587,6 +591,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                         per: some(raw(p, "per")),
                         named: some(raw(p, "named")),
                         urgent: yes(p, "urgent"),
+                        stops: yes(p, "stops"),
                         id: raw(p, "id").trim().to_string(),
                     })
                     .collect(),
@@ -693,7 +698,7 @@ pub fn as_rows(
         for (at, part) in lens.focus.iter().enumerate() {
             add(
                 "lens_parts",
-                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "through": part.through.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "star": star}),
+                json!({"id": part.id, "lens": id, "part": at + 1, "title": part.title.clone().unwrap_or_default(), "always": part.always, "query": part.sql, "lays_out": part.line, "places": part.places.clone().unwrap_or_default(), "only": part.only.clone().unwrap_or_default(), "through": part.through.clone().unwrap_or_default(), "measure": part.measure.clone().unwrap_or_default(), "of": part.of.map(|n| n.to_string()).unwrap_or_default(), "whole": part.whole.clone().unwrap_or_default(), "chain": part.chain.as_ref().map(|c| c.join(", ")).unwrap_or_default(), "per": part.per.clone().unwrap_or_default(), "named": part.named.clone().unwrap_or_default(), "urgent": part.urgent, "stops": part.stops, "star": star}),
             );
         }
     }
@@ -1038,8 +1043,15 @@ mod tests {
         let signs = all.iter().find(|l| l.lens.id == "signs").unwrap();
         assert_eq!(
             signs.lens.reads,
-            ["backlog", "connections", "edges", "nowhere", "holding"],
-            "the lens of signs reads the work, and what came of a sign"
+            [
+                "backlog",
+                "connections",
+                "edges",
+                "things",
+                "nowhere",
+                "holding"
+            ],
+            "the lens of signs reads the work, what came of a sign, and the things themselves"
         );
         assert_eq!(
             signs.lens.grew_from.as_deref(),

@@ -16,6 +16,9 @@ fields = [
     { name = "place", type = "string", required = true },
     { name = "says", type = "string" },
     { name = "at", type = "string" },
+    # how many rows of its place's own keeping go by this id, where more than one does: said where the
+    # rows are read, since the ways in give each row once
+    { name = "rows_kept", type = "integer" },
 ]
 
 [tables.edges]

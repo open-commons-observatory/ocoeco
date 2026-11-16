@@ -187,6 +187,9 @@ pub fn rows_by_place(
     let known = places(dirs);
     let mut found: Vec<(String, serde_json::Map<String, serde_json::Value>)> = Vec::new();
     let mut at: std::collections::BTreeMap<(String, String), usize> = Default::default();
+    // an id two rows of one keeping go by: counted where the rows are read, and said on the one row that
+    // is kept - rows_kept - for a lens to read. The same row reached by two routes is not that
+    let mut twice: std::collections::BTreeMap<(String, String), u64> = Default::default();
     let moment = |row: &serde_json::Map<String, serde_json::Value>| {
         row.get("at")
             .and_then(|a| a.as_str())
@@ -214,6 +217,7 @@ pub fn rows_by_place(
             ),
             None => continue,
         };
+        let mut here: std::collections::BTreeMap<(String, String), u64> = Default::default();
         for row in rows {
             let named = row
                 .get("project")
@@ -231,6 +235,12 @@ pub fn rows_by_place(
                 found.push((place, row));
                 continue;
             };
+            let times = here.entry((place.clone(), id.clone())).or_insert(0u64);
+            *times += 1;
+            if *times > 1 {
+                let most = twice.entry((place.clone(), id.clone())).or_insert(0u64);
+                *most = (*most).max(*times);
+            }
             match at.get(&(place.clone(), id.clone())) {
                 Some(&index) => {
                     if moment(&row) > moment(&found[index].1) {
@@ -244,7 +254,46 @@ pub fn rows_by_place(
             }
         }
     }
+    for (of, times) in twice {
+        if let Some(&index) = at.get(&of) {
+            found[index].1.insert("rows_kept".to_string(), times.into());
+        }
+    }
     found
+}
+
+#[cfg(test)]
+mod an_id_two_rows_go_by {
+    use super::*;
+
+    #[test]
+    fn two_rows_of_one_id_in_one_keeping_are_one_row_that_says_so() {
+        let d = std::env::temp_dir().join(format!("ocoeco-kept-twice-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"n\":\"one\"}\n{\"id\":\"a\",\"n\":\"another\"}\n{\"id\":\"b\",\"n\":\"alone\"}\n",
+        )
+        .unwrap();
+        let kept = |rows: &[(String, serde_json::Map<String, serde_json::Value>)], id: &str| {
+            rows.iter()
+                .find(|(_, row)| row.get("id").and_then(|i| i.as_str()) == Some(id))
+                .and_then(|(_, row)| row.get("rows_kept"))
+                .and_then(|n| n.as_u64())
+        };
+        let rows = rows_by_place("notes", std::slice::from_ref(&d));
+        assert_eq!(rows.len(), 2, "each id once");
+        assert_eq!(kept(&rows, "a"), Some(2), "an id two rows go by says so");
+        assert_eq!(kept(&rows, "b"), None);
+        // the same row reached by two routes is one row, and says nothing of the kind
+        let rows = rows_by_place("notes", &[d.clone(), d.clone()]);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(kept(&rows, "b"), None, "reached twice is not kept twice");
+        assert_eq!(kept(&rows, "a"), Some(2));
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }
 
 #[cfg(test)]

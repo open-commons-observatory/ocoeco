@@ -13,7 +13,7 @@
 id = "signs"
 grew_from = "problems"
 says = "What does not fit, said by whoever sees it and shown while nothing has come of it: a sign of something stale, overlapping, lacking or unclear - and what fails or has not moved, read off the work."
-reads = ["backlog", "connections", "edges", "nowhere", "holding"]
+reads = ["backlog", "connections", "edges", "things", "nowhere", "holding"]
 
 [tables.problems]
 key = ["id"]
@@ -118,6 +118,17 @@ SELECT from_star || '/' || from_table || ':' || from_id AS this, how, to_star ||
 FROM nowhere ORDER BY 1, how LIMIT 20
 """
 line = "{this} - {how} - {that}"
+
+# An id two rows go by is a sign read off the graph - something overlapping: a table is keyed by its id, and
+# which of the two rows is meant cannot be told. It is shown while it is true and ended by nobody: it goes
+# when each row goes by an id of its own. And it stops: a place that shows it does not pass its check.
+[[focus]]
+title = "kept twice - one id, more than one row ({count})"
+stops = true
+sql = """
+SELECT t.id AS thing, t.rows_kept FROM things t WHERE t.rows_kept > 1 ORDER BY t.id LIMIT 20
+"""
+line = "{thing} - {rows_kept} rows go by this one id"
 
 [[focus]]
 title = "not moved in the work ({count})"
