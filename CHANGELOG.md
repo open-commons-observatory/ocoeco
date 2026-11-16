@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.65.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.64.0...ocoeco-v0.65.0) (2026-11-16)
+
+
+### Features
+
+* the shapes of a lens are made ready in the order they rest on each other ([#372](https://github.com/open-commons-observatory/ocoeco/issues/372)) ([41856dc](https://github.com/open-commons-observatory/ocoeco/commit/41856dcb7a501095141552f472b045b26c0edbc6))
+
 ## [0.64.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.63.0...ocoeco-v0.64.0) (2026-11-16)
 
 
