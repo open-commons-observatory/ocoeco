@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.1...ocoeco-v0.60.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* the window lays out a lens that places one lens; a link pointing nowhere is marked ([#351](https://github.com/open-commons-observatory/ocoeco/issues/351)) ([6b6f9fe](https://github.com/open-commons-observatory/ocoeco/commit/6b6f9fe4e68549c1476c5701a32ca90f617484a8))
+
 ## [0.60.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.0...ocoeco-v0.60.1) (2026-11-16)
 
 
