@@ -8,6 +8,7 @@
 id = "entering"
 says = "From one entry: what it asks, and what it may also carry; where the one looking stands, and what was marked in what they were last shown - what here and a mark point at; and, given what it asks, the row it would keep and the place it would be kept in - or what is still lacking. Looked through from an entry: entering@sign."
 reads = ["things", "lenses", "lens_entries", "lens_fields", "lens_relations", "steps", "given", "marked"]
+looks_from = ["lens_entries"]
 
 # What was just given in the window: each field named, and its words. Given by the program for the one
 # look in which an entry is made: no place keeps it.

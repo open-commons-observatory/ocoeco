@@ -17,6 +17,7 @@ fields = [
     { name = "says", type = "string", required = true },
     { name = "grew_from", type = "string" },
     { name = "reads", type = "string" },
+    { name = "looks_from", type = "string" },
 ]
 
 [tables.lens_tables]
@@ -116,7 +117,7 @@ fields = [
 entry = "lens"
 says = "A lens, kept as rows: what it says of itself, and the tables of other lenses it reads."
 table = "lenses"
-asks = ["says", "reads", "grew_from"]
+asks = ["says", "reads", "grew_from", "looks_from"]
 
 [[glimpse]]
 entry = "route"

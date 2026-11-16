@@ -20,6 +20,10 @@ pub struct About {
     /// Tables it reads that other lenses define: one lens defines a piece of data, many read it.
     #[serde(default)]
     pub reads: Vec<String>,
+    /// The kinds of thing it looks from, where it looks from a thing: their tables. From a thing of another
+    /// kind it is not asked - not placed around it, and not looked through from it.
+    #[serde(default)]
+    pub looks_from: Vec<String>,
 }
 
 /// One lens, as declared.
@@ -531,6 +535,7 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                     says: raw(row, "says"),
                     grew_from: some(raw(row, "grew_from")),
                     reads: listed(raw(row, "reads")),
+                    looks_from: listed(raw(row, "looks_from")),
                 },
                 keeps_out: Vec::new(),
                 route: mine(&routes, &id)
@@ -635,7 +640,7 @@ pub fn as_rows(
         let id = &lens.lens.id;
         add(
             "lenses",
-            json!({"id": id, "says": lens.lens.says, "grew_from": lens.lens.grew_from.clone().unwrap_or_default(), "reads": lens.lens.reads.join(", "), "star": star}),
+            json!({"id": id, "says": lens.lens.says, "grew_from": lens.lens.grew_from.clone().unwrap_or_default(), "reads": lens.lens.reads.join(", "), "looks_from": lens.lens.looks_from.join(", "), "star": star}),
         );
         for (table, declared) in &lens.tables {
             add(

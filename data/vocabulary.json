@@ -105,6 +105,7 @@
 {"id":"line","term":"line","means":"Which line of a file something is on."}
 {"id":"lines","term":"lines","means":"How long a file is, in lines."}
 {"id":"load","term":"load","means":"How draining an action was this time, from 0 (nothing) through 5 (hard) to 10 (maximal), after Borg's CR10 scale of perceived exertion.","not":"How long it took: that is minutes.","see":"effort, manual work","decided":"2026-11-11-word-load"}
+{"id":"looks_from","term":"looks_from","means":"Said by a lens that looks from a thing: the kinds of thing it looks from - their tables. From a thing of another kind it is not asked.","decided":"decisions:2026-11-16-a-lens-says-the-kinds-it-looks-from"}
 {"id":"manual-work","term":"manual work","means":"An action done by hand that a tool could do: counted with its minutes and load, and when it was done, until something automates it.","not":"Bad work: it is a measure of where a tool would help, not a judgment.","see":"effort, attention","decided":"2026-11-11-manual-work"}
 {"id":"manual_events","term":"manual_events","means":"Each time something was done by hand, and what it took."}
 {"id":"manual_work","term":"manual_work","means":"The kinds of work done by hand, each with how often it has been."}
