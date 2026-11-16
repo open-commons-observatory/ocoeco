@@ -968,6 +968,7 @@ fn run() -> Result<()> {
             root,
             dir,
         } => {
+            let (observed_at, root_at) = (observed.clone(), root.clone());
             let places = match (observed, root) {
                 (Some(observed), _) => ocoeco::board::observed_from(&dir, observed),
                 (None, Some(root)) => ocoeco::board::projects(&std::path::PathBuf::from(
@@ -1060,6 +1061,18 @@ fn run() -> Result<()> {
                 .copied()
                 .map(|row| (said(row, "path"), said(row, "says")))
                 .collect();
+            // the language the site is being laid out in, and the others it can be read in: each page
+            // says its own, and offers the same page in every other
+            let languages = ocoeco::routes::languages(&places);
+            let fanned_out = ocoeco::routes::reading_in().is_none();
+            let lang = ocoeco::routes::reading_in()
+                .filter(|lang| languages.iter().any(|(tag, _)| tag == lang))
+                .unwrap_or_else(|| ocoeco::routes::WRITTEN_IN.to_string());
+            let home = if lang == ocoeco::routes::WRITTEN_IN {
+                "/".to_string()
+            } else {
+                format!("/{lang}/")
+            };
             for (path, looks, scale, _) in &pages {
                 let laid = ocoeco::focus::brought(
                     &format!("{surface}@{looks}"),
@@ -1083,6 +1096,13 @@ fn run() -> Result<()> {
                     &ocoeco::dome::escaped(saying.get(path).map_or("", String::as_str)),
                     1,
                 );
+                let (alternates, tongues) =
+                    ocoeco::dome::in_other_languages(path, &lang, &languages);
+                let text = text
+                    .replace("{in}", &lang)
+                    .replace("{home}", &home)
+                    .replace("{alternates}", &alternates)
+                    .replace("{tongues}", &tongues);
                 let file = out.join(path);
                 if let Some(folder) = file.parent() {
                     std::fs::create_dir_all(folder)?;
@@ -1091,10 +1111,38 @@ fn run() -> Result<()> {
             }
             ocoeco::focus::pages_are(Default::default());
             println!(
-                "{} page(s) laid out on {surface} -> {}",
+                "{} page(s) laid out on {surface}, in {lang} -> {}",
                 pages.len(),
                 out.display()
             );
+            // and once more for each other language, under a folder of its tag: the same site, read in
+            // it - each laid out by this program afresh, so that nothing read in one is kept for another
+            if fanned_out {
+                for (tag, _) in languages.iter().skip(1) {
+                    let mut again = std::process::Command::new(std::env::current_exe()?);
+                    again
+                        .args([
+                            "site",
+                            lens.as_str(),
+                            "--surface",
+                            surface.as_str(),
+                            "--out",
+                        ])
+                        .arg(out.join(tag))
+                        .arg("--dir")
+                        .arg(&dir)
+                        .env("OCOECO_IN", tag);
+                    if let Some(observed) = &observed_at {
+                        again.arg("--observed").arg(observed);
+                    }
+                    if let Some(root) = &root_at {
+                        again.args(["--root", root.as_str()]);
+                    }
+                    if !again.status()?.success() {
+                        anyhow::bail!("the site could not be laid out in {tag}");
+                    }
+                }
+            }
         }
         Cmd::Fits { shell, dir, words } => {
             use clap::CommandFactory;
