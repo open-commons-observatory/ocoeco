@@ -1,0 +1,40 @@
+[lens]
+id = "one-language"
+reads = ["vocabulary", "translations", "languages"]
+says = "The one language: each form a word of it names, and how each overlay words it - English one overlay among the others. Where an overlay words several forms alike, the forms meet in one word; where an overlay has no word for a form, that is a gap, shown until it is filled."
+
+[[focus]]
+id = "wordings"
+named = "wordings"
+sql = """
+SELECT v.id AS form, v.means, o.id AS overlay,
+       CASE WHEN o.written THEN v.term ELSE t.text END AS word
+FROM vocabulary v
+CROSS JOIN (SELECT id, bool_or(coalesce(written_in, false)) AS written FROM languages GROUP BY id) o
+LEFT JOIN translations t ON t."table" = 'vocabulary' AND t."row" = v.id AND t."column" = 'term' AND t.lang = o.id
+"""
+
+[[focus]]
+id = "by-overlay"
+title = "each overlay, and how much of the language it words ({count})"
+sql = "SELECT overlay, count(word) AS worded, count(*) - count(word) AS gaps FROM wordings GROUP BY overlay ORDER BY worded DESC, overlay"
+line = "{overlay}: {worded} forms worded, {gaps} with no word yet"
+
+[[focus]]
+id = "meet"
+title = "forms that meet in one word ({count})"
+sql = """
+SELECT overlay, any_value(word) AS word, count(DISTINCT form) AS forms, string_agg(form, ', ' ORDER BY form) AS which
+FROM wordings WHERE word IS NOT NULL GROUP BY overlay, lower(word) HAVING count(DISTINCT form) > 1 ORDER BY overlay, word
+"""
+line = "{overlay} «{word}» words {forms} forms: {which}"
+
+[[focus]]
+id = "gaps"
+title = "a form with no word in an overlay - the first of each ({count})"
+sql = """
+SELECT overlay, form, left(means, 100) AS means FROM (
+  SELECT *, row_number() OVER (PARTITION BY overlay ORDER BY form) AS nth FROM wordings WHERE word IS NULL
+) WHERE nth <= 6 ORDER BY overlay, form
+"""
+line = "{overlay} has no word for {form} - {means}"
