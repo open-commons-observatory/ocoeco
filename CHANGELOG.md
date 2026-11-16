@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.62.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.61.0...ocoeco-v0.62.0) (2026-11-16)
+
+
+### Features
+
+* an entry writes where the row is kept: a lens kept as a file is changed in its file ([#358](https://github.com/open-commons-observatory/ocoeco/issues/358)) ([274f51c](https://github.com/open-commons-observatory/ocoeco/commit/274f51cd2029e62de01a5a78a1801cd332b3ceb2))
+
 ## [0.61.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.60.2...ocoeco-v0.61.0) (2026-11-16)
 
 
