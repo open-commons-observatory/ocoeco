@@ -105,29 +105,28 @@ pub fn when(row: &serde_json::Value, dated: Option<&str>) -> Option<String> {
 }
 
 pub fn in_a_few_words(row: &serde_json::Value) -> String {
+    let words = |key: &str| {
+        row.get(key)
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+    };
+    // a part of a lens is said by its heading, else by what it is - and only then by what is written above it
+    let a_part = row.get("lens").is_some() && row.get("part").is_some();
     let said = [
         "title", "what", "decision", "term", "says", "question", "name", "text", "practice",
         "over", "summary",
     ]
     .iter()
-    .find_map(|f| {
-        row.get(*f)
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.trim().is_empty())
-    })
+    .filter(|key| !(a_part && **key == "says"))
+    .find_map(|key| words(key))
     .unwrap_or_default();
     // a part of a lens with no heading says what it is: the lens it places, and the lens that is seen
     // through - or the shape it names. So that walking a lens one passes no blank line
-    let of_a_part = |key: &str| {
-        row.get(key)
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.trim().is_empty())
-    };
     let as_a_part = match (
         said.is_empty(),
-        of_a_part("places"),
-        of_a_part("through"),
-        of_a_part("named"),
+        words("places"),
+        words("through"),
+        words("named"),
     ) {
         (true, Some("*"), None, _) => "places every lens in view".to_string(),
         (true, Some(placed), None, _) => format!("places {placed}"),
@@ -137,10 +136,12 @@ pub fn in_a_few_words(row: &serde_json::Value) -> String {
         (true, None, _, Some(shape)) => format!("the shape {shape}"),
         _ => String::new(),
     };
-    let said = if as_a_part.is_empty() {
-        said
-    } else {
+    let said = if !as_a_part.is_empty() {
         as_a_part.as_str()
+    } else if said.is_empty() && a_part {
+        words("says").unwrap_or_default()
+    } else {
+        said
     };
     let mut short: String = said.chars().take(70).collect();
     if said.chars().count() > 70 {
@@ -986,6 +987,29 @@ pub fn guarded<T>(dir: &Path, write: impl FnOnce() -> Result<T>) -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_part_is_said_by_its_heading_else_by_what_it_is_else_by_what_is_written_above_it() {
+        let part = |more: serde_json::Value| {
+            let mut row = serde_json::json!({"id": "l/1", "lens": "l", "part": 1, "says": "Written above it."});
+            if let (Some(row), Some(more)) = (row.as_object_mut(), more.as_object()) {
+                row.extend(more.clone());
+            }
+            in_a_few_words(&row)
+        };
+        assert_eq!(
+            part(serde_json::json!({"title": "a heading ({count})"})),
+            "a heading ({count})"
+        );
+        assert_eq!(part(serde_json::json!({"named": "kept"})), "the shape kept");
+        assert_eq!(part(serde_json::json!({"places": "signs"})), "places signs");
+        assert_eq!(part(serde_json::json!({})), "Written above it.");
+        // and anything else by what it says, as before
+        assert_eq!(
+            in_a_few_words(&serde_json::json!({"id": "x", "says": "A lens."})),
+            "A lens."
+        );
+    }
 
     #[test]
     fn a_field_holds_links_in_three_forms() {
