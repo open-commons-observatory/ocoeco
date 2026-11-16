@@ -80,13 +80,13 @@ WITH RECURSIVE pairs AS (
   SELECT a_star, a_id, b_star, b_table, b_id FROM pairs WHERE a_table = 'problems'
   UNION
   SELECT f.star, f.id, r.b_star, r.b_table, r.b_id FROM faces f JOIN pairs r ON r.a_star = f.f_star AND r.a_table = f.f_table AND r.a_id = f.f_id
+), came AS (
+  SELECT from_star AS star, from_id AS id FROM edges WHERE how = 'led to' AND from_table = 'problems'
+  UNION
+  SELECT f.star, f.id FROM faces f JOIN edges e ON e.how = 'led to' AND e.from_star = f.f_star AND e.from_table = f.f_table AND e.from_id = f.f_id
 )
-SELECT p.* FROM problems p
-WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
-  SELECT 1 FROM edges e WHERE e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id)
-AND NOT EXISTS (
-  SELECT 1 FROM faces f JOIN edges e ON e.how = 'led to' AND e.from_star = f.f_star AND e.from_table = f.f_table AND e.from_id = f.f_id
-  WHERE f.star = p.star AND f.id = p.id)
+SELECT p.* FROM problems p LEFT JOIN came c ON c.star = p.star AND c.id = p.id
+WHERE coalesce(p.handled, '') = '' AND c.id IS NULL
 """
 
 [[focus]]
