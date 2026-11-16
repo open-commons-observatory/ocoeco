@@ -1188,20 +1188,26 @@ fn run() -> Result<()> {
                     }
                 }
             }
-            // where there is an engine to ask, that every link within this star leads somewhere is what the
-            // lens of signs says must not land - carried below, with whatever else a lens says stops. The
-            // program's own telling stands in where there is none, and tells of the links into the places
-            // beside this one
+            // where there is an engine to ask, what must not land is what lenses say stops - a link that
+            // leads nowhere, an id two rows go by, something kept though kept out - carried below. The
+            // program's own telling stands in where there is none; and where there is, it says only what no
+            // lens says yet: a link into a star that is not among the places beside this one
             let engine = tad::sql::DuckDb::find().ok();
             if engine.is_none() || !others.is_empty() {
-                problems.extend(ocoeco::relations::broken(&dir, &others)?);
+                problems.extend(
+                    ocoeco::relations::broken(&dir, &others)?
+                        .into_iter()
+                        .filter(|told| engine.is_none() || told.ends_with("no such star here")),
+                );
             }
-            // and nothing this place keeps holds what is kept out: seen here, before it lands
-            problems.extend(ocoeco::kept::showing(&dir));
-            // and every lens must come into focus over this place - and what a lens says must not land,
-            // must not: a place that shows any of it is not landed
+            if engine.is_none() {
+                problems.extend(ocoeco::kept::showing(&dir));
+            }
+            // every lens must come into focus over this place; and what a lens says must not land, must not -
+            // asked of this place alone, or with the places beside it in view where they are named
             if let Some(engine) = &engine {
-                problems.extend(ocoeco::focus::every_lens_focuses(&dir, engine));
+                let beside: Vec<std::path::PathBuf> = others.values().cloned().collect();
+                problems.extend(ocoeco::focus::every_lens_focuses(&dir, &beside, engine));
             }
             for w in &well {
                 println!("ok   {w}");
