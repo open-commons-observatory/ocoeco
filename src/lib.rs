@@ -12,6 +12,7 @@ pub mod glimpse;
 pub mod harvest;
 pub mod join;
 pub mod kept;
+pub mod lens_file;
 pub mod lenses;
 pub mod manual;
 pub mod mark;

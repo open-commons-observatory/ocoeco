@@ -238,13 +238,15 @@ pub fn said(
 }
 
 /// What was given for an entry: each FIELD: words - a line that names no field of it goes on with the
-/// field before.
+/// field before, on a line of its own. What is given keeps its lines: a query stays the lines it was.
 fn given_as_fields(given: &str, known: &[String]) -> Vec<(String, String)> {
     let mut fields: Vec<(String, String)> = Vec::new();
     for line in given.lines() {
-        let named = line
-            .split_once(':')
-            .filter(|(field, _)| known.iter().any(|k| k == field.trim()));
+        // a field is named at the start of a line, by its name and a colon - with its words after a space,
+        // or none: a colon within the words, or doubled as a query writes it, is words
+        let named = line.split_once(':').filter(|(field, words)| {
+            known.iter().any(|k| k == field.trim()) && (words.is_empty() || words.starts_with(' '))
+        });
         match named {
             Some((field, words)) => {
                 fields.push((field.trim().to_string(), words.trim().to_string()))
@@ -252,9 +254,9 @@ fn given_as_fields(given: &str, known: &[String]) -> Vec<(String, String)> {
             None => {
                 if let Some((_, words)) = fields.last_mut().filter(|_| !line.trim().is_empty()) {
                     if !words.is_empty() {
-                        words.push(' ');
+                        words.push('\n');
                     }
-                    words.push_str(line.trim());
+                    words.push_str(line.trim_end());
                 }
             }
         }
@@ -280,15 +282,18 @@ mod tests {
         let known = ["saw".to_string(), "learned".to_string(), "in".to_string()];
         assert_eq!(
             given_as_fields(
-                "saw: one thing\n  and more of it\n\nlearned: this: that\nin: o/r\n",
+                "saw: one thing\n  and more of it\n\nlearned: this: that\nsaw::not a field\nin: o/r\n",
                 &known
             ),
             [
-                ("saw".to_string(), "one thing and more of it".to_string()),
-                ("learned".to_string(), "this: that".to_string()),
+                ("saw".to_string(), "one thing\n  and more of it".to_string()),
+                (
+                    "learned".to_string(),
+                    "this: that\nsaw::not a field".to_string()
+                ),
                 ("in".to_string(), "o/r".to_string()),
             ],
-            "a line that names no field goes on with the field before; a colon in the words is words"
+            "a line that names no field goes on with the field before, on a line of its own; a colon in the words is words"
         );
     }
 
