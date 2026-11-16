@@ -85,6 +85,12 @@ says = "A word and its one meaning: what it means, what it is not, and the decis
 table = "vocabulary"
 asks = ["term", "means", "not", "see", "decided"]
 
+[[glimpse]]
+entry = "translation"
+asks = ["table", "row", "column", "lang", "text", "by"]
+table = "translations"
+says = "What one field of one of a place's own rows says in another language: read in that language, the row says this there. By a person or by a machine - a machine's is never passed off as a person's. It goes by table:row:column:lang."
+
 # The focus of the lens of knowledge: what was looked into lately, and the words and what they mean.
 [[focus]]
 title = "looked into lately ({count})"
@@ -110,3 +116,17 @@ SELECT (SELECT count(*) FROM research) AS questions, (SELECT count(*) FROM sourc
        (SELECT count(*) FROM concepts) AS concepts, (SELECT count(*) FROM vocabulary) AS words
 """
 line = "{questions} questions looked into, {sources} sources, {concepts} concepts, {words} words"
+
+[tables.translations]
+key = ["id"]
+extra_fields = true
+tells = "{table}:{row} {column}, in {lang}"
+fields = [
+    { name = "id", type = "string", required = true },
+    { name = "table", type = "string", required = true },
+    { name = "row", type = "string", required = true },
+    { name = "column", type = "string", required = true },
+    { name = "lang", type = "string", required = true },
+    { name = "text", type = "string", required = true },
+    { name = "by", type = "string", enum = ["human", "machine"] },
+]
