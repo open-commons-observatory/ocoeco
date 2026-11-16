@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.60.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.59.0...ocoeco-v0.60.0) (2026-11-16)
+
+
+### Features
+
+* an entry is offered only a place that keeps its kind - a lens changed, no program built ([#342](https://github.com/open-commons-observatory/ocoeco/issues/342)) ([6f1aca5](https://github.com/open-commons-observatory/ocoeco/commit/6f1aca59d88dfb84b2e13b0445247ad1f7f92d81))
+
 ## [0.59.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.58.0...ocoeco-v0.59.0) (2026-11-16)
 
 
