@@ -16,7 +16,7 @@ pub struct Join {
 
 /// The five-line caller of ocoeco's gatherer.
 pub const CALLER: &str = r#"name: gather
-# ocoeco gathers this repository's activity and releases onto its oco-data branch - data made by work.
+# this place is gathered by ocoeco's gatherer: what it writes, and where, is said there, once.
 on:
   schedule:
     - cron: "41 3 * * *"
@@ -28,7 +28,8 @@ jobs:
     uses: open-commons-observatory/ocoeco/.github/workflows/gather.yml@main
 "#;
 
-/// The mark of a joining repository: its own records under oco/, its gathered data on oco-data.
+/// The mark of a joining repository: its own records, under oco/. What the gatherer writes is said
+/// where it is written, not here.
 pub fn mark_text(j: &Join) -> String {
     let title = j
         .title
@@ -52,8 +53,6 @@ session_log = "oco/session_log.json"
 glimpses = "oco/glimpses.json"
 decisions = "oco/decisions.json"
 problems = "oco/problems.json"
-activity = "oco/gathered/activity.json@oco-data"
-releases = "oco/gathered/releases.json@oco-data"
 "#,
         j.id, j.name, j.kind, j.parent
     )
@@ -111,9 +110,12 @@ pub fn check(dir: &Path) -> Result<(Vec<String>, Vec<String>)> {
     for (table, path) in &mark.exports {
         let (file, branch) = path.split_once('@').unwrap_or((path.as_str(), ""));
         if !branch.is_empty() {
-            well.push(format!(
-                "{table}: on the {branch} branch - gathered there, not checked here"
-            ));
+            // a place the gatherer does not gather keeps nothing it writes
+            if !crate::gather::wrote(table, path) || calls_the_gatherer(dir) {
+                well.push(format!(
+                    "{table}: on the {branch} branch - gathered there, not checked here"
+                ));
+            }
             continue;
         }
         match std::fs::read_to_string(dir.join(file)) {
@@ -289,6 +291,12 @@ pub fn kept_on_a_branch(dir: &Path, mark: &Mark, table: &str) -> Option<i64> {
         })
 }
 
+/// Whether a place calls the gatherer: its workflow, as `init` writes it (ocoeco's own gathers ocoeco).
+/// Where only a checkout of the place is in view, this is what says it is gathered.
+pub fn calls_the_gatherer(dir: &Path) -> bool {
+    dir.join(".github/workflows/gather.yml").is_file()
+}
+
 /// How completely the repository tells its essence (SPEC.md section 11): how many of the four are
 /// told - why it exists, what it must reach, how each step is delivered and proven, what is
 /// happening - and what is still to tell. Advice, never a failure: a gap is the truth, not an error.
@@ -339,10 +347,12 @@ pub fn essence(dir: &Path) -> Result<(usize, Vec<String>)> {
             }
         }
     }
+    // its work is shown by a backlog or a log it keeps, or by what the gatherer writes where it gathers
     let work = mark
         .exports
-        .iter()
-        .any(|(t, _)| matches!(t.as_str(), "backlog" | "session_log" | "activity"));
+        .keys()
+        .any(|t| matches!(t.as_str(), "backlog" | "session_log"))
+        || calls_the_gatherer(dir);
     if !work {
         lacks.push(
             "its work is not shown: a backlog, a log, or what the gatherer writes".to_string(),
@@ -467,6 +477,10 @@ mod tests {
                     .iter()
                     .any(|w| w.starts_with("releases: on the oco-data branch"))
         );
+        // without its call to the gatherer, nothing the gatherer writes is kept there
+        std::fs::remove_file(d.join(".github/workflows/gather.yml")).unwrap();
+        let (well, _) = check(&d).unwrap();
+        assert!(!well.iter().any(|w| w.starts_with("releases:")), "{well:?}");
         let _ = std::fs::remove_dir_all(&d);
     }
 
