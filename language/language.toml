@@ -130,7 +130,7 @@ asks = ["lens", "of_table", "from", "which", "shape"]
 entry = "part"
 says = "A part of a lens: what it asks and how a line is laid out - or which lens it places, and under which heading."
 table = "lens_parts"
-asks = ["lens", "part", "title", "named", "urgent", "stops", "query", "lays_out", "places", "only", "through", "measure", "whole", "chain", "per"]
+asks = ["lens", "part", "title", "says", "named", "urgent", "stops", "query", "lays_out", "places", "only", "through", "measure", "whole", "chain", "per"]
 
 [[glimpse]]
 entry = "table"

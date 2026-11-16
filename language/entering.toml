@@ -97,8 +97,8 @@ sql = """
 SELECT g.field, trim(g.value) AS value, g.seq FROM given g WHERE g.field <> 'in'
 """
 
-# In a field that points at things, here names where one stands, and a mark what it marks in what was last
-# shown: a thing is pointed at, never named from memory.
+# In a field that points at things, here names where one stands, back where one stood before, and a mark
+# what it marks in what was last shown: a thing is pointed at, never named from memory.
 [[focus]]
 named = "pointing"
 sql = """
@@ -280,6 +280,8 @@ FROM entry e WHERE NOT EXISTS (SELECT 1 FROM given)
 line = "{how}"
 title = "how it is said ({count})"
 
+# Where the one looking stood before: the thing of their step before the last, a leaving passed over. In a
+# field that points at things, back names it.
 [[focus]]
 named = "stood_before"
 sql = """
