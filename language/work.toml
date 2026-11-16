@@ -128,8 +128,10 @@ SELECT h.to_star AS star, h.to_id AS id, h.to_table AS held_table,
 FROM edges h
 LEFT JOIN backlog hb ON h.from_table = 'backlog' AND hb.star = h.from_star AND hb.id = h.from_id
 LEFT JOIN problems hp ON h.from_table = 'problems' AND hp.star = h.from_star AND hp.id = h.from_id
+LEFT JOIN backlog tb ON h.to_table = 'backlog' AND tb.star = h.to_star AND tb.id = h.to_id
 WHERE h.how = 'halted' AND h.to_table IN ('backlog', 'problems') AND h.holds
   AND coalesce(hb.status, '') NOT IN ('done', 'dropped')
+  AND coalesce(tb.status, '') NOT IN ('done', 'dropped')
   AND NOT (h.from_table = 'problems' AND (coalesce(hp.handled, '') <> '' OR EXISTS (
         SELECT 1 FROM edges l WHERE l.how = 'led to' AND l.from_table = 'problems' AND l.from_star = h.from_star AND l.from_id = h.from_id)))
   AND NOT EXISTS (SELECT 1 FROM edges x WHERE x.how = 'ended' AND x.to_table = 'connections' AND x.to_star = h.via_star AND x.to_id = h.via_id)
