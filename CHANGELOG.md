@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.69.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.68.1...ocoeco-v0.69.0) (2026-11-16)
+
+
+### Features
+
+* a table says how its rows are told in a few words, as it says which field dates them ([#393](https://github.com/open-commons-observatory/ocoeco/issues/393)) ([18b8f1f](https://github.com/open-commons-observatory/ocoeco/commit/18b8f1fc75a6541789598afea352438b4fb957dd))
+
 ## [0.68.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.68.0...ocoeco-v0.68.1) (2026-11-16)
 
 
