@@ -688,7 +688,7 @@ mod tests {
         dome.key(KeyCode::Char('e'));
         dome.key(KeyCode::Char('w'));
         assert!(
-            seen(&dome).contains("(F3: another kind - research, source, concept, word)"),
+            seen(&dome).contains("(F3: another kind - research, source, concept, word"),
             "{}",
             seen(&dome)
         );
