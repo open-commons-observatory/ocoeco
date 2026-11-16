@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.72.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.71.0...ocoeco-v0.72.0) (2026-11-16)
+
+
+### Features
+
+* a place that keeps no lenses yet keeps its first, entered from the window, as a file ([#408](https://github.com/open-commons-observatory/ocoeco/issues/408)) ([adeab57](https://github.com/open-commons-observatory/ocoeco/commit/adeab575d95675714a6d6a27ca13009434265322))
+
 ## [0.71.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.2...ocoeco-v0.71.0) (2026-11-16)
 
 
