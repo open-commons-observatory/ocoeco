@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.77.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.76.0...ocoeco-v0.77.0) (2026-11-16)
+
+
+### Features
+
+* a release is a draft until the conveyor says it, and gathered only once said ([#424](https://github.com/open-commons-observatory/ocoeco/issues/424)) ([66d7c19](https://github.com/open-commons-observatory/ocoeco/commit/66d7c19596deb8050da972fb565dca666f50afde))
+
 ## [0.76.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.75.0...ocoeco-v0.76.0) (2026-11-16)
 
 
