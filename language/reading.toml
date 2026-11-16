@@ -1,0 +1,18 @@
+[lens]
+id = "reading"
+reads = ["translations", "languages"]
+says = "The languages what is in view can be read in: the one everything is written in, and each one a translation is in - each by its own name, and which is being read now. Any lens may ask of it; a surface says its own offer of them."
+
+[[focus]]
+title = "can be read in ({count})"
+named = "read_in"
+sql = """
+SELECT t.tag, coalesce(nullif(l.name, ''), t.tag) AS name,
+       (t.tag = '{in}' OR ('{in}' = '' AND coalesce(l.written_in, false))) AS read,
+       coalesce(l.written_in, false) AS written,
+       CASE WHEN t.tag = '{in}' OR ('{in}' = '' AND coalesce(l.written_in, false)) THEN ' - read now' ELSE '' END AS now
+FROM (SELECT id AS tag FROM languages UNION SELECT lang FROM translations WHERE lang <> '') t
+LEFT JOIN (SELECT id, any_value(name) AS name, bool_or(written_in) AS written_in FROM languages GROUP BY id) l ON l.id = t.tag
+ORDER BY written DESC, t.tag
+"""
+line = "{tag} - {name}{now}"
