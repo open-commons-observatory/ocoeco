@@ -2035,7 +2035,7 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
                 )
             })),
         }
-        let looks = looked_at(lens, dir);
+        let looks = looked_at(&lens.lens.id, lens, dir);
         // and from the few things it looks from before the last: what it asks is asked with what each brings
         if let Some(e) = looks
             .iter()
@@ -2127,17 +2127,25 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
     // place's lenses read - each lens a place beside keeps comes into focus with all of them in view, as it
     // is looked through where the whole is seen, and with the language as it is here
     if !beside.is_empty() && crate::lenses::kept_in(dir, env!("CARGO_PKG_VERSION")).is_some() {
+        // each lens called as it is called from there: in full, where several places keep one of its name
+        let called = crate::lenses::in_view(beside).unwrap_or_default();
         for place in beside {
             let goes_by = std::fs::read_to_string(place.join("oco.toml"))
                 .ok()
                 .and_then(|text| crate::mark::Mark::parse(&text).ok())
                 .map_or_else(|| place.display().to_string(), |mark| mark.project.id);
+            let star = goes_by.rsplit('/').next().unwrap_or_default().to_string();
             for (_, lens) in crate::lenses::brought_by(place)
                 .unwrap_or_default()
                 .iter()
                 .filter(|(_, l)| l.focus.iter().any(|p| p.places.is_none()))
             {
-                if let Some(e) = looked_at(lens, place)
+                let full = format!("{star}/{}", lens.lens.id);
+                let name = called
+                    .iter()
+                    .find(|(by, l)| *by == star && l.lens.id == full)
+                    .map_or(lens.lens.id.as_str(), |(_, l)| l.lens.id.as_str());
+                if let Some(e) = looked_at(name, lens, place)
                     .iter()
                     .find_map(|looked| brought(looked, beside, "2026-01-01", engine).err())
                 {
@@ -2157,7 +2165,7 @@ pub fn every_lens_focuses(dir: &Path, beside: &[PathBuf], engine: &dyn SqlEngine
 /// last in the place - the last first, and the others so that what it asks is asked with rows passing
 /// through, for the last may have nothing yet - or, where it looks from no kind or the place keeps none of
 /// it, from nowhere.
-fn looked_at(lens: &Lens, place: &Path) -> Vec<String> {
+fn looked_at(name: &str, lens: &Lens, place: &Path) -> Vec<String> {
     let things = lens
         .lens
         .looks_from
@@ -2166,11 +2174,11 @@ fn looked_at(lens: &Lens, place: &Path) -> Vec<String> {
         .find(|things| !things.is_empty())
         .unwrap_or_default();
     if things.is_empty() {
-        return vec![lens.lens.id.clone()];
+        return vec![name.to_string()];
     }
     things
         .into_iter()
-        .map(|thing| format!("{}@{thing}", lens.lens.id))
+        .map(|thing| format!("{name}@{thing}"))
         .collect()
 }
 
@@ -2978,7 +2986,7 @@ mod tests {
         .unwrap();
         // from the few that came last, by when each was: the last first
         assert_eq!(
-            looked_at(&after, &d),
+            looked_at("after", &after, &d),
             [
                 "after@o/r/turns:t2",
                 "after@o/r/turns:t3",
@@ -2988,12 +2996,12 @@ mod tests {
         // a lens that looks from no kind, or from one the place keeps none of, is looked through from nowhere
         let plain: Lens =
             toml::from_str("[lens]\nid = \"plain\"\nsays = \"From nowhere.\"\n").unwrap();
-        assert_eq!(looked_at(&plain, &d), ["plain"]);
+        assert_eq!(looked_at("plain", &plain, &d), ["plain"]);
         let elsewhere: Lens = toml::from_str(
             "[lens]\nid = \"elsewhere\"\nsays = \"From a kind not kept here.\"\nlooks_from = [\"notes\"]\n",
         )
         .unwrap();
-        assert_eq!(looked_at(&elsewhere, &d), ["elsewhere"]);
+        assert_eq!(looked_at("elsewhere", &elsewhere, &d), ["elsewhere"]);
         let _ = std::fs::remove_dir_all(&d);
     }
 

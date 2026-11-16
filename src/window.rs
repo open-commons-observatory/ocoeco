@@ -1,6 +1,7 @@
 //! The window, where there is no terminal to move in. One stands somewhere and is shown what is there, a
 //! mark before everything one can stand on; one says a mark to stand on what it marks, a lens by its name
-//! to look through it from where one stands, an entry by its name to make one from there, back, or up -
+//! to look through it from where one stands, an entry by its name to make one from there, called and a
+//! name to give what one stands on another name, back, or up -
 //! words that were just shown, never a flag to remember. What is shown is what the lenses bring into
 //! focus - around the thing stood on, or what the place shows first - laid out by a surface a lens says;
 //! what was marked is kept beside the trail, so that the mark said next names what was shown. What a
@@ -173,6 +174,49 @@ pub fn said(
                 an_entry_said = Some(thing.clone());
             } else {
                 crate::trail::step(who, thing);
+            }
+        }
+        // called NAME: what one stands on takes another name, and every link to it goes with it
+        "called" => {
+            let Some(new) = words.get(1) else {
+                bail!("called asks for the name to give what you stand on: called NAME");
+            };
+            let Some(thing) = crate::trail::stands(who) else {
+                bail!("you stand on nothing: stand on a thing to give it another name");
+            };
+            let Some((place, table, old)) = thing
+                .rsplit_once(':')
+                .and_then(|(held, old)| held.rsplit_once('/').map(|(place, table)| (place, table, old)))
+            else {
+                bail!("{thing} is not a row of a place: only a row of a place takes another name");
+            };
+            let Some((place, at)) = place_called(place, &dirs) else {
+                bail!("{place} is not held here: a thing is renamed where it is kept");
+            };
+            let others: std::collections::BTreeMap<String, PathBuf> = dirs
+                .iter()
+                .filter_map(|d| {
+                    let text = std::fs::read_to_string(d.join("oco.toml")).ok()?;
+                    Some((crate::mark::Mark::parse(&text).ok()?.project.id, d.clone()))
+                })
+                .collect();
+            let renamed = crate::moving::rename(&at, table, old, new, &others)?;
+            crate::trail::step(who, &format!("{place}/{table}:{new}"));
+            // each place it changed lands what changed there
+            entered.push_str(&format!("entered: {place} | {old} is called {new}\n"));
+            // - but what the machine keeps of itself, its trail, is never landed: it is kept where it is
+            let of_the_machine = std::env::var_os("XDG_DATA_HOME")
+                .map(PathBuf::from)
+                .or_else(|| {
+                    std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share"))
+                });
+            for other in renamed.rewritten.keys().filter(|p| {
+                **p != place
+                    && !others.get(*p).zip(of_the_machine.as_ref()).is_some_and(
+                        |(at, machine)| at.starts_with(machine),
+                    )
+            }) {
+                entered.push_str(&format!("entered: {other} | what pointed at {old} says {new}\n"));
             }
         }
         word if all.iter().any(|l| l.lens.id == word) => {
