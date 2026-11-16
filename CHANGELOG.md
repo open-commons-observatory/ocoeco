@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.70.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.70.0...ocoeco-v0.70.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* a lens is checked from the few things of its kind that came last ([#400](https://github.com/open-commons-observatory/ocoeco/issues/400)) ([254a54b](https://github.com/open-commons-observatory/ocoeco/commit/254a54bd8fdb09429166b3fa580baad138603f4a))
+
 ## [0.70.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.69.0...ocoeco-v0.70.0) (2026-11-16)
 
 
