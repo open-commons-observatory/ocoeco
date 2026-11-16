@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.80.0...ocoeco-v0.81.0) (2026-11-16)
+
+
+### Features
+
+* a site is laid out once for each language, and each page offers the others ([#435](https://github.com/open-commons-observatory/ocoeco/issues/435)) ([5fe4775](https://github.com/open-commons-observatory/ocoeco/commit/5fe477557abf260c5a9fd14092410bfede59c96e))
+
 ## [0.80.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.79.0...ocoeco-v0.80.0) (2026-11-16)
 
 
