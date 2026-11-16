@@ -63,14 +63,29 @@ supplies = [
     { field = "by", from = "who", when = "new" },
 ]
 
-# The focus of the lens of signs. A sign has come to something when a connection leads from it (this
-# place's own, or one drawn in another place), or - for rows written before - when it was marked handled.
+# The focus of the lens of signs. A sign has come to something when a connection leads from it - or from
+# anything one with it in nature: what repeats joins, whichever way, is one nature with many faces, and it
+# comes to something as one - wherever that connection is drawn; or, for rows written before, when it was
+# marked handled.
 [[focus]]
 named = "unanswered"
 sql = """
+WITH RECURSIVE pairs AS (
+  SELECT from_star AS a_star, from_table AS a_table, from_id AS a_id, to_star AS b_star, to_table AS b_table, to_id AS b_id
+  FROM edges WHERE how = 'repeats' AND holds
+  UNION
+  SELECT to_star, to_table, to_id, from_star, from_table, from_id FROM edges WHERE how = 'repeats' AND holds
+), faces(star, id, f_star, f_table, f_id) AS (
+  SELECT a_star, a_id, b_star, b_table, b_id FROM pairs WHERE a_table = 'problems'
+  UNION
+  SELECT f.star, f.id, r.b_star, r.b_table, r.b_id FROM faces f JOIN pairs r ON r.a_star = f.f_star AND r.a_table = f.f_table AND r.a_id = f.f_id
+)
 SELECT p.* FROM problems p
 WHERE coalesce(p.handled, '') = '' AND NOT EXISTS (
   SELECT 1 FROM edges e WHERE e.how = 'led to' AND e.from_table = 'problems' AND e.from_star = p.star AND e.from_id = p.id)
+AND NOT EXISTS (
+  SELECT 1 FROM faces f JOIN edges e ON e.how = 'led to' AND e.from_star = f.f_star AND e.from_table = f.f_table AND e.from_id = f.f_id
+  WHERE f.star = p.star AND f.id = p.id)
 """
 
 [[focus]]
