@@ -1,7 +1,8 @@
 //! The window, where there is no terminal to move in. One stands somewhere and is shown what is there, a
 //! mark before everything one can stand on; one says a mark to stand on what it marks, a lens by its name
 //! to look through it from where one stands, an entry by its name to make one from there, called and a
-//! name to give what one stands on another name, back, or up -
+//! name to give what one stands on another name, in and a language to read in it from then on, back, or
+//! up -
 //! words that were just shown, never a flag to remember. A saying that comes to nothing leaves one
 //! standing on nothing: nothing said after it acts on a place one meant to leave. What is shown is what
 //! the lenses bring into focus - around the thing stood on, or what the place shows first - laid out by
@@ -149,6 +150,19 @@ pub fn said(
     today: &str,
     engine: &dyn SqlEngine,
 ) -> Result<String> {
+    // in LANGUAGE: from now on one reads in it - what is in view says what its own place's translations
+    // say, and everything else as it was written. Said once, it stays, as where one stands does
+    let reading = words.first().is_some_and(|word| word == "in");
+    if reading {
+        let Some(lang) = words.get(1) else {
+            bail!("in asks for the language to read in, by its tag: in ru - or in en");
+        };
+        crate::trail::read_in(who, lang);
+    }
+    if let Some(lang) = crate::trail::reads_in(who) {
+        crate::routes::read_in(&lang);
+    }
+    let words: &[String] = if reading { &[] } else { words };
     let stood = crate::trail::stands(who);
     match said_standing(words, given, dir, who, today, engine) {
         // what is said next from where one stands - an act on it, an entry kept where it is held - would
@@ -281,6 +295,8 @@ fn said_standing(
         if given.trim().is_empty() {
             asks = Some(entry);
         } else {
+            // what is entered is entered in the words it is given, beside rows as they were written
+            crate::routes::read_in("");
             // what is given may be for more than one entry: each is kept as the lens of entering says, one
             // after the other, and one stands on what was made last. Where one of them is not entered, what
             // came before it stays entered, and what was not is said

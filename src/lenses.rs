@@ -405,6 +405,43 @@ fn star_at(dir: &Path) -> String {
 /// lens's own text: the one built in is looked through (whether the two still agree is the check's to
 /// say - `differing`).
 pub fn as_kept(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
+    let mut all = as_written(dirs)?;
+    // read in another language, a lens says what it says, and each of its parts its heading, its line
+    // and what it says, in the words a translation of its own place gives: a lens is rows, and its words
+    // are fields of them like any other
+    let words = crate::routes::in_other_words(dirs);
+    if !words.is_empty() {
+        for (star, lens) in &mut all {
+            let of_lens = |column: &str| {
+                crate::routes::other_words(&words, star, "lenses", &lens.lens.id, column)
+                    .map(str::to_string)
+            };
+            if let Some(says) = of_lens("says") {
+                lens.lens.says = says;
+            }
+            for part in &mut lens.focus {
+                let said = |column: &str| {
+                    crate::routes::other_words(&words, star, "lens_parts", &part.id, column)
+                        .map(str::to_string)
+                };
+                let (title, line, says) = (said("title"), said("lays_out"), said("says"));
+                if title.is_some() {
+                    part.title = title;
+                }
+                if let Some(line) = line {
+                    part.line = line;
+                }
+                if let Some(says) = says {
+                    part.says = says;
+                }
+            }
+        }
+    }
+    Ok(all)
+}
+
+/// The lenses in view as each was written, in the language it was written in.
+fn as_written(dirs: &[PathBuf]) -> Result<Vec<(String, Lens)>> {
     // the places held among these - each folder with a mark: what was observed of them is passed over
     let held: std::collections::BTreeSet<String> = dirs
         .iter()

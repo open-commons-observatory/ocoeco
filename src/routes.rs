@@ -259,7 +259,111 @@ pub fn rows_by_place(
             found[index].1.insert("rows_kept".to_string(), times.into());
         }
     }
+    // read in another language: each row says, in each of its words a translation of its own place gives,
+    // what the translation says - and everything else as it was written
+    if table != TRANSLATIONS {
+        let words = in_other_words(dirs);
+        if !words.is_empty() {
+            for (place, row) in &mut found {
+                let Some(of_row) = row
+                    .get("id")
+                    .and_then(|i| i.as_str())
+                    .and_then(|id| words.get(&(place.clone(), table.to_string(), id.to_string())))
+                else {
+                    continue;
+                };
+                for (column, text) in of_row {
+                    if row.get(column).is_some_and(|was| was.is_string()) && column != "id" {
+                        row.insert(column.clone(), text.clone().into());
+                    }
+                }
+            }
+        }
+    }
     found
+}
+
+/// The table a place keeps its translations in: each row says the words of one field of one of its own
+/// rows in another language (SPEC.md section 9) - table, row, column, lang, text.
+pub const TRANSLATIONS: &str = "translations";
+
+/// What a row says in another language, field by field.
+type OtherWords = std::collections::BTreeMap<String, String>;
+/// Every row's other words, by the place that keeps it, its table and its id.
+type InOtherWords = std::collections::BTreeMap<(String, String, String), OtherWords>;
+
+static READ_IN: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+/// From now on what is in view is read in this language - or, given none, as it was written.
+pub fn read_in(lang: &str) {
+    if let Ok(mut asked) = READ_IN.write() {
+        *asked = Some(lang.trim().to_string());
+    }
+}
+
+/// The language what is in view is read in: as was said (`read_in`), else as the surroundings say
+/// (OCOECO_IN). None: as it was written.
+pub fn reading_in() -> Option<String> {
+    READ_IN
+        .read()
+        .ok()
+        .and_then(|asked| asked.clone())
+        .or_else(|| std::env::var("OCOECO_IN").ok())
+        .map(|lang| lang.trim().to_string())
+        .filter(|lang| !lang.is_empty())
+}
+
+/// What the places in view say in the language read in: the words of each field a translation gives, by
+/// place, table and row. A translation is of a row of the place that keeps the translation - nobody
+/// translates another place's words. Nothing where everything is read as it was written.
+pub fn in_other_words(dirs: &[PathBuf]) -> std::sync::Arc<InOtherWords> {
+    type Read = std::collections::BTreeMap<(String, Vec<PathBuf>), std::sync::Arc<InOtherWords>>;
+    static READ: std::sync::Mutex<Read> = std::sync::Mutex::new(Read::new());
+    let Some(lang) = reading_in() else {
+        return Default::default();
+    };
+    let asked = (lang.clone(), dirs.to_vec());
+    if let Some(read) = READ.lock().ok().and_then(|read| read.get(&asked).cloned()) {
+        return read;
+    }
+    let mut words = InOtherWords::new();
+    for (place, row) in rows_by_place(TRANSLATIONS, dirs) {
+        let said = |key: &str| {
+            row.get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string()
+        };
+        if said("lang") == lang && !said("text").is_empty() {
+            words
+                .entry((place, said("table"), said("row")))
+                .or_default()
+                .insert(said("column"), said("text"));
+        }
+    }
+    let words = std::sync::Arc::new(words);
+    if let Ok(mut read) = READ.lock() {
+        read.insert(asked, words.clone());
+    }
+    words
+}
+
+/// What a row of a place called by its star says in the language read in, in one field - where the place
+/// that keeps it gives a translation.
+pub fn other_words<'a>(
+    words: &'a InOtherWords,
+    star: &str,
+    table: &str,
+    row: &str,
+    column: &str,
+) -> Option<&'a str> {
+    words
+        .iter()
+        .find(|((place, of_table, of_row), _)| {
+            of_table == table && of_row == row && place.rsplit('/').next() == Some(star)
+        })
+        .and_then(|(_, of_row)| of_row.get(column))
+        .map(String::as_str)
 }
 
 #[cfg(test)]
@@ -835,5 +939,63 @@ mod held_and_observed {
             (1, 1),
             "a change of the place one stands in is one row; what was observed of another is there"
         );
+    }
+}
+
+#[cfg(test)]
+mod read_in_another_language {
+    use super::*;
+
+    #[test]
+    fn a_row_says_what_its_own_place_s_translation_says_and_the_rest_as_written() {
+        let root = std::env::temp_dir().join(format!("ocoeco-read-in-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let place = |id: &str, translations: &str| {
+            let d = root.join(id);
+            std::fs::create_dir_all(d.join("data")).unwrap();
+            std::fs::write(d.join("oco.toml"), format!("schema = 1\n[project]\nid = \"{id}\"\nname = \"A place: {id}\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\ntranslations = \"data/translations.json\"\n")).unwrap();
+            std::fs::write(
+                d.join("data/notes.json"),
+                "{\"id\":\"n1\",\"text\":\"Hello\",\"kind\":\"greeting\"}\n",
+            )
+            .unwrap();
+            std::fs::write(d.join("data/translations.json"), translations).unwrap();
+            d
+        };
+        let dirs = [
+            place("o/a", "{\"id\":\"notes:n1:text:xx\",\"table\":\"notes\",\"row\":\"n1\",\"column\":\"text\",\"lang\":\"xx\",\"text\":\"Privet\",\"by\":\"machine\"}\n"),
+            // another place's row of the same id is its own: nobody translates another place's words
+            place("o/b", ""),
+        ];
+        let text = |of: &str| {
+            rows_by_place("notes", &dirs)
+                .into_iter()
+                .find(|(place, _)| place == of)
+                .map(|(_, row)| (row["text"].clone(), row["kind"].clone()))
+        };
+        assert_eq!(text("o/a").unwrap().0, "Hello", "as it was written");
+        read_in("xx");
+        assert_eq!(text("o/a").unwrap().0, "Privet", "read in another language");
+        assert_eq!(
+            text("o/a").unwrap().1,
+            "greeting",
+            "what no translation gives stays"
+        );
+        assert_eq!(
+            text("o/b").unwrap().0,
+            "Hello",
+            "a place says its own words"
+        );
+        assert_eq!(
+            other_words(&in_other_words(&dirs), "a", "notes", "n1", "text"),
+            Some("Privet")
+        );
+        read_in("");
+        assert_eq!(
+            text("o/a").unwrap().0,
+            "Hello",
+            "and as it was written again"
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
