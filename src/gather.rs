@@ -52,12 +52,14 @@ pub fn is_automation(commit: &Value) -> bool {
         || email.ends_with("[bot]@users.noreply.github.com")
 }
 
-/// A GitHub releases answer -> { id: tag, name, published, link }.
+/// A GitHub releases answer -> { id: tag, name, published, link }. A draft is no release yet: it is said
+/// once its files are there, and gathered from then on.
 pub fn releases(text: &str) -> Vec<Value> {
     let v: Value = serde_json::from_str(text).unwrap_or(Value::Null);
     v.as_array()
         .map(|a| {
             a.iter()
+                .filter(|r| r["draft"] != true)
                 .filter_map(|r| {
                     Some(json!({
                         "id": r["tag_name"].as_str()?,
@@ -171,6 +173,12 @@ mod tests {
         assert_eq!(r[0]["id"], "v0.1.40");
         assert_eq!(r[0]["published"], "2026-11-10");
         assert!(releases("not json").is_empty());
+        // a draft, not yet said, is not gathered
+        let drafted = releases(
+            r#"[{"tag_name":"v0.1.41","draft":true,"published_at":null},{"tag_name":"v0.1.40","draft":false}]"#,
+        );
+        assert_eq!(drafted.len(), 1);
+        assert_eq!(drafted[0]["id"], "v0.1.40");
     }
 
     #[test]
