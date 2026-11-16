@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.78.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.77.0...ocoeco-v0.78.0) (2026-11-16)
+
+
+### Features
+
+* a lens's rows mean the lens their own place keeps: a part is of its own lens ([#426](https://github.com/open-commons-observatory/ocoeco/issues/426)) ([9725fa4](https://github.com/open-commons-observatory/ocoeco/commit/9725fa4b06cdf2250817166dad6c2fe50f1cba1a))
+
 ## [0.77.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.76.0...ocoeco-v0.77.0) (2026-11-16)
 
 
