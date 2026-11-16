@@ -116,6 +116,32 @@ pub fn in_a_few_words(row: &serde_json::Value) -> String {
             .filter(|s| !s.trim().is_empty())
     })
     .unwrap_or_default();
+    // a part of a lens with no heading says what it is: the lens it places, and the lens that is seen
+    // through - or the shape it names. So that walking a lens one passes no blank line
+    let of_a_part = |key: &str| {
+        row.get(key)
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+    };
+    let as_a_part = match (
+        said.is_empty(),
+        of_a_part("places"),
+        of_a_part("through"),
+        of_a_part("named"),
+    ) {
+        (true, Some("*"), None, _) => "places every lens in view".to_string(),
+        (true, Some(placed), None, _) => format!("places {placed}"),
+        (true, Some(placed), Some(behind), _) => {
+            format!("places {placed}, seen through {behind}")
+        }
+        (true, None, _, Some(shape)) => format!("the shape {shape}"),
+        _ => String::new(),
+    };
+    let said = if as_a_part.is_empty() {
+        said
+    } else {
+        as_a_part.as_str()
+    };
     let mut short: String = said.chars().take(70).collect();
     if said.chars().count() > 70 {
         short.push_str("...");
