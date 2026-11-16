@@ -181,8 +181,24 @@ pub fn said(
         word if the_entry(word, &all).is_some() => {
             an_entry_said = Some(word.to_string());
         }
+        // a thing by its name - as it was shown, or as it is known: one stands on it, as on what a mark
+        // marks; and an entry named so is said
+        word if word.contains(':') => {
+            let Some(thing) = crate::focus::Named::of(&dirs)?
+                .names_of(word)
+                .into_iter()
+                .next()
+            else {
+                bail!("{word} is the name of no one thing in view: ocoeco, alone, shows where you stand and what can be said from there");
+            };
+            if thing.contains("/lens_entries:") {
+                an_entry_said = Some(thing);
+            } else {
+                crate::trail::step(who, &thing);
+            }
+        }
         word => bail!(
-            "{word} is no mark, no lens in view and no entry a lens in view declares: ocoeco, alone, shows where you stand and what can be said from there"
+            "{word} is no mark, no lens in view, no entry a lens in view declares and no thing by its name: ocoeco, alone, shows where you stand and what can be said from there"
         ),
     }
     // an entry said: with nothing given, what it asks is shown - through the lens of entering, from the
@@ -196,6 +212,9 @@ pub fn said(
             let (thing, says) = kept_as_the_lens_says(&entry, &given, &all, &dirs, today, engine)?;
             crate::trail::step(who, &thing);
             entered = says;
+            // what was entered may be a part of the language itself: it is read again, so that what is
+            // shown next is the language as it now is
+            crate::lenses::as_kept_among(&dirs);
         }
     }
     // what is looked through: the lens named, from where one stands if it looks from a thing; else what
