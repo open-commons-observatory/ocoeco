@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.80.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.79.0...ocoeco-v0.80.0) (2026-11-16)
+
+
+### Features
+
+* a translation is entered like anything else: its table and entry, said in the language ([#431](https://github.com/open-commons-observatory/ocoeco/issues/431)) ([62869f2](https://github.com/open-commons-observatory/ocoeco/commit/62869f21eef79edc7e57cf6e339a4c1a67c67171))
+
 ## [0.79.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.78.0...ocoeco-v0.79.0) (2026-11-16)
 
 
