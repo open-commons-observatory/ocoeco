@@ -79,6 +79,16 @@ WHERE NOT coalesce(s.up, false)
 LIMIT 1
 """
 
+# Which places keep rows of the kind this entry makes: read off what they hold. A place that holds none is
+# not known to keep the kind.
+[[focus]]
+named = "keepers"
+sql = """
+SELECT k.place, min(k.star) AS star, count(*) AS rows_kept
+FROM known k JOIN entry e ON k.of_table = e.fills
+GROUP BY k.place
+"""
+
 # What was given, field by field - but for where to keep it, which is no field of the row.
 [[focus]]
 named = "told"
@@ -115,14 +125,16 @@ FROM (SELECT (SELECT min(value) FROM told WHERE field = 'id') AS named,
 """
 
 # Where the row is kept: the place given; else, for an entry a place brings, that place; else where the
-# thing stood on is held.
+# thing stood on is held - if that place keeps rows of this kind, or none does yet. A place that keeps
+# none of the kind is not offered: the places that do are said instead.
 [[focus]]
 named = "where_kept"
 sql = """
 SELECT coalesce((SELECT min(k.place) FROM given g JOIN known k ON k.place = trim(g.value) OR k.star = trim(g.value) WHERE g.field = 'in'),
                 (SELECT min(trim(g.value)) FROM given g WHERE g.field = 'in'),
                 (SELECT min(e.place) FROM entry e WHERE e.of_a_place),
-                (SELECT min(s.place) FROM stood s)) AS place
+                (SELECT min(s.place) FROM stood s
+                 WHERE s.place IN (SELECT place FROM keepers) OR NOT EXISTS (SELECT 1 FROM keepers))) AS place
 """
 
 [[focus]]
@@ -189,6 +201,18 @@ WHERE w.place IS NOT NULL AND NOT EXISTS (SELECT 1 FROM given)
 """
 line = "{place} - {says}"
 
+# Where the place one stands in keeps none of this kind: the places that do - one of them is said, in: PLACE.
+[[focus]]
+title = "kept elsewhere - say in: PLACE ({count})"
+sql = """
+SELECT k.star AS place, coalesce(p.short, k.place) AS thing, k.rows_kept
+FROM keepers k JOIN entry e ON true JOIN where_kept w ON w.place IS NULL
+LEFT JOIN known p ON p.of_table = 'places' AND p.place = k.place
+WHERE NOT EXISTS (SELECT 1 FROM given)
+ORDER BY k.rows_kept DESC, k.place
+"""
+line = "{place} - keeps {rows_kept}"
+
 # Given what it asks: the row it would keep - each field and its value, and the place it is kept in. The
 # program writes what is said here.
 [[focus]]
@@ -211,7 +235,11 @@ sql = """
 SELECT l.lacking
 FROM (SELECT 'nothing to name it by: give what it asks, or id: NAME' AS lacking FROM called c WHERE c.id IS NULL
       UNION ALL
-      SELECT 'no place to keep it in: stand on what it is to say something of, or give in: PLACE' FROM where_kept w WHERE w.place IS NULL
+      SELECT CASE WHEN EXISTS (SELECT 1 FROM stood) AND EXISTS (SELECT 1 FROM keepers)
+                  THEN (SELECT min(s.place) FROM stood s) || ' keeps none of this kind: give in: PLACE - it is kept in '
+                       || (SELECT string_agg(k.star, ', ' ORDER BY k.rows_kept DESC, k.star) FROM keepers k)
+                  ELSE 'no place to keep it in: stand on what it is to say something of, or give in: PLACE' END
+      FROM where_kept w WHERE w.place IS NULL
       UNION ALL
       SELECT w.place || ' already keeps one called ' || c.id || ': give id: NAME to name this one - or id: ' || c.id || ', to change that one'
       FROM called c, where_kept w, entry e
