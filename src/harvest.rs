@@ -68,15 +68,6 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
         } else {
             c.found.url.clone()
         };
-        h.projects.push(
-            json!({"id": id, "project": id, "name": mark.project.name, "title": mark.project.title,
-            "order": mark.project.order, "kind": mark.project.kind,
-            "parent": mark.project.parent, "link": lives_at, "platform": c.found.platform,
-            "tables": mark.exports.keys().cloned().collect::<Vec<_>>(),
-            // what a mark says of the place, so that what was observed says it as the place itself does
-            "also": mark.also, "is": mark.place.as_ref().map(|p| p.is.clone()),
-            "gathers": mark.place.as_ref().map(|p| p.gathers.clone()).unwrap_or_default()}),
-        );
         // a lens declares its family and views in lens.toml: one row of the lenses table
         if mark.project.kind == "lens" {
             match source.read(&c.found, "lens.toml") {
@@ -94,6 +85,8 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
                 Err(e) => h.problems.push(json!({"id": format!("{id}:lens"), "project": id, "problem": format!("{e:#}")})),
             }
         }
+        // the tables it keeps: those its mark names, and what the gatherer wrote where it gathers it
+        let mut keeps = Vec::new();
         for (table, path) in &mark.exports {
             // a table may live on another branch of its repository: path@branch
             let (file, branch) = path.split_once('@').unwrap_or((path.as_str(), ""));
@@ -113,10 +106,22 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
                     }
                     h.tables.entry(table.clone()).or_default().extend(rows);
                 }
+                // what the gatherer writes is there where it gathers: a place it does not gather keeps none
+                Ok(None) if crate::gather::wrote(table, path) => continue,
                 Ok(None) => h.problems.push(json!({"id": format!("{id}:{table}"), "project": id, "problem": format!("{path} is exported but missing")})),
                 Err(e) => h.problems.push(json!({"id": format!("{id}:{table}"), "project": id, "problem": format!("{e:#}")})),
             }
+            keeps.push(table.clone());
         }
+        h.projects.push(
+            json!({"id": id, "project": id, "name": mark.project.name, "title": mark.project.title,
+            "order": mark.project.order, "kind": mark.project.kind,
+            "parent": mark.project.parent, "link": lives_at, "platform": c.found.platform,
+            "tables": keeps,
+            // what a mark says of the place, so that what was observed says it as the place itself does
+            "also": mark.also, "is": mark.place.as_ref().map(|p| p.is.clone()),
+            "gathers": mark.place.as_ref().map(|p| p.gathers.clone()).unwrap_or_default()}),
+        );
     }
     h
 }
@@ -376,7 +381,9 @@ mod tests {
             &OnDataBranch,
         );
         assert_eq!(h.tables["ci"].len(), 1, "read from oco-data, not from main");
-        assert!(h.problems.is_empty());
+        // what the gatherer writes, not written there: the place is not gathered - no problem, none kept
+        assert!(h.problems.is_empty(), "{:?}", h.problems);
+        assert_eq!(h.projects[0]["tables"], json!(["ci"]));
     }
 }
 

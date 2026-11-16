@@ -12,6 +12,25 @@ use std::path::Path;
 /// How far back activity is gathered.
 pub const DAYS: i64 = 90;
 
+/// Where the gatherer writes, in each place it gathers: a folder on a branch of the place's own
+/// repository, a file for each table. Said once, here where it is written: a reader finds the tables
+/// there without a mark naming them, and a place the gatherer does not gather simply keeps none.
+pub const BRANCH: &str = "oco-data";
+pub const FOLDER: &str = "oco/gathered";
+pub const TABLES: [&str; 2] = ["activity", "releases"];
+
+/// Each table the gatherer writes, with where it is kept: folder/table.json@branch.
+pub fn writes() -> impl Iterator<Item = (&'static str, String)> {
+    TABLES
+        .into_iter()
+        .map(|table| (table, format!("{FOLDER}/{table}.json@{BRANCH}")))
+}
+
+/// Whether a table kept at a path is one the gatherer writes there.
+pub fn wrote(table: &str, path: &str) -> bool {
+    writes().any(|(t, p)| t == table && p == path)
+}
+
 /// Commit dates (ISO 8601) -> one row per day: { id: "YYYY-MM-DD", commits }.
 pub fn activity(dates: &[String]) -> Vec<Value> {
     let mut per_day: BTreeMap<String, u64> = BTreeMap::new();
@@ -115,8 +134,9 @@ pub fn gather(gh: &GitHub, repo: &str, out: &Path) -> Result<[usize; 2]> {
     let rel = releases(&api("releases?per_page=30".into())?);
     std::fs::create_dir_all(out)?;
     let counts = [act.len(), rel.len()];
-    std::fs::write(out.join("activity.json"), lines(act))?;
-    std::fs::write(out.join("releases.json"), lines(rel))?;
+    for (table, rows) in TABLES.into_iter().zip([act, rel]) {
+        std::fs::write(out.join(format!("{table}.json")), lines(rows))?;
+    }
     Ok(counts)
 }
 
@@ -151,6 +171,27 @@ mod tests {
         assert_eq!(r[0]["id"], "v0.1.40");
         assert_eq!(r[0]["published"], "2026-11-10");
         assert!(releases("not json").is_empty());
+    }
+
+    #[test]
+    fn the_gatherer_is_read_where_it_writes() {
+        // its workflow writes the folder onto the branch it is read from
+        let flow = include_str!("../.github/workflows/gather.yml");
+        assert!(
+            flow.contains(&format!("branch={BRANCH} out={FOLDER}\n")),
+            "the gatherer's workflow writes elsewhere than it is read"
+        );
+        // and the lens of what is gathered declares just the tables it writes
+        let lens: toml::Value = toml::from_str(include_str!("../language/gathered.toml")).unwrap();
+        let declared: Vec<&str> = lens["tables"]
+            .as_table()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(declared, TABLES);
+        assert!(wrote("activity", "oco/gathered/activity.json@oco-data"));
+        assert!(!wrote("activity", "oco/activity.json"));
     }
 
     #[test]

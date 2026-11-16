@@ -49,7 +49,7 @@ enum Cmd {
         #[arg(long)]
         hold: Option<std::path::PathBuf>,
     },
-    /// Gather a repository's activity, releases and CI into DIR - data made by work
+    /// Gather a repository's activity and releases into DIR - data made by work
     Gather {
         #[arg(long)]
         repo: String,

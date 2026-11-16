@@ -63,7 +63,8 @@ pub struct Project {
 impl Mark {
     /// Reads and checks a mark: schema 1, a known kind, an id of the form owner/repo.
     pub fn parse(text: &str) -> Result<Mark> {
-        let m: Mark = toml::from_str(text).context("oco.toml is not valid TOML for the mark")?;
+        let mut m: Mark =
+            toml::from_str(text).context("oco.toml is not valid TOML for the mark")?;
         if m.schema != 1 {
             bail!("schema {} is not one this engine reads (1)", m.schema);
         }
@@ -88,6 +89,11 @@ impl Mark {
                     bail!("it gathers {gathered:?}, which is neither owner/repository nor owner/*");
                 }
             }
+        }
+        // what the gatherer writes is said once, where it writes it: a mark need not name it, and
+        // keeps it all the same - a place the gatherer does not gather simply has none of it to read
+        for (table, path) in crate::gather::writes() {
+            m.exports.entry(table.to_string()).or_insert(path);
         }
         for (name, table) in &m.also {
             if !m.exports.contains_key(table) {
@@ -160,6 +166,16 @@ mod tests {
         let m = Mark::parse(DOCS).unwrap();
         assert_eq!(m.project.kind, "picture");
         assert_eq!(m.exports["backlog"], "data/backlog.json");
+    }
+
+    #[test]
+    fn what_the_gatherer_writes_is_kept_without_being_named() {
+        let m = Mark::parse(DOCS).unwrap();
+        assert_eq!(m.exports["activity"], "oco/gathered/activity.json@oco-data");
+        assert!(crate::gather::wrote("releases", &m.exports["releases"]));
+        // and where a mark says it keeps a table of it elsewhere, it keeps it where it says
+        let own = Mark::parse(&format!("{DOCS}activity = \"data/activity.json\"\n")).unwrap();
+        assert_eq!(own.exports["activity"], "data/activity.json");
     }
 
     #[test]

@@ -101,7 +101,7 @@ test runs, releases, a project's own files - and writes rows into a table, canon
 or an event. It declares its table, its source and when it runs. A row a gatherer writes is never
 edited by hand; to change it, change the source.
 
-Gathered data lives on a branch of its own, `oco-data` (a mark names it: `oco/gathered/releases.json@oco-data`):
+Gathered data lives on a branch of its own, `oco-data`, in `oco/gathered/` (said once, by the gatherer - no mark names it):
 the default branch stays the history of the work, a protected branch is never touched, and the
 gatherer's commits are not themselves counted. A heartbeat counts people's and agents' work: commits
 made by bots and workflows are left out.

@@ -9,13 +9,6 @@ name: gather
 # and it gathers ocoeco itself on the same schedule.
 on:
   workflow_call:
-    inputs:
-      out:
-        type: string
-        default: oco/gathered
-      branch:
-        type: string
-        default: oco-data
   schedule:
     - cron: "41 3 * * *"
   workflow_dispatch:
@@ -37,7 +30,8 @@ jobs:
         # gathered data lives on its own branch: the default branch stays the history of the work
         # (and a protected one is never touched), and the gatherer's commits are not counted as work
         run: |
-          branch="${{ inputs.branch || 'oco-data' }}"; out="${{ inputs.out || 'oco/gathered' }}"
+          # where it is read, as the program says (src/gather.rs): a guard keeps the two the same
+          branch=oco-data out=oco/gathered
           if git fetch -q origin "$branch" 2>/dev/null; then git checkout -q -B "$branch" FETCH_HEAD
           else git checkout -q --orphan "$branch"; git rm -rfq . >/dev/null 2>&1 || true; fi
           # the folder is what was gathered this time: what is no longer gathered is no longer there
