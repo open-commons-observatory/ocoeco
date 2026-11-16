@@ -497,6 +497,9 @@ pub fn from_rows(of: impl Fn(&str) -> Vec<serde_json::Value>) -> Vec<Lens> {
                 if let Some(dated) = some(raw(&t, "dated")) {
                     table.insert("dated".into(), toml::Value::String(dated));
                 }
+                if let Some(tells) = some(raw(&t, "tells")) {
+                    table.insert("tells".into(), toml::Value::String(tells));
+                }
                 let mut its: Vec<serde_json::Value> = mine(&fields, &id)
                     .into_iter()
                     .filter(|f| raw(f, "of_table") == name)
@@ -661,6 +664,7 @@ pub fn as_rows(
                        "key": declared.get("key").and_then(|k| k.as_array()).map(|k| k.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", ")).unwrap_or_default(),
                        "extra_fields": declared.get("extra_fields").and_then(|v| v.as_bool()).unwrap_or(false),
                        "dated": declared.get("dated").and_then(|v| v.as_str()).unwrap_or_default(),
+                       "tells": declared.get("tells").and_then(|v| v.as_str()).unwrap_or_default(),
                        "star": star}),
             );
             for (at, field) in declared

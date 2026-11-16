@@ -30,6 +30,7 @@ fields = [
     { name = "key", type = "string" },
     { name = "extra_fields", type = "boolean" },
     { name = "dated", type = "string" },
+    { name = "tells", type = "string" },
 ]
 
 [tables.lens_fields]

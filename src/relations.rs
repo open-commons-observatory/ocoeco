@@ -110,6 +110,29 @@ pub fn when(row: &serde_json::Value, dated: Option<&str>) -> Option<String> {
         .find_map(|field| row.get(field).and_then(shaped))
 }
 
+/// A row in a few words, as its table says its rows are told - by one field, or by several laid out as a
+/// line is - and, where its table says nothing of it, by the words a list in the program finds.
+pub fn told(row: &serde_json::Value, tells: Option<&String>) -> String {
+    let said = tells
+        .zip(row.as_object())
+        .map(|(tells, row)| {
+            let line = if tells.contains('{') {
+                tells.clone()
+            } else {
+                format!("{{{}}}", tells.trim())
+            };
+            crate::focus::laid_out(&line, row)
+        })
+        .filter(|said| !said.trim().is_empty() && !said.contains('{'));
+    match said {
+        Some(said) if said.chars().count() > 70 => {
+            format!("{}...", said.chars().take(70).collect::<String>())
+        }
+        Some(said) => said,
+        None => in_a_few_words(row),
+    }
+}
+
 pub fn in_a_few_words(row: &serde_json::Value) -> String {
     let words = |key: &str| {
         row.get(key)
@@ -515,14 +538,20 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
         .map(|lenses| lenses.into_iter().flat_map(|lens| lens.relation).collect())
         .unwrap_or_else(|_| relations().to_vec());
     let short = |id: &str| id.rsplit('/').next().unwrap_or(id).to_string();
+    let lenses_in_view = crate::lenses::with(dirs).unwrap_or_default();
+    let said_of = |key: &str| -> BTreeMap<String, String> {
+        lenses_in_view
+            .iter()
+            .flat_map(|lens| lens.tables.iter())
+            .filter_map(|(name, table)| Some((name.clone(), table.get(key)?.as_str()?.to_string())))
+            .collect()
+    };
     // which field dates a row of each table, where the lens that defines the table says so: a thing says
     // when by it, so that what is in view has time in it - before and after, not only what points at what
-    let dated: BTreeMap<String, String> = crate::lenses::with(dirs)
-        .unwrap_or_default()
-        .iter()
-        .flat_map(|lens| lens.tables.iter())
-        .filter_map(|(name, table)| Some((name.clone(), table.get("dated")?.as_str()?.to_string())))
-        .collect();
+    let dated = said_of("dated");
+    // and which words tell a row in a few, where the lens that defines its table says so - a field, or
+    // several laid out as a line is: a thing says itself by them
+    let tells = said_of("tells");
     // where a link points, from the place that holds it, and whether that is there
     let resolve = |here: &str, link: &Link, to: &[String]| -> (String, Option<bool>) {
         // a table may be written by another name its place knows it by: a name is not the place
@@ -598,7 +627,7 @@ pub fn as_graph_from(dirs: &[PathBuf], only: Option<&str>) -> Result<Graph> {
                     continue;
                 };
                 things.push(json!({"id": format!("{id}/{table}:{of}"), "of_table": table, "place": id, "star": short(id),
-                                   "says": in_a_few_words(row), "at": when(row, dated.get(table).map(String::as_str)),
+                                   "says": told(row, tells.get(table)), "at": when(row, dated.get(table).map(String::as_str)),
                                    "rows_kept": row.get("rows_kept")}));
             }
         }
@@ -1026,6 +1055,46 @@ mod tests {
             in_a_few_words(&serde_json::json!({"id": "x", "says": "A lens."})),
             "A lens."
         );
+    }
+
+    #[test]
+    fn a_thing_is_told_as_its_table_says_its_rows_are_told() {
+        let d = std::env::temp_dir().join(format!("ocoeco-told-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("oco")).unwrap();
+        std::fs::create_dir_all(d.join("lenses")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nfiles_kept = \"oco/files_kept.json\"\nchores_kept = \"oco/chores_kept.json\"\nnotes_kept = \"oco/notes_kept.json\"\n").unwrap();
+        std::fs::write(d.join("lenses/kept.toml"), "[lens]\nid = \"kept\"\nsays = \"Files, chores and notes.\"\n[tables.files_kept]\nkey = [\"id\"]\ntells = \"{lines} lines\"\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"lines\", type = \"integer\" }]\n[tables.chores_kept]\nkey = [\"id\"]\ntells = \"action\"\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"action\", type = \"string\" }]\n[tables.notes_kept]\nkey = [\"id\"]\nfields = [{ name = \"id\", type = \"string\", required = true }, { name = \"what\", type = \"string\" }]\n").unwrap();
+        std::fs::write(
+            d.join("oco/files_kept.json"),
+            "{\"id\":\"README.md\",\"lines\":5}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("oco/chores_kept.json"),
+            "{\"id\":\"c1\",\"action\":\"patch source by hand\"}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            d.join("oco/notes_kept.json"),
+            "{\"id\":\"n1\",\"what\":\"a note\"}\n",
+        )
+        .unwrap();
+        let graph = as_graph(std::slice::from_ref(&d)).unwrap();
+        let says = |id: &str| -> String {
+            graph["things"]
+                .iter()
+                .find(|t| t["id"] == id)
+                .and_then(|t| t["says"].as_str())
+                .unwrap_or("not there")
+                .to_string()
+        };
+        // laid out as a line is, or by one field it names
+        assert_eq!(says("o/r/files_kept:README.md"), "5 lines");
+        assert_eq!(says("o/r/chores_kept:c1"), "patch source by hand");
+        // and where its table says nothing of how its rows are told: by the words the program's list finds
+        assert_eq!(says("o/r/notes_kept:n1"), "a note");
+        let _ = std::fs::remove_dir_all(&d);
     }
 
     #[test]
