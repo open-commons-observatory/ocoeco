@@ -45,6 +45,10 @@ parent = "owner-or-project"
 backlog = "data/backlog.json"
 ```
 
+A place may keep the records of other places of its family in its own tables - one database for a
+family. It names them at the top of its mark, `holds = ["owner/other", ...]`, and a row whose `project`
+names one of them stays theirs when it is gathered; every other row is the place's own, as always.
+
 A `picture` is a grand project (its own tab and views); `observatory` and `canon` are meta.
 
 ## 4. The standard tables

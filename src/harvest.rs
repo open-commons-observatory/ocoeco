@@ -10,13 +10,29 @@ use std::path::Path;
 
 /// A table's lines -> its rows, each tagged with the project; how many lines were not rows.
 pub fn tag_rows(text: &str, project: &str) -> (Vec<Map<String, Value>>, usize) {
+    tag_rows_holding(text, project, &[])
+}
+
+/// As [`tag_rows`], for a place that holds the records of others (its mark's `holds`): a row that
+/// names one of them as its project stays theirs.
+pub fn tag_rows_holding(
+    text: &str,
+    project: &str,
+    holds: &[String],
+) -> (Vec<Map<String, Value>>, usize) {
     let mut bad = 0;
     let rows = text
         .lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| match serde_json::from_str::<Value>(l) {
             Ok(Value::Object(mut m)) => {
-                m.insert("project".into(), json!(project));
+                let theirs = m
+                    .get("project")
+                    .and_then(Value::as_str)
+                    .is_some_and(|p| holds.iter().any(|h| h == p));
+                if !theirs {
+                    m.insert("project".into(), json!(project));
+                }
                 Some(m)
             }
             _ => {
@@ -100,7 +116,7 @@ pub fn harvest(candidates: &[Candidate], source: &dyn Source) -> Harvest {
             };
             match source.read(&at, file) {
                 Ok(Some(text)) => {
-                    let (rows, bad) = tag_rows(&text, id);
+                    let (rows, bad) = tag_rows_holding(&text, id, &mark.holds);
                     if bad > 0 {
                         h.problems.push(json!({"id": format!("{id}:{table}"), "project": id, "problem": format!("{bad} lines of {path} are not rows")}));
                     }
@@ -315,6 +331,25 @@ mod tests {
             })
             .collect();
         assert_eq!(ids, ["c", "a", "b"], "a/a's rows first, then z/z's by id");
+    }
+
+    #[test]
+    fn a_held_place_keeps_its_own_rows() {
+        let held = vec!["o/sibling".to_string()];
+        let (rows, _) = tag_rows_holding(
+            "{\"id\":\"a\",\"project\":\"o/sibling\"}\n{\"id\":\"b\",\"project\":\"x/stranger\"}\n{\"id\":\"c\"}\n",
+            "o/docs",
+            &held,
+        );
+        let of: Vec<&str> = rows
+            .iter()
+            .map(|r| r["project"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            of,
+            ["o/sibling", "o/docs", "o/docs"],
+            "a held place's row stays its own; any other is the holder's"
+        );
     }
 
     #[test]
