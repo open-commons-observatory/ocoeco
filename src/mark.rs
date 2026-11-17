@@ -30,6 +30,10 @@ pub struct Mark {
     /// place it names - many names may point at one table, and a link written with any of them holds.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub also: BTreeMap<String, String>,
+    /// The places whose records this place holds: a row that names one of them as its `project` stays
+    /// theirs when it is gathered - one database may keep a family's records, each still of its place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub holds: Vec<String>,
 }
 
 /// A place that gathers: a constellation keeps what holds between its stars; an observatory gathers
