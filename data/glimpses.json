@@ -293,3 +293,4 @@
 {"id":"g-20261117-032104","at":"2026-11-17T03:21:04Z","by":"conveyor-tad","kind":"fix","summary":"a held place's rows are its own where rows are read: one id in two places, two rows"}
 {"id":"g-20261117-101753","at":"2026-11-17T10:17:53Z","by":"research-idealkb","kind":"feat","summary":"A decision can be about a component, feature or device, not only a milestone"}
 {"id":"g-20261117-102113","at":"2026-11-17T10:21:13Z","by":"ideal-agent","kind":"fix","summary":"links to the practices point to ideal-agent, where they are kept"}
+{"id":"g-20261117-113626","at":"2026-11-17T11:36:26Z","by":"ideal-agent","kind":"feat","summary":"a decision can be about a subject, as a knowledge base names one"}
