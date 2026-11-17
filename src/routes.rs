@@ -197,8 +197,9 @@ pub fn rows_by_place(
             .to_string()
     };
     for dir in dirs {
-        let (keeper, rows): (
+        let (keeper, holds, rows): (
             Option<String>,
+            Vec<String>,
             Vec<serde_json::Map<String, serde_json::Value>>,
         ) = match std::fs::read_to_string(dir.join("oco.toml"))
             .ok()
@@ -206,6 +207,7 @@ pub fn rows_by_place(
         {
             Some(mark) => (
                 Some(mark.project.id.clone()),
+                mark.holds.clone(),
                 crate::join::rows(dir, &mark, table)
                     .into_iter()
                     .filter_map(|r| r.as_object().cloned())
@@ -213,6 +215,7 @@ pub fn rows_by_place(
             ),
             None if dir.join("projects.json").is_file() => (
                 None,
+                Vec::new(),
                 crate::harvest::read_rows(&dir.join(format!("{table}.json"))),
             ),
             None => continue,
@@ -224,7 +227,8 @@ pub fn rows_by_place(
                 .and_then(|p| p.as_str())
                 .filter(|p| !p.is_empty());
             let Some(place) = named
-                .filter(|p| keeper.is_none() || known.contains(*p))
+                // a row is of the place it names where that place is in view, or held here (the mark's holds)
+                .filter(|p| keeper.is_none() || known.contains(*p) || holds.iter().any(|h| h == p))
                 .map(str::to_string)
                 .or_else(|| keeper.clone())
             else {
@@ -396,6 +400,30 @@ mod an_id_two_rows_go_by {
         assert_eq!(rows.len(), 2);
         assert_eq!(kept(&rows, "b"), None, "reached twice is not kept twice");
         assert_eq!(kept(&rows, "a"), Some(2));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_held_places_rows_are_its_own_one_id_in_two_places_is_two_rows() {
+        let d = std::env::temp_dir().join(format!("ocoeco-held-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("data")).unwrap();
+        std::fs::write(d.join("oco.toml"), "schema = 1\nholds = [\"o/sibling\"]\n[project]\nid = \"o/r\"\nname = \"R: a star\"\nkind = \"tool\"\nparent = \"o\"\n[exports]\nnotes = \"data/notes.json\"\n").unwrap();
+        std::fs::write(
+            d.join("data/notes.json"),
+            "{\"id\":\"a\",\"project\":\"o/r\"}\n{\"id\":\"a\",\"project\":\"o/sibling\"}\n{\"id\":\"b\",\"project\":\"x/stranger\"}\n",
+        )
+        .unwrap();
+        let rows = rows_by_place("notes", std::slice::from_ref(&d));
+        let of: Vec<(&str, &str)> = rows
+            .iter()
+            .map(|(place, row)| (place.as_str(), row["id"].as_str().unwrap()))
+            .collect();
+        assert_eq!(of, [("o/r", "a"), ("o/sibling", "a"), ("o/r", "b")]);
+        assert!(
+            rows.iter().all(|(_, row)| row.get("rows_kept").is_none()),
+            "one id in two places is not kept twice"
+        );
         let _ = std::fs::remove_dir_all(&d);
     }
 }
