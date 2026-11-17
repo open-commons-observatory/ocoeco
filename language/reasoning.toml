@@ -31,7 +31,7 @@ nature = "rests on"
 
 [[relation]]
 from = "decisions.about"
-to = ["milestones", "concepts", "backlog"]
+to = ["milestones", "concepts", "backlog", "components", "features", "devices"]
 nature = "is about"
 
 # one decision refining or replacing another - until 2026-11-12 written as prose
