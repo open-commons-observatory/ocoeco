@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.83.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.82.2...ocoeco-v0.83.0) (2026-11-17)
+
+
+### Features
+
+* A decision can be about a component, feature or device, not only a milestone ([#455](https://github.com/open-commons-observatory/ocoeco/issues/455)) ([de6d471](https://github.com/open-commons-observatory/ocoeco/commit/de6d4717fe69d0c99c9439c4a664fb004ad14ea0))
+* a decision can be about a subject, as a knowledge base names one ([#458](https://github.com/open-commons-observatory/ocoeco/issues/458)) ([16ed32a](https://github.com/open-commons-observatory/ocoeco/commit/16ed32a4fedf39309bb4da3827ef77a874ec9a4c))
+
+
+### Bug Fixes
+
+* links to the practices point to ideal-agent, where they are kept ([#456](https://github.com/open-commons-observatory/ocoeco/issues/456)) ([f3aed95](https://github.com/open-commons-observatory/ocoeco/commit/f3aed958d5f0223c69ffcf90f4305919b1a13df3))
+
 ## [0.82.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.82.1...ocoeco-v0.82.2) (2026-11-17)
 
 
