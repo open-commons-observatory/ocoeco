@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.82.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.82.0...ocoeco-v0.82.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* an overlay, not a language: the entry no longer goes by the name of the lens of language ([#442](https://github.com/open-commons-observatory/ocoeco/issues/442)) ([9228352](https://github.com/open-commons-observatory/ocoeco/commit/92283526a83b78d5cd3ad065b382844b11bd880a))
+
 ## [0.82.0](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.81.0...ocoeco-v0.82.0) (2026-11-16)
 
 
