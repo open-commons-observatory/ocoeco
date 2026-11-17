@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.82.2](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.82.1...ocoeco-v0.82.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* a held place's rows are its own where rows are read: one id in two places, two rows ([#453](https://github.com/open-commons-observatory/ocoeco/issues/453)) ([91a5fed](https://github.com/open-commons-observatory/ocoeco/commit/91a5fed5f1b140ca963edef523773f9e26a9b02b))
+
 ## [0.82.1](https://github.com/open-commons-observatory/ocoeco/compare/ocoeco-v0.82.0...ocoeco-v0.82.1) (2026-11-17)
 
 
